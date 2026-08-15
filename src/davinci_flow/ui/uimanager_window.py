@@ -1,4 +1,4 @@
-"""Interfaz gráfica de DaVinci Flow (UIManager nativo de Resolve con respaldo Tkinter)."""
+"""Interfaz gráfica de DaVinci Flow con diseño compacto y nativo para UIManager."""
 
 import sys
 import tkinter as tk
@@ -10,8 +10,6 @@ from davinci_flow.application import (
     plan_active_subtitles,
 )
 from davinci_flow.errors import DaVinciFlowError
-from davinci_flow.generation.plan import GenerationPlan
-from davinci_flow.generation.record import GenerationExecutionRecord
 
 
 def _try_create_uimanager_window(
@@ -19,7 +17,7 @@ def _try_create_uimanager_window(
     fusion_app: Any = None,
     bmd_module: Any = None,
 ) -> bool:
-    """Intenta crear y ejecutar la ventana nativa mediante el UIManager de Resolve."""
+    """Crea la ventana compacta nativa mediante el UIManager de Resolve con alturas y proporciones exactas."""
     if fusion_app is None:
         if resolve_app is not None and hasattr(resolve_app, "Fusion"):
             try:
@@ -64,56 +62,143 @@ def _try_create_uimanager_window(
 
     dispatcher = bmd_module.UIDispatcher(ui)
 
+    # Ventana compacta con proporciones exactas para que nada se deforme ni se expanda indebidamente
     win = dispatcher.AddWindow(
         {
             "WindowTitle": "DaVinci Flow — Subtítulos Dinámicos & SFX",
             "ID": "DaVinciFlowWin",
-            "Geometry": [200, 200, 720, 580],
+            "Geometry": [300, 180, 720, 520],
+            "Margin": 10,
+            "Spacing": 6,
         },
         [
             ui.VGroup(
+                {"Spacing": 6, "Margin": 0},
                 [
-                    ui.Label(
-                        {
-                            "Text": "<b>DaVinci Flow</b> — Subtítulos Dinámicos Multicapa & SFX",
-                            "Alignment": {"AlignHCenter": True},
-                            "Font": ui.Font({"PixelSize": 15}),
-                        }
-                    ),
-                    ui.Label(
-                        {
-                            "Text": "Autor: biglexj | Licencia: MIT",
-                            "Alignment": {"AlignHCenter": True},
-                        }
-                    ),
-                    ui.HGroup(
+                    # 1. Encabezado compacto (altura fija)
+                    ui.VGroup(
+                        {"Spacing": 1, "Weight": 0},
                         [
-                            ui.Label({"Text": "Pista Subtítulos:", "Weight": 0.25}),
-                            ui.SpinBox({"ID": "TrackSpin", "Value": 1, "Minimum": 1, "Maximum": 16, "Weight": 0.2}),
-                            ui.Label({"Text": "Tema:", "Weight": 0.15}),
-                            ui.ComboBox({"ID": "ThemeCombo", "Weight": 0.2}),
-                            ui.Label({"Text": "Perfil:", "Weight": 0.15}),
-                            ui.ComboBox({"ID": "ProfileCombo", "Weight": 0.25}),
+                            ui.Label(
+                                {
+                                    "Text": "<b>DaVinci Flow</b> — Subtítulos Dinámicos Multicapa & SFX",
+                                    "Alignment": {"AlignHCenter": True},
+                                    "Font": ui.Font({"PixelSize": 13, "Bold": True}),
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.Label(
+                                {
+                                    "Text": "<font color='#888888'>Autor: biglexj | Licencia: MIT</font>",
+                                    "Alignment": {"AlignHCenter": True},
+                                    "Font": ui.Font({"PixelSize": 10}),
+                                    "Weight": 0,
+                                }
+                            ),
+                        ],
+                    ),
+                    ui.VGap(2),
+                    # 2. Controles de Configuración alineados horizontalmente con alturas fijas de 24px
+                    ui.HGroup(
+                        {"Spacing": 8, "Weight": 0},
+                        [
+                            ui.Label({"Text": "Pista:", "Weight": 0}),
+                            ui.SpinBox(
+                                {
+                                    "ID": "TrackSpin",
+                                    "Value": 1,
+                                    "Minimum": 1,
+                                    "Maximum": 16,
+                                    "FixedSize": [54, 24],
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.HGap(10),
+                            ui.Label({"Text": "Tema:", "Weight": 0}),
+                            ui.ComboBox(
+                                {
+                                    "ID": "ThemeCombo",
+                                    "FixedSize": [100, 24],
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.HGap(10),
+                            ui.Label({"Text": "Perfil:", "Weight": 0}),
+                            ui.ComboBox(
+                                {
+                                    "ID": "ProfileCombo",
+                                    "FixedSize": [120, 24],
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.HGap(1),
                         ]
                     ),
+                    # 3. Opciones Checkbox compactas
                     ui.HGroup(
+                        {"Spacing": 16, "Weight": 0},
                         [
-                            ui.CheckBox({"ID": "SFXCheck", "Text": "Generar efectos sonoros (SFX)", "Checked": True}),
-                            ui.CheckBox({"ID": "DryRunCheck", "Text": "Modo Simulación (Dry-Run)", "Checked": False}),
+                            ui.CheckBox({"ID": "SFXCheck", "Text": "Generar efectos sonoros (SFX)", "Checked": True, "Weight": 0}),
+                            ui.CheckBox({"ID": "DryRunCheck", "Text": "Modo Simulación (Dry-Run)", "Checked": False, "Weight": 0}),
+                            ui.HGap(1),
                         ]
                     ),
+                    # 4. Botones de Acción principales con altura estilizada de 26px
                     ui.HGroup(
+                        {"Spacing": 8, "Weight": 0},
                         [
-                            ui.Button({"ID": "AnalyzeBtn", "Text": "🔍 Analizar Capas"}),
-                            ui.Button({"ID": "GenerateBtn", "Text": "⚡ Generar en Línea de Tiempo"}),
+                            ui.Button(
+                                {
+                                    "ID": "AnalyzeBtn",
+                                    "Text": "🔍 Analizar Capas",
+                                    "FixedSize": [160, 26],
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.Button(
+                                {
+                                    "ID": "GenerateBtn",
+                                    "Text": "⚡ Generar en Línea de Tiempo",
+                                    "FixedSize": [220, 26],
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.HGap(1),
                         ]
                     ),
+                    ui.VGap(2),
+                    # 5. Tabla / TreeView expandida (Weight = 1.0 para aprovechar el 75% del espacio vertical)
                     ui.Tree({"ID": "BlocksTree", "Weight": 1.0}),
-                    ui.Label({"ID": "StatusLabel", "Text": "Listo para analizar la línea de tiempo activa."}),
+                    # 6. Barra de Estado
+                    ui.Label(
+                        {
+                            "ID": "StatusLabel",
+                            "Text": "Listo para analizar la línea de tiempo activa.",
+                            "Weight": 0,
+                            "Font": ui.Font({"PixelSize": 10}),
+                        }
+                    ),
+                    # 7. Pie de página compacto con altura de 22px
                     ui.HGroup(
+                        {"Spacing": 8, "Weight": 0},
                         [
-                            ui.Button({"ID": "AboutBtn", "Text": "ℹ️ Acerca de DaVinci Flow"}),
-                            ui.Button({"ID": "CloseBtn", "Text": "Cerrar"}),
+                            ui.Button(
+                                {
+                                    "ID": "AboutBtn",
+                                    "Text": "ℹ️ Acerca de",
+                                    "FixedSize": [95, 22],
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.HGap(1),
+                            ui.Button(
+                                {
+                                    "ID": "CloseBtn",
+                                    "Text": "Cerrar",
+                                    "FixedSize": [75, 22],
+                                    "Weight": 0,
+                                }
+                            ),
                         ]
                     ),
                 ]
@@ -122,6 +207,8 @@ def _try_create_uimanager_window(
     )
 
     items = win.GetItems()
+
+    # Opciones de Temas y Perfiles
     items["ThemeCombo"].AddItem("Ely")
     items["ThemeCombo"].AddItem("Aurora")
 
@@ -131,9 +218,16 @@ def _try_create_uimanager_window(
     items["ProfileCombo"].AddItem("Educativo")
     items["ProfileCombo"].AddItem("Vídeo Corto")
 
-    # Configurar encabezados del árbol
+    # Configuración de columnas del árbol
     try:
-        items["BlocksTree"].SetHeaderLabels(["Tiempo (f)", "Capas", "Contexto", "Principal", "Acento", "SFX"])
+        tree = items["BlocksTree"]
+        tree.SetHeaderLabels(["Tiempo (f)", "Capas", "Contexto", "Principal", "Acento", "SFX"])
+        tree.ColumnWidth[0] = 85
+        tree.ColumnWidth[1] = 65
+        tree.ColumnWidth[2] = 120
+        tree.ColumnWidth[3] = 210
+        tree.ColumnWidth[4] = 120
+        tree.ColumnWidth[5] = 90
     except Exception:
         pass
 
@@ -144,7 +238,7 @@ def _try_create_uimanager_window(
         profile_name = prof_map.get(int(items["ProfileCombo"].CurrentIndex), "natural")
         enable_sfx = bool(items["SFXCheck"].Checked)
 
-        items["StatusLabel"].Text = "Analizando subtítulos..."
+        items["StatusLabel"].Text = "Analizando subtítulos de la línea de tiempo..."
         try:
             plan = plan_active_subtitles(track, theme_name, profile_name, enable_sfx)
             items["BlocksTree"].Clear()
@@ -157,7 +251,7 @@ def _try_create_uimanager_window(
                 it.Text[4] = b.accent_text or "—"
                 it.Text[5] = b.sfx_proposal or "—"
                 items["BlocksTree"].AddTopLevelItem(it)
-            items["StatusLabel"].Text = f"✅ Plan listo: {plan.block_count} bloques clasificados."
+            items["StatusLabel"].Text = f"✅ Plan listo: {plan.block_count} bloques clasificados. Capas: {plan.layer_distribution}"
         except DaVinciFlowError as err:
             items["StatusLabel"].Text = f"❌ Error: {err}"
 
@@ -169,19 +263,23 @@ def _try_create_uimanager_window(
         enable_sfx = bool(items["SFXCheck"].Checked)
         dry_run = bool(items["DryRunCheck"].Checked)
 
-        items["StatusLabel"].Text = "Generando en Resolve..."
+        items["StatusLabel"].Text = "Generando elementos en DaVinci Resolve..."
         try:
             record = generate_from_active_timeline(track, theme_name, profile_name, enable_sfx, dry_run)
             lbl = "Simulación" if dry_run else "Generación"
-            items["StatusLabel"].Text = f"🎉 {lbl} completada: {record.item_count} clips creados."
+            items["StatusLabel"].Text = f"🎉 {lbl} completada: {record.item_count} clips creados en pistas dedicadas."
         except DaVinciFlowError as err:
             items["StatusLabel"].Text = f"❌ Error: {err}"
+
+    def on_about(ev: Any) -> None:
+        items["StatusLabel"].Text = "DaVinci Flow v0.1.0 • biglexj | Donaciones: https://www.biglexj.com/donaciones"
 
     def on_close(ev: Any) -> None:
         dispatcher.ExitLoop()
 
     win.On.AnalyzeBtn.Clicked = on_analyze
     win.On.GenerateBtn.Clicked = on_generate
+    win.On.AboutBtn.Clicked = on_about
     win.On.CloseBtn.Clicked = on_close
     win.On.DaVinciFlowWin.Close = on_close
 
