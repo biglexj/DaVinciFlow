@@ -1,15 +1,17 @@
-"""Interfaz gráfica de DaVinci Flow con diseño compacto y nativo para UIManager."""
+"""Interfaz gráfica de DaVinci Flow con diseño compacto, autodetecion, validación y cancelación."""
 
 import sys
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 from typing import Any
 
 from davinci_flow.application import (
     generate_from_active_timeline,
+    inspect_active_timeline,
     plan_active_subtitles,
 )
 from davinci_flow.errors import DaVinciFlowError
+from davinci_flow.generation.plan import GenerationPlan
 
 
 def _try_create_uimanager_window(
@@ -17,7 +19,7 @@ def _try_create_uimanager_window(
     fusion_app: Any = None,
     bmd_module: Any = None,
 ) -> bool:
-    """Crea la ventana compacta nativa mediante el UIManager de Resolve con alturas y proporciones exactas."""
+    """Crea la ventana compacta nativa mediante el UIManager de Resolve con control de parada y autovalidación."""
     if fusion_app is None:
         if resolve_app is not None and hasattr(resolve_app, "Fusion"):
             try:
@@ -62,12 +64,11 @@ def _try_create_uimanager_window(
 
     dispatcher = bmd_module.UIDispatcher(ui)
 
-    # Ventana compacta con proporciones exactas para que nada se deforme ni se expanda indebidamente
     win = dispatcher.AddWindow(
         {
             "WindowTitle": "DaVinci Flow — Subtítulos Dinámicos & SFX",
             "ID": "DaVinciFlowWin",
-            "Geometry": [300, 180, 720, 520],
+            "Geometry": [300, 160, 740, 540],
             "Margin": 10,
             "Spacing": 6,
         },
@@ -75,7 +76,7 @@ def _try_create_uimanager_window(
             ui.VGroup(
                 {"Spacing": 6, "Margin": 0},
                 [
-                    # 1. Encabezado compacto (altura fija)
+                    # 1. Encabezado
                     ui.VGroup(
                         {"Spacing": 1, "Weight": 0},
                         [
@@ -89,6 +90,7 @@ def _try_create_uimanager_window(
                             ),
                             ui.Label(
                                 {
+                                    "ID": "HeaderInfoLabel",
                                     "Text": "<font color='#888888'>Autor: biglexj | Licencia: MIT</font>",
                                     "Alignment": {"AlignHCenter": True},
                                     "Font": ui.Font({"PixelSize": 10}),
@@ -98,11 +100,11 @@ def _try_create_uimanager_window(
                         ],
                     ),
                     ui.VGap(2),
-                    # 2. Controles de Configuración alineados horizontalmente con alturas fijas de 24px
+                    # 2. Configuración y Selector de Pista
                     ui.HGroup(
                         {"Spacing": 8, "Weight": 0},
                         [
-                            ui.Label({"Text": "Pista:", "Weight": 0}),
+                            ui.Label({"Text": "Pista Subtítulos:", "Weight": 0}),
                             ui.SpinBox(
                                 {
                                     "ID": "TrackSpin",
@@ -113,28 +115,28 @@ def _try_create_uimanager_window(
                                     "Weight": 0,
                                 }
                             ),
-                            ui.HGap(10),
+                            ui.HGap(8),
                             ui.Label({"Text": "Tema:", "Weight": 0}),
                             ui.ComboBox(
                                 {
                                     "ID": "ThemeCombo",
-                                    "FixedSize": [100, 24],
+                                    "FixedSize": [95, 24],
                                     "Weight": 0,
                                 }
                             ),
-                            ui.HGap(10),
+                            ui.HGap(8),
                             ui.Label({"Text": "Perfil:", "Weight": 0}),
                             ui.ComboBox(
                                 {
                                     "ID": "ProfileCombo",
-                                    "FixedSize": [120, 24],
+                                    "FixedSize": [115, 24],
                                     "Weight": 0,
                                 }
                             ),
                             ui.HGap(1),
                         ]
                     ),
-                    # 3. Opciones Checkbox compactas
+                    # 3. Opciones Checkbox
                     ui.HGroup(
                         {"Spacing": 16, "Weight": 0},
                         [
@@ -143,7 +145,7 @@ def _try_create_uimanager_window(
                             ui.HGap(1),
                         ]
                     ),
-                    # 4. Botones de Acción principales con altura estilizada de 26px
+                    # 4. Botones de Acción principales con botón de Parada
                     ui.HGroup(
                         {"Spacing": 8, "Weight": 0},
                         [
@@ -151,7 +153,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "AnalyzeBtn",
                                     "Text": "🔍 Analizar Capas",
-                                    "FixedSize": [160, 26],
+                                    "FixedSize": [140, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -159,26 +161,35 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "GenerateBtn",
                                     "Text": "⚡ Generar en Línea de Tiempo",
-                                    "FixedSize": [220, 26],
+                                    "FixedSize": [200, 26],
                                     "Weight": 0,
+                                }
+                            ),
+                            ui.Button(
+                                {
+                                    "ID": "StopBtn",
+                                    "Text": "⏹️ Detener",
+                                    "FixedSize": [90, 26],
+                                    "Weight": 0,
+                                    "Enabled": False,
                                 }
                             ),
                             ui.HGap(1),
                         ]
                     ),
                     ui.VGap(2),
-                    # 5. Tabla / TreeView expandida (Weight = 1.0 para aprovechar el 75% del espacio vertical)
+                    # 5. Tabla / TreeView expandida
                     ui.Tree({"ID": "BlocksTree", "Weight": 1.0}),
                     # 6. Barra de Estado
                     ui.Label(
                         {
                             "ID": "StatusLabel",
-                            "Text": "Listo para analizar la línea de tiempo activa.",
+                            "Text": "Inspeccionando línea de tiempo...",
                             "Weight": 0,
                             "Font": ui.Font({"PixelSize": 10}),
                         }
                     ),
-                    # 7. Pie de página compacto con altura de 22px
+                    # 7. Pie de página
                     ui.HGroup(
                         {"Spacing": 8, "Weight": 0},
                         [
@@ -208,7 +219,7 @@ def _try_create_uimanager_window(
 
     items = win.GetItems()
 
-    # Opciones de Temas y Perfiles
+    # Opciones de ComboBox
     items["ThemeCombo"].AddItem("Ely")
     items["ThemeCombo"].AddItem("Aurora")
 
@@ -218,7 +229,7 @@ def _try_create_uimanager_window(
     items["ProfileCombo"].AddItem("Educativo")
     items["ProfileCombo"].AddItem("Vídeo Corto")
 
-    # Configuración de columnas del árbol
+    # Columnas del árbol
     try:
         tree = items["BlocksTree"]
         tree.SetHeaderLabels(["Tiempo (f)", "Capas", "Contexto", "Principal", "Acento", "SFX"])
@@ -231,16 +242,48 @@ def _try_create_uimanager_window(
     except Exception:
         pass
 
+    # Estado local
+    current_plan: list[GenerationPlan] = []
+    cancel_requested: list[bool] = [False]
+
+    # Autodetección al abrir
+    try:
+        summary = inspect_active_timeline()
+        sub_cues = summary.subtitle_cues_counts.get(1, 0)
+        items["HeaderInfoLabel"].Text = (
+            f"<font color='#94A3B8'>Proyecto: {summary.project_name} | Línea de tiempo: {summary.timeline_name}</font>"
+        )
+        if summary.subtitle_track_count == 0 or sub_cues == 0:
+            items["StatusLabel"].Text = "⚠️ No se detectaron subtítulos en la pista 1. Asegúrate de tener subtítulos en la línea de tiempo."
+        else:
+            items["StatusLabel"].Text = f"✅ Detectados {sub_cues} subtítulos en Pista 1. Pulsa 'Analizar Capas'."
+    except Exception as err:
+        items["StatusLabel"].Text = f"Aviso: {err}"
+
+    def on_stop(ev: Any) -> None:
+        cancel_requested[0] = True
+        items["StatusLabel"].Text = "⏹️ Cancelación solicitada por el usuario..."
+
     def on_analyze(ev: Any) -> None:
+        cancel_requested[0] = False
         track = int(items["TrackSpin"].Value)
         theme_name = "ely" if int(items["ThemeCombo"].CurrentIndex) == 0 else "aurora"
         prof_map = {0: "natural", 1: "dinamico", 2: "reflexivo", 3: "educativo", 4: "video_corto"}
         profile_name = prof_map.get(int(items["ProfileCombo"].CurrentIndex), "natural")
         enable_sfx = bool(items["SFXCheck"].Checked)
 
-        items["StatusLabel"].Text = "Analizando subtítulos de la línea de tiempo..."
+        items["StatusLabel"].Text = "Analizando subtítulos de la pista activa..."
         try:
             plan = plan_active_subtitles(track, theme_name, profile_name, enable_sfx)
+            if plan.block_count == 0:
+                items["StatusLabel"].Text = f"⚠️ La pista {track} está vacía. No contiene subtítulos para analizar."
+                items["BlocksTree"].Clear()
+                current_plan.clear()
+                return
+
+            current_plan.clear()
+            current_plan.append(plan)
+
             items["BlocksTree"].Clear()
             for b in plan.blocks:
                 it = items["BlocksTree"].NewItem()
@@ -251,11 +294,13 @@ def _try_create_uimanager_window(
                 it.Text[4] = b.accent_text or "—"
                 it.Text[5] = b.sfx_proposal or "—"
                 items["BlocksTree"].AddTopLevelItem(it)
-            items["StatusLabel"].Text = f"✅ Plan listo: {plan.block_count} bloques clasificados. Capas: {plan.layer_distribution}"
+
+            items["StatusLabel"].Text = f"✅ Plan listo: {plan.block_count} bloques clasificados. Pulsa 'Generar en Línea de Tiempo'."
         except DaVinciFlowError as err:
             items["StatusLabel"].Text = f"❌ Error: {err}"
 
     def on_generate(ev: Any) -> None:
+        cancel_requested[0] = False
         track = int(items["TrackSpin"].Value)
         theme_name = "ely" if int(items["ThemeCombo"].CurrentIndex) == 0 else "aurora"
         prof_map = {0: "natural", 1: "dinamico", 2: "reflexivo", 3: "educativo", 4: "video_corto"}
@@ -263,13 +308,53 @@ def _try_create_uimanager_window(
         enable_sfx = bool(items["SFXCheck"].Checked)
         dry_run = bool(items["DryRunCheck"].Checked)
 
-        items["StatusLabel"].Text = "Generando elementos en DaVinci Resolve..."
+        # Validación si está vacío
+        if not current_plan or current_plan[0].block_count == 0:
+            # Intentar auto-análisis primero
+            try:
+                plan = plan_active_subtitles(track, theme_name, profile_name, enable_sfx)
+                if plan.block_count == 0:
+                    items["StatusLabel"].Text = f"⚠️ La pista {track} no contiene subtítulos. No hay nada para generar."
+                    return
+                current_plan.clear()
+                current_plan.append(plan)
+            except Exception as err:
+                items["StatusLabel"].Text = f"⚠️ No se pudo generar: {err}"
+                return
+
+        # Habilitar botón de parada
+        items["StopBtn"].Enabled = True
+        items["AnalyzeBtn"].Enabled = False
+        items["GenerateBtn"].Enabled = False
+
+        def progress_cb(curr: int, total: int, msg: str) -> None:
+            items["StatusLabel"].Text = msg
+
+        def is_cancelled_check() -> bool:
+            return cancel_requested[0]
+
+        items["StatusLabel"].Text = f"Generando {current_plan[0].block_count} bloques en la línea de tiempo..."
         try:
-            record = generate_from_active_timeline(track, theme_name, profile_name, enable_sfx, dry_run)
-            lbl = "Simulación" if dry_run else "Generación"
-            items["StatusLabel"].Text = f"🎉 {lbl} completada: {record.item_count} clips creados en pistas dedicadas."
+            record = generate_from_active_timeline(
+                track_index=track,
+                theme_name=theme_name,
+                profile_name=profile_name,
+                enable_sfx=enable_sfx,
+                dry_run=dry_run,
+                progress_callback=progress_cb,
+                is_cancelled=is_cancelled_check,
+            )
+            if record.status == "cancelled":
+                items["StatusLabel"].Text = f"⏹️ Generación detenida por el usuario ({record.item_count} clips creados)."
+            else:
+                lbl = "Simulación" if dry_run else "Generación"
+                items["StatusLabel"].Text = f"🎉 {lbl} completada: {record.item_count} clips creados en pistas dedicadas."
         except DaVinciFlowError as err:
             items["StatusLabel"].Text = f"❌ Error: {err}"
+        finally:
+            items["StopBtn"].Enabled = False
+            items["AnalyzeBtn"].Enabled = True
+            items["GenerateBtn"].Enabled = True
 
     def on_about(ev: Any) -> None:
         items["StatusLabel"].Text = "DaVinci Flow v0.1.0 • biglexj | Donaciones: https://www.biglexj.com/donaciones"
@@ -279,6 +364,7 @@ def _try_create_uimanager_window(
 
     win.On.AnalyzeBtn.Clicked = on_analyze
     win.On.GenerateBtn.Clicked = on_generate
+    win.On.StopBtn.Clicked = on_stop
     win.On.AboutBtn.Clicked = on_about
     win.On.CloseBtn.Clicked = on_close
     win.On.DaVinciFlowWin.Close = on_close
@@ -296,7 +382,6 @@ def _create_tkinter_window() -> None:
     root.geometry("820x620")
     root.configure(bg="#0F172A")
 
-    # Estilos TTK Oscuros
     style = ttk.Style(root)
     style.theme_use("clam")
     style.configure(".", background="#0F172A", foreground="#F8FAFC", font=("Segoe UI", 10))
@@ -307,16 +392,17 @@ def _create_tkinter_window() -> None:
     style.map("TButton", background=[("active", "#334155")])
     style.configure("Accent.TButton", background="#06B6D4", foreground="#0F172A")
     style.map("Accent.TButton", background=[("active", "#22D3EE")])
+    style.configure("Stop.TButton", background="#EF4444", foreground="#FFFFFF")
+    style.map("Stop.TButton", background=[("active", "#DC2626")])
     style.configure("Treeview", background="#1E293B", foreground="#F8FAFC", fieldbackground="#1E293B", rowheight=26)
     style.configure("Treeview.Heading", background="#334155", foreground="#38BDF8", font=("Segoe UI", 10, "bold"))
 
-    # Encabezado
     header_frame = tk.Frame(root, bg="#0F172A")
     header_frame.pack(fill="x", padx=16, pady=(12, 6))
     ttk.Label(header_frame, text="DaVinci Flow", style="Header.TLabel").pack()
-    ttk.Label(header_frame, text="Subtítulos Dinámicos Multicapa & SFX • biglexj (2026)", style="SubHeader.TLabel").pack()
+    header_info = ttk.Label(header_frame, text="Subtítulos Dinámicos Multicapa & SFX • biglexj (2026)", style="SubHeader.TLabel")
+    header_info.pack()
 
-    # Controles Superiores
     ctrl_frame = tk.Frame(root, bg="#1E293B", padx=12, pady=10)
     ctrl_frame.pack(fill="x", padx=16, pady=8)
 
@@ -341,11 +427,9 @@ def _create_tkinter_window() -> None:
     dry_run_var = tk.BooleanVar(value=False)
     ttk.Checkbutton(ctrl_frame, text="Simulación (Dry-Run)", variable=dry_run_var).grid(row=0, column=7, padx=10, pady=4)
 
-    # Botones de Acción
     btn_frame = tk.Frame(root, bg="#0F172A")
     btn_frame.pack(fill="x", padx=16, pady=4)
 
-    # Tabla / Treeview
     tree_frame = tk.Frame(root, bg="#0F172A")
     tree_frame.pack(fill="both", expand=True, padx=16, pady=6)
 
@@ -370,9 +454,22 @@ def _create_tkinter_window() -> None:
     tree.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")
 
-    # Barra de Estado
-    status_label = ttk.Label(root, text="Listo para conectar con DaVinci Resolve.", style="SubHeader.TLabel")
+    status_label = ttk.Label(root, text="Inspeccionando línea de tiempo...", style="SubHeader.TLabel")
     status_label.pack(fill="x", padx=16, pady=4)
+
+    cancel_flag = [False]
+    current_plan_tk: list[GenerationPlan] = []
+
+    try:
+        summary = inspect_active_timeline()
+        header_info.config(text=f"Proyecto: {summary.project_name} | Línea de tiempo: {summary.timeline_name}")
+        c_count = summary.subtitle_cues_counts.get(1, 0)
+        if c_count > 0:
+            status_label.config(text=f"✅ Detectados {c_count} subtítulos en Pista 1. Pulsa 'Analizar Capas'.")
+        else:
+            status_label.config(text="⚠️ No se encontraron subtítulos en la pista 1.")
+    except Exception as err:
+        status_label.config(text=f"Listo para conectar ({err})")
 
     def do_analyze() -> None:
         status_label.config(text="Analizando subtítulos de la línea de tiempo activa...")
@@ -384,6 +481,14 @@ def _create_tkinter_window() -> None:
                 profile_name=profile_var.get(),
                 enable_sfx=sfx_var.get(),
             )
+            if plan.block_count == 0:
+                status_label.config(text=f"⚠️ La pista {track_var.get()} no contiene subtítulos.")
+                tree.delete(*tree.get_children())
+                current_plan_tk.clear()
+                return
+
+            current_plan_tk.clear()
+            current_plan_tk.append(plan)
             tree.delete(*tree.get_children())
             for b in plan.blocks:
                 tree.insert("", "end", values=(
@@ -394,29 +499,58 @@ def _create_tkinter_window() -> None:
                     b.accent_text or "—",
                     b.sfx_proposal or "—",
                 ))
-            status_label.config(text=f"✅ Plan listo: {plan.block_count} bloques clasificados. Capas: {plan.layer_distribution}")
+            status_label.config(text=f"✅ Plan listo: {plan.block_count} bloques clasificados.")
         except DaVinciFlowError as err:
             status_label.config(text=f"❌ Error: {err}")
 
+    def do_stop() -> None:
+        cancel_flag[0] = True
+        status_label.config(text="⏹️ Cancelación solicitada...")
+
     def do_generate() -> None:
+        cancel_flag[0] = False
+        track = track_var.get()
+        if not current_plan_tk or current_plan_tk[0].block_count == 0:
+            try:
+                plan = plan_active_subtitles(track, theme_var.get(), profile_var.get(), sfx_var.get())
+                if plan.block_count == 0:
+                    status_label.config(text=f"⚠️ La pista {track} está vacía. No hay subtítulos para generar.")
+                    return
+                current_plan_tk.clear()
+                current_plan_tk.append(plan)
+            except Exception as err:
+                status_label.config(text=f"⚠️ Error: {err}")
+                return
+
         is_dry = dry_run_var.get()
         status_label.config(text="Generando elementos en DaVinci Resolve...")
         root.update_idletasks()
+
+        def progress_cb(c: int, tot: int, msg: str) -> None:
+            status_label.config(text=msg)
+            root.update_idletasks()
+
         try:
             record = generate_from_active_timeline(
-                track_index=track_var.get(),
+                track_index=track,
                 theme_name=theme_var.get(),
                 profile_name=profile_var.get(),
                 enable_sfx=sfx_var.get(),
                 dry_run=is_dry,
+                progress_callback=progress_cb,
+                is_cancelled=lambda: cancel_flag[0],
             )
-            mode = "Simulación" if is_dry else "Generación"
-            status_label.config(text=f"🎉 {mode} completada: {record.item_count} clips creados en pistas dedicadas.")
+            if record.status == "cancelled":
+                status_label.config(text=f"⏹️ Generación cancelada por el usuario ({record.item_count} clips creados).")
+            else:
+                mode = "Simulación" if is_dry else "Generación"
+                status_label.config(text=f"🎉 {mode} completada: {record.item_count} clips creados.")
         except DaVinciFlowError as err:
             status_label.config(text=f"❌ Error: {err}")
 
     ttk.Button(btn_frame, text="🔍 Analizar Capas", command=do_analyze, style="TButton").pack(side="left", padx=(0, 8))
     ttk.Button(btn_frame, text="⚡ Generar en Línea de Tiempo", command=do_generate, style="Accent.TButton").pack(side="left", padx=8)
+    ttk.Button(btn_frame, text="⏹️ Detener", command=do_stop, style="Stop.TButton").pack(side="left", padx=8)
 
     root.mainloop()
 

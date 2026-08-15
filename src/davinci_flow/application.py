@@ -1,8 +1,9 @@
 """Casos de uso principales y orquestación de DaVinci Flow."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Any
 
 from davinci_flow.generation.plan import GenerationPlan, build_generation_plan
 from davinci_flow.generation.reconciler import PlanDiff, reconcile_subtitles
@@ -24,6 +25,55 @@ class SubtitleScan:
     timeline_name: str
     track_index: int
     cues: tuple[SubtitleCue, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TimelineSummary:
+    """Información general de la línea de tiempo activa y sus pistas de subtítulos."""
+
+    project_name: str
+    timeline_name: str
+    video_track_count: int
+    audio_track_count: int
+    subtitle_track_count: int
+    subtitle_cues_counts: dict[int, int]
+
+
+def inspect_active_timeline() -> TimelineSummary:
+    """Inspecciona la línea de tiempo activa para autodetectar pistas de subtítulos y contenido."""
+    session = connect_to_resolve()
+    tl = session.timeline
+
+    def _safe_count(t_type: str) -> int:
+        getter = getattr(tl, "GetTrackCount", None)
+        if callable(getter):
+            try:
+                return int(getter(t_type) or 0)
+            except Exception:
+                return 0
+        return 0
+
+    v_count = _safe_count("video")
+    a_count = _safe_count("audio")
+    sub_count = _safe_count("subtitle")
+
+    reader = ResolveSubtitleReader(tl)
+    cues_counts: dict[int, int] = {}
+    for idx in range(1, sub_count + 1):
+        try:
+            cues = reader.read_track(idx)
+            cues_counts[idx] = len(cues)
+        except Exception:
+            cues_counts[idx] = 0
+
+    return TimelineSummary(
+        project_name=str(session.project.GetName()),
+        timeline_name=str(session.timeline.GetName()),
+        video_track_count=v_count,
+        audio_track_count=a_count,
+        subtitle_track_count=sub_count,
+        subtitle_cues_counts=cues_counts,
+    )
 
 
 def scan_active_subtitles(track_index: int = 1) -> SubtitleScan:
@@ -87,6 +137,8 @@ def generate_from_active_timeline(
     profile_name: str = "natural",
     enable_sfx: bool = True,
     dry_run: bool = False,
+    progress_callback: Callable[[int, int, str], None] | None = None,
+    is_cancelled: Callable[[], bool] | None = None,
 ) -> GenerationExecutionRecord:
     """Ejecuta el flujo completo de análisis, planificación y generación en Resolve."""
     session = connect_to_resolve()
@@ -97,7 +149,12 @@ def generate_from_active_timeline(
         enable_sfx=enable_sfx,
     )
     writer = ResolveTimelineWriter(session.timeline)
-    return writer.apply_plan(plan, dry_run=dry_run)
+    return writer.apply_plan(
+        plan,
+        dry_run=dry_run,
+        progress_callback=progress_callback,
+        is_cancelled=is_cancelled,
+    )
 
 
 def reconcile_active_timeline(

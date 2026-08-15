@@ -1,5 +1,6 @@
 """Adaptador para la inserción y reversión controlada de títulos dinámicos en Resolve."""
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -20,11 +21,12 @@ class ResolveTimelineWriter:
         self,
         plan: GenerationPlan,
         dry_run: bool = False,
+        progress_callback: Callable[[int, int, str], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> GenerationExecutionRecord:
-        """Genera físicamente los clips de subtítulos y SFX en la línea de tiempo."""
+        """Genera físicamente los clips de subtítulos y SFX en la línea de tiempo con soporte de cancelación."""
         theme = get_theme(plan.theme_name)
 
-        # Garantizar la existencia física de las pistas en Resolve
         if not dry_run:
             track_indices = self.track_manager.ensure_dedicated_tracks()
         else:
@@ -32,8 +34,20 @@ class ResolveTimelineWriter:
 
         items: list[GenerationItemRecord] = []
         now_str = datetime.now(timezone.utc).isoformat()
+        total_blocks = len(plan.blocks)
+        status_result = "completed"
 
         for idx, block in enumerate(plan.blocks, start=1):
+            # Comprobación de parada / cancelación solicitada por el usuario
+            if is_cancelled is not None and is_cancelled():
+                status_result = "cancelled"
+                if progress_callback:
+                    progress_callback(idx, total_blocks, f"⏹️ Cancelado por el usuario en bloque {idx}/{total_blocks}")
+                break
+
+            if progress_callback:
+                progress_callback(idx, total_blocks, f"Generando bloque {idx}/{total_blocks} ({int((idx/total_blocks)*100)}%)...")
+
             if not block.is_enabled:
                 continue
 
@@ -151,7 +165,7 @@ class ResolveTimelineWriter:
             timeline_name=plan.timeline_name,
             theme_name=plan.theme_name,
             profile_name=plan.profile_name,
-            status="completed",
+            status=status_result,
             items=tuple(items),
             created_at=now_str,
         )
@@ -218,7 +232,6 @@ class ResolveTimelineWriter:
         if title_item is None:
             return None
 
-        # Configurar posición temporal y pista si la API lo permite
         try:
             set_prop = getattr(title_item, "SetProperty", None)
             if callable(set_prop):
@@ -228,7 +241,6 @@ class ResolveTimelineWriter:
         except Exception:
             pass
 
-        # Configurar propiedades TextPlus dentro de la composición Fusion
         try:
             get_comp = getattr(title_item, "GetFusionCompByIndex", None)
             if callable(get_comp):
@@ -236,7 +248,6 @@ class ResolveTimelineWriter:
                 if comp:
                     tools = comp.GetToolList(False, "TextPlus") or comp.GetToolList()
                     for t in (tools.values() if isinstance(tools, dict) else tools):
-                        # Asignar texto y formato
                         if hasattr(t, "StyledText"):
                             try:
                                 t.StyledText[1] = text
@@ -248,7 +259,6 @@ class ResolveTimelineWriter:
                             except Exception:
                                 pass
 
-                        # Color y tamaño según rol
                         if role == "main":
                             r, g, b = theme.main_color_rgb
                             size = theme.main_font_size
