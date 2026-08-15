@@ -11,3 +11,20 @@ class ResolveConnectionError(DaVinciFlowError):
 
 class SubtitleTrackError(DaVinciFlowError):
     """La pista de subtítulos solicitada no existe o no puede leerse."""
+
+
+class NormalizationError(DaVinciFlowError):
+    """El texto del subtítulo no pudo normalizarse adecuadamente."""
+
+
+class ClassificationError(DaVinciFlowError):
+    """Ocurrió un error al clasificar los roles de un bloque de subtítulo."""
+
+
+class PlanSerializationError(DaVinciFlowError):
+    """Error al serializar o deserializar el plan de generación."""
+
+
+class PlanVersionMismatchError(PlanSerializationError):
+    """La versión del plan no es compatible con la versión del software."""
+

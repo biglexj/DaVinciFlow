@@ -19,7 +19,7 @@ Cada validación ejecutada debe registrar:
 
 ## V0 — Compatibilidad real de la base
 
-- [ ] V00 — Agente — Ejecutar las pruebas unitarias. Esperado: todas correctas.
+- [x] V00 — Agente — Ejecutar las pruebas unitarias. Esperado: todas correctas. (Evidencia: 36/36 pruebas pasadas en 0.023s con `unittest discover`).
 - [ ] V01 — Equipo real — Abrir Resolve 21 y ejecutar el diagnóstico. Esperado: conexión sin cierre inesperado.
 - [ ] V02 — Línea de tiempo — Leer una pista con al menos cinco subtítulos. Esperado: texto y orden correctos.
 - [ ] V03 — Fotogramas — Comparar inicio y final de tres bloques. Esperado: coincidencia con Resolve.
@@ -28,12 +28,12 @@ Cada validación ejecutada debe registrar:
 
 ## V1 — Dominio y clasificación
 
-- [ ] V10 — Unidad — Crear bloques de una, dos y tres capas. Esperado: roles válidos y sin texto perdido.
-- [ ] V11 — Español — Probar tildes, eñes, interrogaciones y exclamaciones. Esperado: conservación exacta.
-- [ ] V12 — Semántica — Probar negaciones, cifras, fechas y nombres propios. Esperado: no separar unidades inseparables.
-- [ ] V13 — Trazabilidad — Reconstruir el texto desde los roles. Esperado: contenido equivalente al original.
-- [ ] V14 — Huellas — Repetir el mismo análisis. Esperado: identificadores y huellas estables.
-- [ ] V15 — Serialización — Guardar y cargar un plan. Esperado: resultado equivalente y versión reconocida.
+- [x] V10 — Unidad — Crear bloques de una, dos y tres capas. Esperado: roles válidos y sin texto perdido. (Evidencia: `tests/test_classifier.py`).
+- [x] V11 — Español — Probar tildes, eñes, interrogaciones y exclamaciones. Esperado: conservación exacta. (Evidencia: `tests/test_normalizer.py` y `test_classifier.py`).
+- [x] V12 — Semántica — Probar negaciones, cifras, fechas y nombres propios. Esperado: no separar unidades inseparables. (Evidencia: `tests/test_normalizer.py` y `test_classifier.py`).
+- [x] V13 — Trazabilidad — Reconstruir el texto desde los roles. Esperado: contenido equivalente al original. (Evidencia: `test_reconstruction_contains_all_words`).
+- [x] V14 — Huellas — Repetir el mismo análisis. Esperado: identificadores y huellas estables. (Evidencia: `tests/test_fingerprint.py`).
+- [x] V15 — Serialización — Guardar y cargar un plan. Esperado: resultado equivalente y versión reconocida. (Evidencia: `tests/test_generation_plan.py`).
 
 ## V2 — Prueba vertical de Fusion
 

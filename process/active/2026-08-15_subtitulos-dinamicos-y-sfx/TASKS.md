@@ -11,15 +11,15 @@
 
 ## Fase 1 — Dominio y plan de generación
 
-- [ ] T01.1 — Definir `CaptionBlock` con roles opcionales y trazabilidad hacia el subtítulo original.
-- [ ] T01.2 — Definir `GenerationPlan` versionado, serializable y sin objetos de Resolve.
-- [ ] T01.3 — Normalizar espacios y puntuación sin perder tildes, eñes, números o nombres propios.
-- [ ] T01.4 — Implementar reglas deterministas para una, dos o tres capas.
-- [ ] T01.5 — Registrar el motivo y la confianza de cada clasificación.
-- [ ] T01.6 — Crear huellas estables de texto, rango y configuración.
-- [ ] T01.7 — Añadir pruebas de frases cortas, largas, preguntas, cifras, negaciones y signos.
-- [ ] T01.8 — Validar serialización y compatibilidad del formato del plan.
-- [ ] T01.9 — Completar V1 y solicitar aprobación G1.
+- [x] T01.1 — Definir `CaptionBlock` con roles opcionales y trazabilidad hacia el subtítulo original.
+- [x] T01.2 — Definir `GenerationPlan` versionado, serializable y sin objetos de Resolve.
+- [x] T01.3 — Normalizar espacios y puntuación sin perder tildes, eñes, números o nombres propios.
+- [x] T01.4 — Implementar reglas deterministas para una, dos o tres capas.
+- [x] T01.5 — Registrar el motivo y la confianza de cada clasificación.
+- [x] T01.6 — Crear huellas estables de texto, rango y configuración.
+- [x] T01.7 — Añadir pruebas de frases cortas, largas, preguntas, cifras, negaciones y signos.
+- [x] T01.8 — Validar serialización y compatibilidad del formato del plan.
+- [x] T01.9 — Completar V1 y solicitar aprobación G1.
 
 ## Fase 2 — Prueba vertical de Fusion
 
