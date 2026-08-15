@@ -9,6 +9,7 @@ Plan de trabajo, objetivos de producto y hoja de ruta estratégica del proyecto.
 ## 🔴 Pendientes activos
 
 - [ ] **v0.1.0 — Base técnica y lectura de subtítulos** — `process/active/2026-08-15_base-inicial/`
+- [ ] **MVP — Subtítulos dinámicos multicapa y SFX** — `process/active/2026-08-15_subtitulos-dinamicos-y-sfx/`
 
 ---
 
