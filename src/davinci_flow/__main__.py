@@ -1,4 +1,4 @@
-"""Entrada de diagnóstico, planificación y generación para DaVinci Flow."""
+"""Entrada de diagnóstico, planificación, instalación y generación para DaVinci Flow."""
 
 import argparse
 import sys
@@ -11,6 +11,11 @@ from davinci_flow.application import (
     scan_active_subtitles,
 )
 from davinci_flow.errors import DaVinciFlowError
+from davinci_flow.installer import (
+    install_resolve_launcher,
+    uninstall_resolve_launcher,
+)
+from davinci_flow.ui import open_davinci_flow_ui
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -74,6 +79,21 @@ def _parser() -> argparse.ArgumentParser:
         help="Compara los subtítulos actuales contra un plan JSON previo para regeneración selectiva.",
     )
     parser.add_argument(
+        "--install",
+        action="store_true",
+        help="Instala DaVinci Flow en el menú Scripts de DaVinci Resolve.",
+    )
+    parser.add_argument(
+        "--uninstall",
+        action="store_true",
+        help="Desinstala DaVinci Flow del menú Scripts de DaVinci Resolve.",
+    )
+    parser.add_argument(
+        "--ui",
+        action="store_true",
+        help="Abre la ventana gráfica de DaVinci Flow en DaVinci Resolve.",
+    )
+    parser.add_argument(
         "--about",
         action="store_true",
         help="Muestra información de versión, autoría y enlaces de apoyo oficial.",
@@ -99,6 +119,27 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.about:
         print_about()
+        return 0
+
+    if args.install:
+        launcher_path = install_resolve_launcher()
+        print(f"✅ ¡DaVinci Flow instalado con éxito en DaVinci Resolve!")
+        print(f"📁 Ubicación del lanzador: {launcher_path}")
+        print("💡 Para abrir la pestaña interna:")
+        print("   1. Abre DaVinci Resolve.")
+        print("   2. En la barra superior, ve a: Espacio de trabajo -> Scripts -> DaVinci Flow")
+        return 0
+
+    if args.uninstall:
+        removed = uninstall_resolve_launcher()
+        if removed:
+            print("✅ DaVinci Flow ha sido desinstalado del menú Scripts de DaVinci Resolve.")
+        else:
+            print("ℹ️ No se encontró ningún lanzador previo en la carpeta de scripts de Resolve.")
+        return 0
+
+    if args.ui:
+        open_davinci_flow_ui()
         return 0
 
     if args.track < 1:
