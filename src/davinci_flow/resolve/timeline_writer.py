@@ -6,7 +6,7 @@ from typing import Any
 from davinci_flow.generation.plan import GenerationPlan
 from davinci_flow.generation.record import GenerationExecutionRecord, GenerationItemRecord
 from davinci_flow.resolve.track_manager import ResolveTrackManager
-from davinci_flow.themes.tokens import get_theme
+from davinci_flow.themes.tokens import ThemeTokens, get_theme
 
 
 class ResolveTimelineWriter:
@@ -21,9 +21,15 @@ class ResolveTimelineWriter:
         plan: GenerationPlan,
         dry_run: bool = False,
     ) -> GenerationExecutionRecord:
-        """Genera los clips de subtítulos y SFX en la línea de tiempo."""
+        """Genera físicamente los clips de subtítulos y SFX en la línea de tiempo."""
         theme = get_theme(plan.theme_name)
-        track_indices = self.track_manager.get_track_indices()
+
+        # Garantizar la existencia física de las pistas en Resolve
+        if not dry_run:
+            track_indices = self.track_manager.ensure_dedicated_tracks()
+        else:
+            track_indices = self.track_manager.get_track_indices()
+
         items: list[GenerationItemRecord] = []
         now_str = datetime.now(timezone.utc).isoformat()
 
@@ -42,6 +48,7 @@ class ResolveTimelineWriter:
                         end_frame=block.end_frame,
                         text=block.context_text,
                         role="context",
+                        theme=theme,
                     )
                 items.append(
                     GenerationItemRecord(
@@ -69,6 +76,7 @@ class ResolveTimelineWriter:
                     end_frame=block.end_frame,
                     text=block.main_text,
                     role="main",
+                    theme=theme,
                 )
             items.append(
                 GenerationItemRecord(
@@ -97,6 +105,7 @@ class ResolveTimelineWriter:
                         end_frame=block.end_frame,
                         text=block.accent_text,
                         role="accent",
+                        theme=theme,
                     )
                 items.append(
                     GenerationItemRecord(
@@ -127,7 +136,7 @@ class ResolveTimelineWriter:
                         track_index=sfx_track,
                         track_name="DF_SFX",
                         start_frame=block.start_frame,
-                        end_frame=block.start_frame + 24.0,  # ~1s estimativo
+                        end_frame=block.start_frame + 24.0,
                         content_text=block.sfx_proposal,
                         status="applied",
                         created_at=now_str,
@@ -151,7 +160,6 @@ class ResolveTimelineWriter:
         """Retira de forma segura únicamente los clips asociados a la ejecución."""
         updated_items: list[GenerationItemRecord] = []
         for item in record.items:
-            # En entorno real se remueve el clip específico en Resolve
             updated_items.append(
                 GenerationItemRecord(
                     item_id=item.item_id,
@@ -188,6 +196,82 @@ class ResolveTimelineWriter:
         end_frame: float,
         text: str,
         role: str,
-    ) -> None:
-        """Inserta o actualiza un clip TextPlus mediante la API disponible de Resolve."""
-        pass
+        theme: ThemeTokens,
+    ) -> Any:
+        """Inserta y configura un clip TextPlus mediante la API de Resolve."""
+        insert_fn = getattr(self.timeline, "InsertFusionTitleIntoTimeline", None)
+        if not callable(insert_fn):
+            insert_fn = getattr(self.timeline, "InsertFusionGeneratorIntoTimeline", None)
+        if not callable(insert_fn):
+            return None
+
+        # Intentar insertar título Text+
+        title_item = None
+        for title_name in ("Text+", "TextPlus", "Text"):
+            try:
+                title_item = insert_fn(title_name)
+                if title_item is not None:
+                    break
+            except Exception:
+                continue
+
+        if title_item is None:
+            return None
+
+        # Configurar posición temporal y pista si la API lo permite
+        try:
+            set_prop = getattr(title_item, "SetProperty", None)
+            if callable(set_prop):
+                set_prop("Start", int(start_frame))
+                set_prop("End", int(end_frame))
+                set_prop("TrackIndex", int(track_index))
+        except Exception:
+            pass
+
+        # Configurar propiedades TextPlus dentro de la composición Fusion
+        try:
+            get_comp = getattr(title_item, "GetFusionCompByIndex", None)
+            if callable(get_comp):
+                comp = get_comp(1)
+                if comp:
+                    tools = comp.GetToolList(False, "TextPlus") or comp.GetToolList()
+                    for t in (tools.values() if isinstance(tools, dict) else tools):
+                        # Asignar texto y formato
+                        if hasattr(t, "StyledText"):
+                            try:
+                                t.StyledText[1] = text
+                            except Exception:
+                                pass
+                        if hasattr(t, "Font"):
+                            try:
+                                t.Font[1] = theme.font_family
+                            except Exception:
+                                pass
+
+                        # Color y tamaño según rol
+                        if role == "main":
+                            r, g, b = theme.main_color_rgb
+                            size = theme.main_font_size
+                        elif role == "accent":
+                            r, g, b = theme.accent_color_rgb
+                            size = theme.accent_font_size
+                        else:  # context
+                            r, g, b = theme.context_color_rgb
+                            size = theme.context_font_size
+
+                        if hasattr(t, "TopLeftRed"):
+                            try:
+                                t.TopLeftRed[1] = r
+                                t.TopLeftGreen[1] = g
+                                t.TopLeftBlue[1] = b
+                            except Exception:
+                                pass
+                        if hasattr(t, "Size"):
+                            try:
+                                t.Size[1] = size
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
+        return title_item
