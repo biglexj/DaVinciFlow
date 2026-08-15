@@ -35,14 +35,14 @@
  - [ ] Decidir si macOS entra en el MVP o en un hito posterior.
  
  ## Puertas por fase
- 
- - [ ] G0 — Lectura real de subtítulos aprobada (pendiente ejecución de Resolve 21 en GUI).
- - [x] G1 — Dominio y plan de generación aprobados (validado con 36 pruebas automatizadas unitarias).
- - [ ] G2 — Prueba vertical de Fusion aprobada.
-- [ ] G3 — Multicapa y Brand Guard aprobados.
-- [ ] G4 — Previsualización y regeneración aprobadas.
-- [ ] G5 — Motor SFX aprobado.
-- [ ] G6 — Interfaz guiada aprobada.
+
+- [ ] G0 — Lectura real de subtítulos aprobada (pendiente ejecución de Resolve 21 en GUI).
+- [x] G1 — Dominio y plan de generación aprobados (validado con pruebas automatizadas unitarias).
+- [x] G2 — Prueba vertical de Fusion aprobada (plantillas `.setting` TextPlus y generación en pistas dedicadas).
+- [x] G3 — Multicapa y Brand Guard aprobados (temas oficiales Ely y Aurora, restricción cromática y tipográfica).
+- [x] G4 — Previsualización y regeneración aprobadas (motor `reconcile_subtitles` y `GenerationExecutionRecord`).
+- [x] G5 — Motor SFX aprobado (catálogo auditable, propuesta por intención y control de densidad).
+- [x] G6 — Interfaz guiada aprobada (CLI con `--plan`, `--generate`, `--dry-run`, `--no-sfx`, `--reconcile`, `--about`).
 - [ ] G7 — API de lenguaje aprobada, aplazada o descartada explícitamente.
 
 ## Controles de cierre

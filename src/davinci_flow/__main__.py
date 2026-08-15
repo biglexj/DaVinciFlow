@@ -1,17 +1,22 @@
-"""Entrada de diagnóstico y planificación para DaVinci Flow."""
+"""Entrada de diagnóstico, planificación y generación para DaVinci Flow."""
 
 import argparse
 import sys
 from collections.abc import Sequence
 
-from davinci_flow.application import plan_active_subtitles, scan_active_subtitles
+from davinci_flow.application import (
+    generate_from_active_timeline,
+    plan_active_subtitles,
+    reconcile_active_timeline,
+    scan_active_subtitles,
+)
 from davinci_flow.errors import DaVinciFlowError
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="davinci-flow",
-        description="Lee una pista de subtítulos y planifica la generación dinámica de títulos.",
+        description="DaVinci Flow — Automatización de subtítulos dinámicos multicapa y SFX.",
     )
     parser.add_argument("--track", type=int, default=1, help="Índice de pista, comenzando en 1.")
     parser.add_argument(
@@ -24,6 +29,21 @@ def _parser() -> argparse.ArgumentParser:
         "--plan",
         action="store_true",
         help="Ejecuta la clasificación determinista en capas y muestra el plan de generación.",
+    )
+    parser.add_argument(
+        "--generate",
+        action="store_true",
+        help="Genera las capas de títulos y SFX en pistas dedicadas de la línea de tiempo.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simula la generación y muestra los clips que se crearían sin modificar Resolve.",
+    )
+    parser.add_argument(
+        "--no-sfx",
+        action="store_true",
+        help="Desactiva la propuesta e inserción de efectos sonoros (SFX).",
     )
     parser.add_argument(
         "--theme",
@@ -46,11 +66,41 @@ def _parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="Ruta de archivo JSON donde guardar el plan de generación calculado.",
     )
+    parser.add_argument(
+        "--reconcile",
+        type=str,
+        default=None,
+        metavar="PLAN_PATH",
+        help="Compara los subtítulos actuales contra un plan JSON previo para regeneración selectiva.",
+    )
+    parser.add_argument(
+        "--about",
+        action="store_true",
+        help="Muestra información de versión, autoría y enlaces de apoyo oficial.",
+    )
     return parser
+
+
+def print_about() -> None:
+    """Muestra información del proyecto y enlaces oficiales."""
+    print("╔═════════════════════════════════════════════════════════════╗")
+    print("║                       DaVinci Flow                          ║")
+    print("║         Subtítulos Dinámicos Multicapa & SFX Engine         ║")
+    print("║                     Versión 0.1.0 • MIT                     ║")
+    print("╚═════════════════════════════════════════════════════════════╝")
+    print("👤 Autor: biglexj (2026)")
+    print("🌐 Web Oficial & Donaciones: https://www.biglexj.com/donaciones")
+    print("☕ Buy Me a Coffee: https://buymeacoffee.com/biglexj")
+    print("🐙 GitHub: https://github.com/biglexj\n")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+
+    if args.about:
+        print_about()
+        return 0
+
     if args.track < 1:
         print("Error: --track debe ser igual o mayor que 1.", file=sys.stderr)
         return 2
@@ -59,11 +109,46 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     try:
+        # Modo Reconciliación
+        if args.reconcile:
+            diff = reconcile_active_timeline(args.reconcile, track_index=args.track)
+            print(f"Comparando contra plan previo: {diff.previous_plan_id}")
+            if diff.is_identical:
+                print("✅ Idempotencia: Los subtítulos son 100% idénticos. No se requieren cambios.")
+            else:
+                print(f"📊 Diferencias detectadas:")
+                print(f"  - Bloques sin cambios: {len(diff.unchanged_blocks)}")
+                print(f"  - Bloques modificados: {len(diff.modified_blocks)}")
+                print(f"  - Bloques agregados: {len(diff.added_blocks)}")
+                print(f"  - Bloques eliminados: {len(diff.deleted_block_ids)}")
+            return 0
+
+        # Modo Generación
+        if args.generate or args.dry_run:
+            record = generate_from_active_timeline(
+                track_index=args.track,
+                theme_name=args.theme,
+                profile_name=args.profile,
+                enable_sfx=not args.no_sfx,
+                dry_run=args.dry_run,
+            )
+            mode_label = "SIMULACIÓN (Dry-Run)" if args.dry_run else "GENERACIÓN"
+            print(f"[{mode_label}] Ejecución: {record.execution_id}")
+            print(f"Proyecto: {record.project_name} | Línea de tiempo: {record.timeline_name}")
+            print(f"Total elementos creados: {record.item_count} (Estado: {record.status})")
+            for item in record.items[:15]:
+                print(f"  [{item.track_name} / {item.role}] f:{item.start_frame:g}-{item.end_frame:g} -> {item.content_text}")
+            if record.item_count > 15:
+                print(f"… {record.item_count - 15} elementos adicionales.")
+            return 0
+
+        # Modo Planificación / Exportación
         if args.plan or args.export_plan:
             plan = plan_active_subtitles(
                 track_index=args.track,
                 theme_name=args.theme,
                 profile_name=args.profile,
+                enable_sfx=not args.no_sfx,
             )
             print(f"Proyecto: {plan.project_name}")
             print(f"Línea de tiempo: {plan.timeline_name}")
@@ -74,7 +159,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             visible_blocks = plan.blocks if args.limit == 0 else plan.blocks[: args.limit]
             for b in visible_blocks:
-                layers_desc = f"[{b.start_frame:g}-{b.end_frame:g}] ({b.layer_count} capas / {b.intent})"
+                sfx_tag = f" [SFX: {b.sfx_proposal}]" if b.sfx_proposal else ""
+                layers_desc = f"[{b.start_frame:g}-{b.end_frame:g}] ({b.layer_count} capas / {b.intent}){sfx_tag}"
                 parts = []
                 if b.context_text:
                     parts.append(f"[C: {b.context_text}]")
@@ -92,6 +178,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"\n✅ Plan exportado exitosamente a: {args.export_plan}")
             return 0
 
+        # Modo Escaneo Básico
         scan = scan_active_subtitles(args.track)
     except DaVinciFlowError as error:
         print(f"Error: {error}", file=sys.stderr)

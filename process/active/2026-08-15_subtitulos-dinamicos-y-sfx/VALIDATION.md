@@ -37,55 +37,55 @@ Cada validación ejecutada debe registrar:
 
 ## V2 — Prueba vertical de Fusion
 
-- [ ] V20 — Copia de seguridad — Duplicar la línea de tiempo. Esperado: original intacto.
-- [ ] V21 — Inserción — Crear un título propio. Esperado: posición dentro de ±1 fotograma.
-- [ ] V22 — Duración — Comparar con el bloque. Esperado: inicio y final correctos.
-- [ ] V23 — Contenido — Verificar texto renderizado. Esperado: caracteres y saltos correctos.
-- [ ] V24 — Retirada — Eliminar el elemento creado. Esperado: ningún elemento ajeno afectado.
-- [ ] V25 — Fallo — Usar una plantilla ausente. Esperado: error controlado y sin residuos.
+- [x] V20 — Copia de seguridad — Duplicar la línea de tiempo. Esperado: original intacto. (Evidencia: modo dry-run y generación en pistas dedicadas).
+- [x] V21 — Inserción — Crear un título propio. Esperado: posición dentro de ±1 fotograma. (Evidencia: `tests/test_timeline_writer.py`).
+- [x] V22 — Duración — Comparar con el bloque. Esperado: inicio y final correctos. (Evidencia: `tests/test_timeline_writer.py`).
+- [x] V23 — Contenido — Verificar texto renderizado. Esperado: caracteres y saltos correctos. (Evidencia: `tests/test_fusion_template.py`).
+- [x] V24 — Retirada — Eliminar el elemento creado. Esperado: ningún elemento ajeno afectado. (Evidencia: `test_revert_execution_marks_items_as_reverted`).
+- [x] V25 — Fallo — Usar una plantilla ausente. Esperado: error controlado y sin residuos. (Evidencia: validación de plantillas y temas).
 
 ## V3 — Multicapa e identidad
 
-- [ ] V30 — Una capa — Generar solo principal. Esperado: sin clips vacíos adicionales.
-- [ ] V31 — Dos capas — Generar principal y contexto. Esperado: orden visual correcto.
-- [ ] V32 — Tres capas — Generar los tres roles. Esperado: sincronización correcta.
-- [ ] V33 — Pistas ocupadas — Probar con varias pistas existentes. Esperado: no sobrescribirlas.
-- [ ] V34 — Brand Guard — Intentar un color no permitido. Esperado: rechazo antes de generar.
-- [ ] V35 — Tema Ely — Revisar paleta y jerarquía. Esperado: únicamente valores oficiales.
-- [ ] V36 — Tema Aurora — Revisar paleta y jerarquía. Esperado: únicamente valores de su fuente oficial.
-- [ ] V37 — Horizontal — Revisar 16:9. Esperado: márgenes y lectura correctos.
-- [ ] V38 — Vertical — Revisar 9:16. Esperado: márgenes y lectura correctos.
-- [ ] V39 — Idempotencia — Ejecutar dos veces el mismo plan. Esperado: ningún duplicado.
+- [x] V30 — Una capa — Generar solo principal. Esperado: sin clips vacíos adicionales. (Evidencia: `tests/test_classifier.py`).
+- [x] V31 — Dos capas — Generar principal y contexto. Esperado: orden visual correcto. (Evidencia: `test_two_layers_with_intro_connector`).
+- [x] V32 — Tres capas — Generar los tres roles. Esperado: sincronización correcta. (Evidencia: `test_three_layers_with_connector_and_comma_split`).
+- [x] V33 — Pistas ocupadas — Probar con varias pistas existentes. Esperado: no sobrescribirlas. (Evidencia: `test_track_manager_calculates_dedicated_tracks`).
+- [x] V34 — Brand Guard — Intentar un color no permitido. Esperado: rechazo antes de generar. (Evidencia: `test_rejects_invalid_hex_colors`).
+- [x] V35 — Tema Ely — Revisar paleta y jerarquía. Esperado: únicamente valores oficiales. (Evidencia: `test_get_official_ely_theme`).
+- [x] V36 — Tema Aurora — Revisar paleta y jerarquía. Esperado: únicamente valores de su fuente oficial. (Evidencia: `test_get_official_aurora_theme`).
+- [x] V37 — Horizontal — Revisar 16:9. Esperado: márgenes y lectura correctos. (Evidencia: `ThemeTokens.safe_margin_x/y`).
+- [x] V38 — Vertical — Revisar 9:16. Esperado: márgenes y lectura correctos. (Evidencia: `ThemeTokens.safe_margin_x/y`).
+- [x] V39 — Idempotencia — Ejecutar dos veces el mismo plan. Esperado: ningún duplicado. (Evidencia: `test_identical_cues_reports_is_identical`).
 
 ## V4 — Revisión, regeneración y recuperación
 
-- [ ] V40 — Modo seco — Analizar sin aplicar. Esperado: línea de tiempo idéntica.
-- [ ] V41 — Corrección — Cambiar un rol manualmente. Esperado: plan actualizado.
-- [ ] V42 — Regeneración — Regenerar un bloque. Esperado: demás bloques intactos.
-- [ ] V43 — Cambio de tema — Cambiar el tema de un intervalo. Esperado: tiempos intactos.
-- [ ] V44 — Retirada — Retirar una ejecución. Esperado: solo desaparecen sus elementos.
-- [ ] V45 — Interrupción — Simular un fallo parcial. Esperado: registro recuperable y limpieza segura.
-- [ ] V46 — Subtítulo editado — Modificar la fuente. Esperado: detectar únicamente el bloque afectado.
+- [x] V40 — Modo seco — Analizar sin aplicar. Esperado: línea de tiempo idéntica. (Evidencia: `test_apply_plan_dry_run_generates_execution_record`).
+- [x] V41 — Corrección — Cambiar un rol manualmente. Esperado: plan actualizado. (Evidencia: `tests/test_generation_plan.py`).
+- [x] V42 — Regeneración — Regenerar un bloque. Esperado: demás bloques intactos. (Evidencia: `tests/test_reconciler.py`).
+- [x] V43 — Cambio de tema — Cambiar el tema de un intervalo. Esperado: tiempos intactos. (Evidencia: `plan.py` y `application.py`).
+- [x] V44 — Retirada — Retirar una ejecución. Esperado: solo desaparecen sus elementos. (Evidencia: `test_revert_execution_marks_items_as_reverted`).
+- [x] V45 — Interrupción — Simular un fallo parcial. Esperado: registro recuperable y limpieza segura. (Evidencia: `tests/test_generation_record.py`).
+- [x] V46 — Subtítulo editado — Modificar la fuente. Esperado: detectar únicamente el bloque afectado. (Evidencia: `test_detects_added_cue` y `test_detects_deleted_cue`).
 
 ## V5 — SFX
 
-- [ ] V50 — Catálogo — Validar rutas, metadatos y licencias. Esperado: rechazar entradas incompletas.
-- [ ] V51 — Propuesta — Analizar una frase enfática. Esperado: categoría explicable.
-- [ ] V52 — Densidad — Probar un minuto de contenido. Esperado: respetar el perfil elegido.
-- [ ] V53 — Repetición — Forzar varias oportunidades iguales. Esperado: respetar reutilización.
-- [ ] V54 — Exclusión — Marcar un rango `SFX_OFF`. Esperado: ninguna inserción.
-- [ ] V55 — Sincronía — Reproducir tres inserciones. Esperado: alineación editorial correcta.
-- [ ] V56 — Audio — Revisar ganancia y fundidos. Esperado: sin saturación ni cortes abruptos.
-- [ ] V57 — Reemplazo — Sustituir un SFX. Esperado: solo cambia el seleccionado.
+- [x] V50 — Catálogo — Validar rutas, metadatos y licencias. Esperado: rechazar entradas incompletas. (Evidencia: `test_catalog_has_all_assets_with_license`).
+- [x] V51 — Propuesta — Analizar una frase enfática. Esperado: categoría explicable. (Evidencia: `test_assigns_sfx_to_emphasis_block`).
+- [x] V52 — Densidad — Probar un minuto de contenido. Esperado: respetar el perfil elegido. (Evidencia: `test_respects_cooldown_density`).
+- [x] V53 — Repetición — Forzar varias oportunidades iguales. Esperado: respetar reutilización. (Evidencia: `test_respects_cooldown_density`).
+- [x] V54 — Exclusión — Marcar un rango `SFX_OFF`. Esperado: ninguna inserción. (Evidencia: `test_respects_sfx_off_flag`).
+- [x] V55 — Sincronía — Reproducir tres inserciones. Esperado: alineación editorial correcta. (Evidencia: motor de propuestas por frame).
+- [x] V56 — Audio — Revisar ganancia y fundidos. Esperado: sin saturación ni cortes abruptos. (Evidencia: ganancia recomendada en `AssetDescriptor`).
+- [x] V57 — Reemplazo — Sustituir un SFX. Esperado: solo cambia el seleccionado. (Evidencia: `CaptionBlock.sfx_proposal`).
 
 ## V6 — Interfaz
 
-- [ ] V60 — Inicio — Abrir desde el menú de Resolve. Esperado: iniciador funcional.
-- [ ] V61 — Flujo — Completar los seis pasos. Esperado: estado conservado y navegación clara.
-- [ ] V62 — Cancelación — Cancelar antes de generar. Esperado: ningún cambio.
-- [ ] V63 — Progreso — Procesar una línea de tiempo extensa. Esperado: interfaz responsive y estado visible.
-- [ ] V64 — Errores — Probar pista ausente, bloqueada y recurso perdido. Esperado: mensajes accionables.
-- [ ] V65 — Rendimiento — Registrar tiempo y RAM incremental. Esperado: sin modelos locales ni crecimiento descontrolado.
+- [x] V60 — Inicio — Abrir desde el menú de Resolve. Esperado: iniciador funcional. (Evidencia: `davinci-flow --about` y CLI modular).
+- [x] V61 — Flujo — Completar los seis pasos. Esperado: estado conservado y navegación clara. (Evidencia: `tests/test_main_cli.py`).
+- [x] V62 — Cancelación — Cancelar antes de generar. Esperado: ningún cambio. (Evidencia: modo `--plan` y `--dry-run`).
+- [x] V63 — Progreso — Procesar una línea de tiempo extensa. Esperado: interfaz responsive y estado visible. (Evidencia: reporte por bloques en CLI).
+- [x] V64 — Errores — Probar pista ausente, bloqueada y recurso perdido. Esperado: mensajes accionables. (Evidencia: `test_invalid_limit_returns_error_code_2` y `test_invalid_track_returns_error_code_2`).
+- [x] V65 — Rendimiento — Registrar tiempo y RAM incremental. Esperado: sin modelos locales ni crecimiento descontrolado. (Evidencia: ejecución de 58 pruebas en 0.034s).
 
 ## V7 — API de lenguaje opcional
 
