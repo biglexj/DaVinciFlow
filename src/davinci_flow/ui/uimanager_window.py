@@ -1,8 +1,10 @@
-"""Interfaz gráfica de DaVinci Flow con diseño compacto, autodetecion, validación y cancelación."""
+"""Interfaz gráfica de DaVinci Flow no bloqueante (Multihilo con soporte de parada inmediata)."""
 
 import sys
+import threading
+import time
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
 from typing import Any
 
 from davinci_flow.application import (
@@ -19,7 +21,7 @@ def _try_create_uimanager_window(
     fusion_app: Any = None,
     bmd_module: Any = None,
 ) -> bool:
-    """Crea la ventana compacta nativa mediante el UIManager de Resolve con control de parada y autovalidación."""
+    """Crea la ventana nativa mediante UIManager de Resolve con ejecución en hilo secundario."""
     if fusion_app is None:
         if resolve_app is not None and hasattr(resolve_app, "Fusion"):
             try:
@@ -76,7 +78,6 @@ def _try_create_uimanager_window(
             ui.VGroup(
                 {"Spacing": 6, "Margin": 0},
                 [
-                    # 1. Encabezado
                     ui.VGroup(
                         {"Spacing": 1, "Weight": 0},
                         [
@@ -100,7 +101,6 @@ def _try_create_uimanager_window(
                         ],
                     ),
                     ui.VGap(2),
-                    # 2. Configuración y Selector de Pista
                     ui.HGroup(
                         {"Spacing": 8, "Weight": 0},
                         [
@@ -136,7 +136,6 @@ def _try_create_uimanager_window(
                             ui.HGap(1),
                         ]
                     ),
-                    # 3. Opciones Checkbox
                     ui.HGroup(
                         {"Spacing": 16, "Weight": 0},
                         [
@@ -145,7 +144,6 @@ def _try_create_uimanager_window(
                             ui.HGap(1),
                         ]
                     ),
-                    # 4. Botones de Acción principales con botón de Parada
                     ui.HGroup(
                         {"Spacing": 8, "Weight": 0},
                         [
@@ -161,7 +159,15 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "GenerateBtn",
                                     "Text": "⚡ Generar en Línea de Tiempo",
-                                    "FixedSize": [200, 26],
+                                    "FixedSize": [190, 26],
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.Button(
+                                {
+                                    "ID": "RevertBtn",
+                                    "Text": "🔄 Deshacer",
+                                    "FixedSize": [115, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -178,9 +184,7 @@ def _try_create_uimanager_window(
                         ]
                     ),
                     ui.VGap(2),
-                    # 5. Tabla / TreeView expandida
                     ui.Tree({"ID": "BlocksTree", "Weight": 1.0}),
-                    # 6. Barra de Estado
                     ui.Label(
                         {
                             "ID": "StatusLabel",
@@ -189,7 +193,6 @@ def _try_create_uimanager_window(
                             "Font": ui.Font({"PixelSize": 10}),
                         }
                     ),
-                    # 7. Pie de página
                     ui.HGroup(
                         {"Spacing": 8, "Weight": 0},
                         [
@@ -219,7 +222,6 @@ def _try_create_uimanager_window(
 
     items = win.GetItems()
 
-    # Opciones de ComboBox
     items["ThemeCombo"].AddItem("Ely")
     items["ThemeCombo"].AddItem("Aurora")
 
@@ -229,7 +231,6 @@ def _try_create_uimanager_window(
     items["ProfileCombo"].AddItem("Educativo")
     items["ProfileCombo"].AddItem("Vídeo Corto")
 
-    # Columnas del árbol
     try:
         tree = items["BlocksTree"]
         tree.SetHeaderLabels(["Tiempo (f)", "Capas", "Contexto", "Principal", "Acento", "SFX"])
@@ -242,11 +243,10 @@ def _try_create_uimanager_window(
     except Exception:
         pass
 
-    # Estado local
     current_plan: list[GenerationPlan] = []
-    cancel_requested: list[bool] = [False]
+    cancel_flag = [False]
+    is_running = [False]
 
-    # Autodetección al abrir
     try:
         summary = inspect_active_timeline()
         sub_cues = summary.subtitle_cues_counts.get(1, 0)
@@ -254,53 +254,74 @@ def _try_create_uimanager_window(
             f"<font color='#94A3B8'>Proyecto: {summary.project_name} | Línea de tiempo: {summary.timeline_name}</font>"
         )
         if summary.subtitle_track_count == 0 or sub_cues == 0:
-            items["StatusLabel"].Text = "⚠️ No se detectaron subtítulos en la pista 1. Asegúrate de tener subtítulos en la línea de tiempo."
+            items["StatusLabel"].Text = "⚠️ No se detectaron subtítulos en la pista 1."
         else:
             items["StatusLabel"].Text = f"✅ Detectados {sub_cues} subtítulos en Pista 1. Pulsa 'Analizar Capas'."
     except Exception as err:
         items["StatusLabel"].Text = f"Aviso: {err}"
 
     def on_stop(ev: Any) -> None:
-        cancel_requested[0] = True
-        items["StatusLabel"].Text = "⏹️ Cancelación solicitada por el usuario..."
+        cancel_flag[0] = True
+        items["StatusLabel"].Text = "⏹️ Cancelación solicitada... Deteniendo tras el bloque actual."
 
     def on_analyze(ev: Any) -> None:
-        cancel_requested[0] = False
+        if is_running[0]:
+            return
+        cancel_flag[0] = False
+        is_running[0] = True
+        items["AnalyzeBtn"].Enabled = False
+        items["GenerateBtn"].Enabled = False
+        items["StopBtn"].Enabled = True
+
         track = int(items["TrackSpin"].Value)
         theme_name = "ely" if int(items["ThemeCombo"].CurrentIndex) == 0 else "aurora"
         prof_map = {0: "natural", 1: "dinamico", 2: "reflexivo", 3: "educativo", 4: "video_corto"}
         profile_name = prof_map.get(int(items["ProfileCombo"].CurrentIndex), "natural")
         enable_sfx = bool(items["SFXCheck"].Checked)
 
-        items["StatusLabel"].Text = "Analizando subtítulos de la pista activa..."
-        try:
-            plan = plan_active_subtitles(track, theme_name, profile_name, enable_sfx)
-            if plan.block_count == 0:
-                items["StatusLabel"].Text = f"⚠️ La pista {track} está vacía. No contiene subtítulos para analizar."
-                items["BlocksTree"].Clear()
+        def worker() -> None:
+            try:
+                items["StatusLabel"].Text = "Analizando subtítulos..."
+                plan = plan_active_subtitles(track, theme_name, profile_name, enable_sfx)
+                if plan.block_count == 0:
+                    items["StatusLabel"].Text = f"⚠️ La pista {track} está vacía. No contiene subtítulos."
+                    items["BlocksTree"].Clear()
+                    current_plan.clear()
+                    return
+
                 current_plan.clear()
-                return
+                current_plan.append(plan)
 
-            current_plan.clear()
-            current_plan.append(plan)
+                items["BlocksTree"].Clear()
+                for b in plan.blocks:
+                    if cancel_flag[0]:
+                        break
+                    it = items["BlocksTree"].NewItem()
+                    it.Text[0] = f"{b.start_frame:g}-{b.end_frame:g}"
+                    it.Text[1] = f"{b.layer_count} capas"
+                    it.Text[2] = b.context_text or "—"
+                    it.Text[3] = b.main_text
+                    it.Text[4] = b.accent_text or "—"
+                    it.Text[5] = b.sfx_proposal or "—"
+                    items["BlocksTree"].AddTopLevelItem(it)
 
-            items["BlocksTree"].Clear()
-            for b in plan.blocks:
-                it = items["BlocksTree"].NewItem()
-                it.Text[0] = f"{b.start_frame:g}-{b.end_frame:g}"
-                it.Text[1] = f"{b.layer_count} capas"
-                it.Text[2] = b.context_text or "—"
-                it.Text[3] = b.main_text
-                it.Text[4] = b.accent_text or "—"
-                it.Text[5] = b.sfx_proposal or "—"
-                items["BlocksTree"].AddTopLevelItem(it)
+                items["StatusLabel"].Text = f"✅ Plan listo: {plan.block_count} bloques clasificados."
+            except Exception as err:
+                items["StatusLabel"].Text = f"❌ Error: {err}"
+            finally:
+                is_running[0] = False
+                items["AnalyzeBtn"].Enabled = True
+                items["GenerateBtn"].Enabled = True
+                items["StopBtn"].Enabled = False
 
-            items["StatusLabel"].Text = f"✅ Plan listo: {plan.block_count} bloques clasificados. Pulsa 'Generar en Línea de Tiempo'."
-        except DaVinciFlowError as err:
-            items["StatusLabel"].Text = f"❌ Error: {err}"
+        threading.Thread(target=worker, daemon=True).start()
 
     def on_generate(ev: Any) -> None:
-        cancel_requested[0] = False
+        if is_running[0]:
+            return
+        cancel_flag[0] = False
+        is_running[0] = True
+
         track = int(items["TrackSpin"].Value)
         theme_name = "ely" if int(items["ThemeCombo"].CurrentIndex) == 0 else "aurora"
         prof_map = {0: "natural", 1: "dinamico", 2: "reflexivo", 3: "educativo", 4: "video_corto"}
@@ -308,62 +329,69 @@ def _try_create_uimanager_window(
         enable_sfx = bool(items["SFXCheck"].Checked)
         dry_run = bool(items["DryRunCheck"].Checked)
 
-        # Validación si está vacío
-        if not current_plan or current_plan[0].block_count == 0:
-            # Intentar auto-análisis primero
-            try:
-                plan = plan_active_subtitles(track, theme_name, profile_name, enable_sfx)
-                if plan.block_count == 0:
-                    items["StatusLabel"].Text = f"⚠️ La pista {track} no contiene subtítulos. No hay nada para generar."
-                    return
-                current_plan.clear()
-                current_plan.append(plan)
-            except Exception as err:
-                items["StatusLabel"].Text = f"⚠️ No se pudo generar: {err}"
-                return
-
-        # Habilitar botón de parada
-        items["StopBtn"].Enabled = True
         items["AnalyzeBtn"].Enabled = False
         items["GenerateBtn"].Enabled = False
+        items["StopBtn"].Enabled = True
 
-        def progress_cb(curr: int, total: int, msg: str) -> None:
-            items["StatusLabel"].Text = msg
+        def worker() -> None:
+            try:
+                if not current_plan or current_plan[0].block_count == 0:
+                    plan = plan_active_subtitles(track, theme_name, profile_name, enable_sfx)
+                    if plan.block_count == 0:
+                        items["StatusLabel"].Text = f"⚠️ La pista {track} está vacía. No hay subtítulos para generar."
+                        return
+                    current_plan.clear()
+                    current_plan.append(plan)
 
-        def is_cancelled_check() -> bool:
-            return cancel_requested[0]
+                def progress_cb(curr: int, total: int, msg: str) -> None:
+                    items["StatusLabel"].Text = msg
 
-        items["StatusLabel"].Text = f"Generando {current_plan[0].block_count} bloques en la línea de tiempo..."
+                items["StatusLabel"].Text = f"Generando {current_plan[0].block_count} bloques..."
+                record = generate_from_active_timeline(
+                    track_index=track,
+                    theme_name=theme_name,
+                    profile_name=profile_name,
+                    enable_sfx=enable_sfx,
+                    dry_run=dry_run,
+                    progress_callback=progress_cb,
+                    is_cancelled=lambda: cancel_flag[0],
+                )
+                if record.status == "cancelled":
+                    items["StatusLabel"].Text = f"⏹️ Generación detenida ({record.item_count} clips creados)."
+                else:
+                    lbl = "Simulación" if dry_run else "Generación"
+                    items["StatusLabel"].Text = f"🎉 {lbl} completada: {record.item_count} clips creados."
+            except Exception as err:
+                items["StatusLabel"].Text = f"❌ Error: {err}"
+            finally:
+                is_running[0] = False
+                items["AnalyzeBtn"].Enabled = True
+                items["GenerateBtn"].Enabled = True
+                items["StopBtn"].Enabled = False
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def on_revert(ev: Any) -> None:
+        if is_running[0]:
+            return
+        items["StatusLabel"].Text = "Eliminando clips generados en pistas de DaVinci Flow..."
         try:
-            record = generate_from_active_timeline(
-                track_index=track,
-                theme_name=theme_name,
-                profile_name=profile_name,
-                enable_sfx=enable_sfx,
-                dry_run=dry_run,
-                progress_callback=progress_cb,
-                is_cancelled=is_cancelled_check,
-            )
-            if record.status == "cancelled":
-                items["StatusLabel"].Text = f"⏹️ Generación detenida por el usuario ({record.item_count} clips creados)."
-            else:
-                lbl = "Simulación" if dry_run else "Generación"
-                items["StatusLabel"].Text = f"🎉 {lbl} completada: {record.item_count} clips creados en pistas dedicadas."
-        except DaVinciFlowError as err:
-            items["StatusLabel"].Text = f"❌ Error: {err}"
-        finally:
-            items["StopBtn"].Enabled = False
-            items["AnalyzeBtn"].Enabled = True
-            items["GenerateBtn"].Enabled = True
+            from davinci_flow.application import revert_active_generation
+            count = revert_active_generation()
+            items["StatusLabel"].Text = f"🔄 Deshacer completado: {count} clips eliminados de las pistas."
+        except Exception as err:
+            items["StatusLabel"].Text = f"❌ Error al deshacer: {err}"
 
     def on_about(ev: Any) -> None:
         items["StatusLabel"].Text = "DaVinci Flow v0.1.0 • biglexj | Donaciones: https://www.biglexj.com/donaciones"
 
     def on_close(ev: Any) -> None:
+        cancel_flag[0] = True
         dispatcher.ExitLoop()
 
     win.On.AnalyzeBtn.Clicked = on_analyze
     win.On.GenerateBtn.Clicked = on_generate
+    win.On.RevertBtn.Clicked = on_revert
     win.On.StopBtn.Clicked = on_stop
     win.On.AboutBtn.Clicked = on_about
     win.On.CloseBtn.Clicked = on_close
@@ -457,7 +485,7 @@ def _create_tkinter_window() -> None:
     status_label = ttk.Label(root, text="Inspeccionando línea de tiempo...", style="SubHeader.TLabel")
     status_label.pack(fill="x", padx=16, pady=4)
 
-    cancel_flag = [False]
+    cancel_flag_tk = [False]
     current_plan_tk: list[GenerationPlan] = []
 
     try:
@@ -504,11 +532,11 @@ def _create_tkinter_window() -> None:
             status_label.config(text=f"❌ Error: {err}")
 
     def do_stop() -> None:
-        cancel_flag[0] = True
+        cancel_flag_tk[0] = True
         status_label.config(text="⏹️ Cancelación solicitada...")
 
     def do_generate() -> None:
-        cancel_flag[0] = False
+        cancel_flag_tk[0] = False
         track = track_var.get()
         if not current_plan_tk or current_plan_tk[0].block_count == 0:
             try:
@@ -530,26 +558,40 @@ def _create_tkinter_window() -> None:
             status_label.config(text=msg)
             root.update_idletasks()
 
+        def worker_gen() -> None:
+            try:
+                record = generate_from_active_timeline(
+                    track_index=track,
+                    theme_name=theme_var.get(),
+                    profile_name=profile_var.get(),
+                    enable_sfx=sfx_var.get(),
+                    dry_run=is_dry,
+                    progress_callback=progress_cb,
+                    is_cancelled=lambda: cancel_flag_tk[0],
+                )
+                if record.status == "cancelled":
+                    status_label.config(text=f"⏹️ Generación cancelada por el usuario ({record.item_count} clips creados).")
+                else:
+                    mode = "Simulación" if is_dry else "Generación"
+                    status_label.config(text=f"🎉 {mode} completada: {record.item_count} clips creados.")
+            except DaVinciFlowError as err:
+                status_label.config(text=f"❌ Error: {err}")
+
+        threading.Thread(target=worker_gen, daemon=True).start()
+
+    def do_revert() -> None:
+        status_label.config(text="Eliminando clips generados en pistas de DaVinci Flow...")
+        root.update_idletasks()
         try:
-            record = generate_from_active_timeline(
-                track_index=track,
-                theme_name=theme_var.get(),
-                profile_name=profile_var.get(),
-                enable_sfx=sfx_var.get(),
-                dry_run=is_dry,
-                progress_callback=progress_cb,
-                is_cancelled=lambda: cancel_flag[0],
-            )
-            if record.status == "cancelled":
-                status_label.config(text=f"⏹️ Generación cancelada por el usuario ({record.item_count} clips creados).")
-            else:
-                mode = "Simulación" if is_dry else "Generación"
-                status_label.config(text=f"🎉 {mode} completada: {record.item_count} clips creados.")
-        except DaVinciFlowError as err:
-            status_label.config(text=f"❌ Error: {err}")
+            from davinci_flow.application import revert_active_generation
+            removed = revert_active_generation()
+            status_label.config(text=f"🔄 Deshacer global completado: {removed} clips eliminados.")
+        except Exception as err:
+            status_label.config(text=f"❌ Error al deshacer: {err}")
 
     ttk.Button(btn_frame, text="🔍 Analizar Capas", command=do_analyze, style="TButton").pack(side="left", padx=(0, 8))
     ttk.Button(btn_frame, text="⚡ Generar en Línea de Tiempo", command=do_generate, style="Accent.TButton").pack(side="left", padx=8)
+    ttk.Button(btn_frame, text="🔄 Deshacer", command=do_revert, style="TButton").pack(side="left", padx=8)
     ttk.Button(btn_frame, text="⏹️ Detener", command=do_stop, style="Stop.TButton").pack(side="left", padx=8)
 
     root.mainloop()

@@ -10,48 +10,57 @@ class TrackManagementError(DaVinciFlowError):
 
 
 class ResolveTrackManager:
-    """Administra y crea las pistas de vídeo y audio dedicadas (DF_CONTEXT, DF_MAIN, DF_ACCENT, DF_SFX)."""
+    """Administra y crea las pistas de vídeo y audio dedicadas (DF_CONTEXT, DF_MAIN, DF_ACCENT, DF_SFX) sin sobrescribir pistas de usuario."""
 
     def __init__(self, timeline: Any) -> None:
         self.timeline = timeline
 
     def get_track_indices(self) -> dict[str, int]:
-        """Localiza o planifica los índices de pistas dedicadas."""
+        """Calcula los índices de pistas dedicadas colocándolas SIEMPRE por encima de las pistas de usuario."""
         video_tracks_count = self._safe_get_track_count("video")
         audio_tracks_count = self._safe_get_track_count("audio")
 
-        # Buscar pistas existentes por nombre
+        # 1. Identificar pistas dedicadas existentes por su nombre exacto
         video_mapping: dict[str, int] = {}
+        highest_user_video = 0
         for idx in range(1, video_tracks_count + 1):
             name = self._safe_get_track_name("video", idx)
             if name in ("DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_VISUAL_FX"):
                 video_mapping[name] = idx
+            else:
+                # Pista de usuario o vacía existente
+                highest_user_video = max(highest_user_video, idx)
 
         audio_mapping: dict[str, int] = {}
+        highest_user_audio = 0
         for idx in range(1, audio_tracks_count + 1):
             name = self._safe_get_track_name("audio", idx)
             if name == "DF_SFX":
                 audio_mapping[name] = idx
+            else:
+                highest_user_audio = max(highest_user_audio, idx)
 
-        # Si no existen, asignar posiciones secuenciales
-        curr_v = video_tracks_count
+        # 2. Si no existen pistas dedicadas, crearlas estrictamente por encima de todas las pistas de usuario
+        base_v = max(highest_user_video, 0)
         if "DF_CONTEXT" not in video_mapping:
-            curr_v += 1
-            video_mapping["DF_CONTEXT"] = curr_v
+            base_v += 1
+            video_mapping["DF_CONTEXT"] = base_v
         if "DF_MAIN" not in video_mapping:
-            curr_v += 1
-            video_mapping["DF_MAIN"] = curr_v
+            base_v += 1
+            video_mapping["DF_MAIN"] = base_v
         if "DF_ACCENT" not in video_mapping:
-            curr_v += 1
-            video_mapping["DF_ACCENT"] = curr_v
+            base_v += 1
+            video_mapping["DF_ACCENT"] = base_v
 
+        base_a = max(highest_user_audio, 0)
         if "DF_SFX" not in audio_mapping:
-            audio_mapping["DF_SFX"] = audio_tracks_count + 1
+            base_a += 1
+            audio_mapping["DF_SFX"] = base_a
 
         return {**video_mapping, **audio_mapping}
 
     def ensure_dedicated_tracks(self) -> dict[str, int]:
-        """Garantiza físicamente la creación y nombrado de las pistas en DaVinci Resolve."""
+        """Garantiza físicamente la creación y nombrado de las pistas en DaVinci Resolve sin afectar las de usuario."""
         track_map = self.get_track_indices()
 
         add_track_fn = getattr(self.timeline, "AddTrack", None)
@@ -60,7 +69,7 @@ class ResolveTrackManager:
         if not callable(add_track_fn) or not callable(set_name_fn):
             return track_map
 
-        # 1. Asegurar pistas de vídeo
+        # 1. Asegurar la cantidad necesaria de pistas de vídeo
         curr_v_count = self._safe_get_track_count("video")
         max_v_needed = max(
             track_map.get("DF_CONTEXT", 1),
@@ -75,7 +84,7 @@ class ResolveTrackManager:
             except Exception:
                 break
 
-        # Asignar nombres a pistas de vídeo
+        # Asignar nombres oficiales a las pistas de vídeo
         for name in ("DF_CONTEXT", "DF_MAIN", "DF_ACCENT"):
             idx = track_map.get(name)
             if idx:
@@ -84,7 +93,7 @@ class ResolveTrackManager:
                 except Exception:
                     pass
 
-        # 2. Asegurar pista de audio para SFX
+        # 2. Asegurar pista de audio para SFX por encima de las del usuario
         curr_a_count = self._safe_get_track_count("audio")
         sfx_idx = track_map.get("DF_SFX", 1)
         while curr_a_count < sfx_idx:

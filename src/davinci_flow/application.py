@@ -166,3 +166,11 @@ def reconcile_active_timeline(
     previous_plan = GenerationPlan.load_from_file(previous_plan_path)
     current_cues = ResolveSubtitleReader(session.timeline).read_track(track_index)
     return reconcile_subtitles(previous_plan, current_cues)
+
+
+def revert_active_generation() -> int:
+    """Elimina en un solo paso global todos los elementos generados en las pistas de DaVinci Flow."""
+    session = connect_to_resolve()
+    writer = ResolveTimelineWriter(session.timeline)
+    return writer.clear_generated_tracks()
+

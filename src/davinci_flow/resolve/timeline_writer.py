@@ -203,6 +203,49 @@ class ResolveTimelineWriter:
             created_at=record.created_at,
         )
 
+    def clear_generated_tracks(self) -> int:
+        """Elimina físicamente todos los clips generados en las pistas de DaVinci Flow (DF_CONTEXT, DF_MAIN, DF_ACCENT, DF_SFX)."""
+        delete_clips_fn = getattr(self.timeline, "DeleteClips", None)
+        removed_count = 0
+
+        # 1. Pistas de vídeo dedicadas
+        video_tracks_count = self.track_manager._safe_get_track_count("video")
+        for idx in range(1, video_tracks_count + 1):
+            name = self.track_manager._safe_get_track_name("video", idx)
+            if name in ("DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_VISUAL_FX"):
+                items = self.timeline.GetItemListInTrack("video", idx) or []
+                if items:
+                    if callable(delete_clips_fn):
+                        try:
+                            delete_clips_fn(items)
+                        except Exception:
+                            for it in items:
+                                try:
+                                    delete_clips_fn([it])
+                                except Exception:
+                                    pass
+                    removed_count += len(items)
+
+        # 2. Pista de audio DF_SFX
+        audio_tracks_count = self.track_manager._safe_get_track_count("audio")
+        for idx in range(1, audio_tracks_count + 1):
+            name = self.track_manager._safe_get_track_name("audio", idx)
+            if name == "DF_SFX":
+                items = self.timeline.GetItemListInTrack("audio", idx) or []
+                if items:
+                    if callable(delete_clips_fn):
+                        try:
+                            delete_clips_fn(items)
+                        except Exception:
+                            for it in items:
+                                try:
+                                    delete_clips_fn([it])
+                                except Exception:
+                                    pass
+                    removed_count += len(items)
+
+        return removed_count
+
     def _insert_fusion_title(
         self,
         track_index: int,
