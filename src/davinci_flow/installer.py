@@ -27,18 +27,19 @@ def get_resolve_scripts_directory(user_only: bool = True) -> Path:
 
 
 def get_launcher_code(source_dir: Path | None = None) -> str:
-    """Genera el código ejecutable mínimo del lanzador para el menú de Resolve."""
+    """Genera el código ejecutable del lanzador para el menú de Resolve."""
     if source_dir is None:
         source_dir = Path(__file__).resolve().parent.parent
 
-    # Usar barras normales para evitar problemas de escape en cadenas
     source_dir_str = str(source_dir).replace("\\", "/")
 
     return f"""#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 \"\"\"Iniciador de DaVinci Flow para el menú Scripts de DaVinci Resolve.\"\"\"
 
+import os
 import sys
+import traceback
 from pathlib import Path
 
 # Inyectar la ruta de DaVinci Flow al entorno
@@ -47,11 +48,22 @@ if DF_SRC_PATH not in sys.path:
     sys.path.insert(0, DF_SRC_PATH)
 
 try:
+    # Capturar referencias inyectadas por el entorno host de DaVinci Resolve
+    current_resolve = globals().get("resolve") or getattr(__builtins__, "resolve", None)
+    current_fusion = globals().get("fusion") or globals().get("fu") or getattr(__builtins__, "fusion", None) or getattr(__builtins__, "fu", None)
+    current_bmd = globals().get("bmd") or getattr(__builtins__, "bmd", None)
+
     from davinci_flow.ui import open_davinci_flow_ui
-    open_davinci_flow_ui()
+    open_davinci_flow_ui(
+        resolve_app=current_resolve,
+        fusion_app=current_fusion,
+        bmd_module=current_bmd,
+    )
 except Exception as err:
-    print(f"Error al iniciar DaVinci Flow: {{err}}", file=sys.stderr)
-    import traceback
+    log_file = Path.home() / ".davinci_flow_error.log"
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(f"Error al iniciar DaVinci Flow:\\n{{traceback.format_exc()}}\\n\\n")
+    print(f"Error al iniciar DaVinci Flow: {{err}} (ver {{log_file}})", file=sys.stderr)
     traceback.print_exc()
 """
 

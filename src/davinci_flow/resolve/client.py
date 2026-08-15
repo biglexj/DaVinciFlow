@@ -1,11 +1,11 @@
 """Conexión controlada con la API local de DaVinci Resolve."""
 
-from dataclasses import dataclass
 import importlib
 import os
-from pathlib import Path
 import subprocess
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 
@@ -23,7 +23,6 @@ class ResolveSession:
 
 def _is_resolve_running() -> bool:
     """Evita cargar la biblioteca nativa cuando Resolve está cerrado."""
-
     if sys.platform == "win32":
         command = [
             "tasklist",
@@ -107,20 +106,30 @@ def _load_resolve_module() -> ModuleType:
     )
 
 
-def connect_to_resolve() -> ResolveSession:
+def connect_to_resolve(resolve_instance: Any = None) -> ResolveSession:
     """Obtiene el proyecto y la línea de tiempo activos sin modificarlos."""
+    resolve = resolve_instance
 
-    if not _is_resolve_running():
-        raise ResolveConnectionError(
-            "DaVinci Resolve no está en ejecución. Ábrelo antes de iniciar DaVinci Flow."
-        )
-
-    module = _load_resolve_module()
-    resolve = module.scriptapp("Resolve")
+    # Si se ejecuta dentro de DaVinci Resolve, recuperar resolve desde el contexto
     if resolve is None:
-        raise ResolveConnectionError(
-            "DaVinci Resolve no respondió. Ábrelo y habilita el acceso local al scripting."
-        )
+        main_mod = sys.modules.get("__main__")
+        if main_mod and hasattr(main_mod, "resolve"):
+            resolve = getattr(main_mod, "resolve")
+        elif hasattr(__builtins__, "resolve"):
+            resolve = getattr(__builtins__, "resolve")
+
+    if resolve is None:
+        if not _is_resolve_running():
+            raise ResolveConnectionError(
+                "DaVinci Resolve no está en ejecución. Ábrelo antes de iniciar DaVinci Flow."
+            )
+
+        module = _load_resolve_module()
+        resolve = module.scriptapp("Resolve")
+        if resolve is None:
+            raise ResolveConnectionError(
+                "DaVinci Resolve no respondió. Ábrelo y habilita el acceso local al scripting."
+            )
 
     project_manager = resolve.GetProjectManager()
     project = project_manager.GetCurrentProject() if project_manager else None
