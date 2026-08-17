@@ -64,7 +64,7 @@ def _try_create_uimanager_window(
     fusion_app: Any = None,
     bmd_module: Any = None,
 ) -> bool:
-    """Crea la ventana nativa mediante UIManager de Resolve."""
+    """Crea la ventana nativa mediante UIManager de Resolve sin desbordamientos."""
     if fusion_app is None:
         if resolve_app is not None and hasattr(resolve_app, "Fusion"):
             try:
@@ -113,15 +113,16 @@ def _try_create_uimanager_window(
         {
             "WindowTitle": "DaVinci Flow — Subtítulos Dinámicos, Guion & Asistente IA",
             "ID": "DaVinciFlowWin",
-            "Geometry": [200, 60, 920, 720],
-            "Margin": 12,
-            "Spacing": 6,
+            "Geometry": [180, 50, 880, 690],
+            "MinimumSize": [760, 580],
+            "Margin": 10,
+            "Spacing": 5,
         },
         [
             ui.VGroup(
-                {"Spacing": 6, "Margin": 0},
+                {"Spacing": 5, "Margin": 0},
                 [
-                    # Encabezado
+                    # 1. Encabezado Centrado
                     ui.VGroup(
                         {"Spacing": 1, "Weight": 0},
                         [
@@ -136,7 +137,7 @@ def _try_create_uimanager_window(
                             ui.Label(
                                 {
                                     "ID": "HeaderInfoLabel",
-                                    "Text": "<font color='#94A3B8'>Inspeccionando sesión activa...</font>",
+                                    "Text": "<font color='#94A3B8'>Inspeccionando sesión activa de DaVinci Resolve...</font>",
                                     "Alignment": {"AlignHCenter": True},
                                     "Font": ui.Font({"PixelSize": 10}),
                                     "Weight": 0,
@@ -144,69 +145,68 @@ def _try_create_uimanager_window(
                             ),
                         ],
                     ),
-                    ui.VGap(2),
-                    # Fila 1: Origen de subtítulos y temas
+                    ui.VGap(1),
+
+                    # 2. Origen de Subtítulos y Estilo
                     ui.HGroup(
-                        {"Spacing": 8, "Weight": 0},
+                        {"Spacing": 6, "Weight": 0},
                         [
-                            ui.Label({"Text": "Pista Subtítulos:", "Weight": 0}),
+                            ui.Label({"Text": "Pista:", "Weight": 0}),
                             ui.SpinBox(
                                 {
                                     "ID": "TrackSpin",
                                     "Value": 1,
                                     "Minimum": 1,
                                     "Maximum": 16,
-                                    "FixedSize": [50, 24],
+                                    "FixedSize": [45, 24],
                                     "Weight": 0,
                                 }
                             ),
-                            ui.HGap(4),
                             ui.Label({"Text": "Tema:", "Weight": 0}),
                             ui.ComboBox(
                                 {
                                     "ID": "ThemeCombo",
-                                    "FixedSize": [90, 24],
+                                    "FixedSize": [80, 24],
                                     "Weight": 0,
                                 }
                             ),
-                            ui.HGap(4),
                             ui.Label({"Text": "Perfil:", "Weight": 0}),
                             ui.ComboBox(
                                 {
                                     "ID": "ProfileCombo",
-                                    "FixedSize": [110, 24],
+                                    "FixedSize": [100, 24],
                                     "Weight": 0,
                                 }
                             ),
-                            ui.HGap(6),
+                            ui.HGap(4),
                             ui.Button(
                                 {
                                     "ID": "ReadTimelineBtn",
-                                    "Text": "🎬 Leer Pista Resolve",
-                                    "FixedSize": [140, 24],
+                                    "Text": "🎬 Leer Pista",
+                                    "FixedSize": [110, 24],
                                     "Weight": 0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "LoadSrtBtn",
-                                    "Text": "📂 Cargar SRT...",
-                                    "FixedSize": [120, 24],
+                                    "Text": "📂 Cargar SRT",
+                                    "FixedSize": [110, 24],
                                     "Weight": 0,
                                 }
                             ),
-                            ui.HGap(1),
                         ]
                     ),
-                    # Fila 2: Credenciales Gemini y Glosario
+
+                    # 3. Credenciales Gemini
                     ui.HGroup(
-                        {"Spacing": 8, "Weight": 0},
+                        {"Spacing": 6, "Weight": 0},
                         [
                             ui.Label({"Text": "API Key Gemini:", "Weight": 0}),
                             ui.LineEdit(
                                 {
                                     "ID": "ApiKeyInput",
-                                    "PlaceholderText": "Clave API Gemini (o usa GEMINI_API_KEY)",
+                                    "PlaceholderText": "Clave API Gemini (o variable de entorno GEMINI_API_KEY)",
                                     "EchoMode": "Password",
                                     "Weight": 1.0,
                                 }
@@ -221,55 +221,72 @@ def _try_create_uimanager_window(
                             ),
                         ]
                     ),
+
+                    # 4. Glosario / Reemplazos de Marcas
                     ui.HGroup(
-                        {"Spacing": 8, "Weight": 0},
+                        {"Spacing": 6, "Weight": 0},
                         [
                             ui.Label({"Text": "Glosario/Marcas:", "Weight": 0}),
                             ui.LineEdit(
                                 {
                                     "ID": "GlossaryInput",
-                                    "PlaceholderText": "Reemplazos de marcas o jergas (ej: biglex: Biglex J, davinci: DaVinci)",
+                                    "PlaceholderText": "Reemplazos fijos (ej: biglex: Biglex J, resolve: DaVinci)",
+                                    "Weight": 1.0,
+                                }
+                            ),
+                        ]
+                    ),
+
+                    # 5. Encabezado de Guion con Botón de Carga
+                    ui.HGroup(
+                        {"Spacing": 6, "Weight": 0},
+                        [
+                            ui.Label(
+                                {
+                                    "Text": "Guion Original (Referencia para corrección y marcadores):",
                                     "Weight": 1.0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "LoadScriptBtn",
-                                    "Text": "📄 Cargar Guion .txt",
-                                    "FixedSize": [130, 24],
+                                    "Text": "📄 Cargar Guion (.txt / .md)",
+                                    "FixedSize": [170, 22],
                                     "Weight": 0,
                                 }
                             ),
                         ]
                     ),
-                    # Fila 3: Guion original
+
+                    # 6. Área de Texto de Guion
                     ui.TextEdit(
                         {
                             "ID": "ScriptTextEdit",
-                            "PlaceholderText": "Pega aquí el guion original completo para comparar y corregir los subtítulos transcritos por DaVinci...",
-                            "Weight": 0.35,
+                            "PlaceholderText": "Pega aquí o carga el guion original completo para comparar y corregir los subtítulos...",
+                            "Weight": 0.25,
                         }
                     ),
-                    # Fila 4: Opciones
+
+                    # 7. Checkboxes de Opciones
                     ui.HGroup(
-                        {"Spacing": 14, "Weight": 0},
+                        {"Spacing": 12, "Weight": 0},
                         [
                             ui.CheckBox({"ID": "SFXCheck", "Text": "Efectos SFX", "Checked": True, "Weight": 0}),
-                            ui.CheckBox({"ID": "DryRunCheck", "Text": "Modo Simulación (Dry-Run)", "Checked": False, "Weight": 0}),
-                            ui.CheckBox({"ID": "CorrectAiCheck", "Text": "✨ Corregir con Guion (Gemini)", "Checked": True, "Weight": 0}),
-                            ui.CheckBox({"ID": "MarkersAiCheck", "Text": "🎯 Marcadores en Línea de Tiempo", "Checked": True, "Weight": 0}),
-                            ui.HGap(1),
+                            ui.CheckBox({"ID": "DryRunCheck", "Text": "Dry-Run", "Checked": False, "Weight": 0}),
+                            ui.CheckBox({"ID": "CorrectAiCheck", "Text": "✨ Corregir con Guion (IA)", "Checked": True, "Weight": 0}),
+                            ui.CheckBox({"ID": "MarkersAiCheck", "Text": "🎯 Marcadores en Timeline", "Checked": True, "Weight": 0}),
                         ]
                     ),
-                    # Fila 5: Botones de Acción
+
+                    # 8. Botones de Acción Principales
                     ui.HGroup(
-                        {"Spacing": 8, "Weight": 0},
+                        {"Spacing": 6, "Weight": 0},
                         [
                             ui.Button(
                                 {
                                     "ID": "AnalyzeBtn",
                                     "Text": "🔍 Analizar Capas",
-                                    "FixedSize": [140, 28],
+                                    "FixedSize": [125, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -277,15 +294,15 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "AiCorrectBtn",
                                     "Text": "✨ Corregir con IA",
-                                    "FixedSize": [150, 28],
+                                    "FixedSize": [130, 26],
                                     "Weight": 0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "GenerateBtn",
-                                    "Text": "⚡ Generar en Línea de Tiempo",
-                                    "FixedSize": [200, 28],
+                                    "Text": "⚡ Generar en Timeline",
+                                    "FixedSize": [160, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -293,7 +310,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "RevertBtn",
                                     "Text": "🔄 Deshacer",
-                                    "FixedSize": [100, 28],
+                                    "FixedSize": [90, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -301,43 +318,48 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "StopBtn",
                                     "Text": "⏹️ Detener",
-                                    "FixedSize": [90, 28],
+                                    "FixedSize": [80, 26],
                                     "Weight": 0,
                                     "Enabled": False,
                                 }
                             ),
-                            ui.HGap(1),
                         ]
                     ),
-                    ui.VGap(2),
-                    # Fila 6: Árbol de Subtítulos y Capas
-                    ui.Tree({"ID": "BlocksTree", "Weight": 1.0}),
-                    ui.Label(
+
+                    # 9. Árbol de Subtítulos y Capas
+                    ui.Tree(
                         {
-                            "ID": "StatusLabel",
-                            "Text": "Inspeccionando línea de tiempo...",
-                            "Weight": 0,
-                            "Font": ui.Font({"PixelSize": 10}),
+                            "ID": "BlocksTree",
+                            "ColumnCount": 6,
+                            "Weight": 1.0,
                         }
                     ),
-                    # Fila 7: Pie
+
+                    # 10. Barra de Estado y Cierre
                     ui.HGroup(
-                        {"Spacing": 8, "Weight": 0},
+                        {"Spacing": 6, "Weight": 0},
                         [
+                            ui.Label(
+                                {
+                                    "ID": "StatusLabel",
+                                    "Text": "Inspeccionando línea de tiempo...",
+                                    "Weight": 1.0,
+                                    "Font": ui.Font({"PixelSize": 10}),
+                                }
+                            ),
                             ui.Button(
                                 {
                                     "ID": "AboutBtn",
-                                    "Text": "ℹ️ Acerca de",
-                                    "FixedSize": [95, 22],
+                                    "Text": "ℹ️ Info",
+                                    "FixedSize": [60, 22],
                                     "Weight": 0,
                                 }
                             ),
-                            ui.HGap(1),
                             ui.Button(
                                 {
                                     "ID": "CloseBtn",
                                     "Text": "Cerrar",
-                                    "FixedSize": [75, 22],
+                                    "FixedSize": [65, 22],
                                     "Weight": 0,
                                 }
                             ),
@@ -370,12 +392,12 @@ def _try_create_uimanager_window(
     try:
         tree = items["BlocksTree"]
         tree.SetHeaderLabels(["Tiempo (f)", "Capas", "Contexto", "Principal (Corregido)", "Acento", "SFX"])
-        tree.ColumnWidth[0] = 90
-        tree.ColumnWidth[1] = 70
+        tree.ColumnWidth[0] = 85
+        tree.ColumnWidth[1] = 60
         tree.ColumnWidth[2] = 130
-        tree.ColumnWidth[3] = 270
-        tree.ColumnWidth[4] = 130
-        tree.ColumnWidth[5] = 90
+        tree.ColumnWidth[3] = 250
+        tree.ColumnWidth[4] = 120
+        tree.ColumnWidth[5] = 75
     except Exception:
         pass
 
@@ -412,7 +434,6 @@ def _try_create_uimanager_window(
             items["StatusLabel"].Text = f"❌ Error al guardar clave: {err}"
 
     def on_load_srt(ev: Any) -> None:
-        # En UIManager de Fusion podemos solicitar ruta vía diálogo o input
         try:
             root_tk = tk.Tk()
             root_tk.withdraw()
@@ -425,7 +446,7 @@ def _try_create_uimanager_window(
             if filepath:
                 loaded_srt_path.clear()
                 loaded_srt_path.append(filepath)
-                items["StatusLabel"].Text = f"📂 Archivo SRT cargado: {Path(filepath).name}. Pulsa 'Analizar Capas'."
+                items["StatusLabel"].Text = f"📂 Subtítulos SRT: {Path(filepath).name}. Analizando..."
                 on_analyze(None)
         except Exception as err:
             items["StatusLabel"].Text = f"Error al abrir diálogo SRT: {err}"
@@ -629,7 +650,7 @@ def _create_tkinter_window() -> None:
     """Crea una ventana gráfica dark-mode usando Tkinter con pestañas para Generación y Guion IA."""
     root = tk.Tk()
     root.title("DaVinci Flow — Subtítulos Dinámicos, Guion & Asistente IA")
-    root.geometry("920x720")
+    root.geometry("900x700")
     root.configure(bg="#0F172A")
 
     style = ttk.Style(root)
@@ -741,12 +762,12 @@ def _create_tkinter_window() -> None:
     tree.heading("accent", text="Acento")
     tree.heading("sfx", text="SFX")
 
-    tree.column("time", width=95, anchor="center")
-    tree.column("layers", width=70, anchor="center")
-    tree.column("context", width=140)
-    tree.column("main", width=280)
-    tree.column("accent", width=140)
-    tree.column("sfx", width=90, anchor="center")
+    tree.column("time", width=90, anchor="center")
+    tree.column("layers", width=65, anchor="center")
+    tree.column("context", width=130)
+    tree.column("main", width=260)
+    tree.column("accent", width=120)
+    tree.column("sfx", width=75, anchor="center")
 
     scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=scrollbar.set)
