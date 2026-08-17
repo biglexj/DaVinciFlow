@@ -3,9 +3,12 @@
 import argparse
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from davinci_flow.application import (
+    align_and_correct_subtitles,
     generate_from_active_timeline,
+    insert_ai_timeline_markers,
     plan_active_subtitles,
     reconcile_active_timeline,
     scan_active_subtitles,
@@ -16,12 +19,13 @@ from davinci_flow.installer import (
     uninstall_resolve_launcher,
 )
 from davinci_flow.ui import open_davinci_flow_ui
+from davinci_flow.ui.uimanager_window import parse_glossary_str
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="davinci-flow",
-        description="DaVinci Flow — Automatización de subtítulos dinámicos multicapa y SFX.",
+        description="DaVinci Flow — Automatización de subtítulos dinámicos multicapa, guion y SFX.",
     )
     parser.add_argument("--track", type=int, default=1, help="Índice de pista, comenzando en 1.")
     parser.add_argument(
@@ -65,6 +69,37 @@ def _parser() -> argparse.ArgumentParser:
         help="Perfil editorial (por defecto: natural).",
     )
     parser.add_argument(
+        "--script",
+        type=str,
+        default="",
+        metavar="PATH_OR_TEXT",
+        help="Guion original para comparar y corregir los subtítulos transcritos.",
+    )
+    parser.add_argument(
+        "--glossary",
+        type=str,
+        default="",
+        metavar="GLOSSARY_KV",
+        help="Glosario de reemplazos de marcas/jergas (ej: 'biglex: Biglex J, resolve: DaVinci').",
+    )
+    parser.add_argument(
+        "--gemini-key",
+        type=str,
+        default=None,
+        metavar="KEY",
+        help="Clave API de Google Gemini (o usar variable de entorno GEMINI_API_KEY).",
+    )
+    parser.add_argument(
+        "--correct-ai",
+        action="store_true",
+        help="Habilita la alineación y corrección contextual con Google Gemini.",
+    )
+    parser.add_argument(
+        "--add-markers",
+        action="store_true",
+        help="Inserta marcadores en puntos clave importantes en la línea de tiempo de Resolve.",
+    )
+    parser.add_argument(
         "--export-plan",
         type=str,
         default=None,
@@ -101,11 +136,24 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _load_script_text(script_arg: str) -> str:
+    """Carga el texto del guion desde un archivo en disco o lo toma como texto plano directo."""
+    if not script_arg or not script_arg.strip():
+        return ""
+    p = Path(script_arg.strip())
+    if p.is_file():
+        try:
+            return p.read_text(encoding="utf-8")
+        except Exception:
+            pass
+    return script_arg.strip()
+
+
 def print_about() -> None:
     """Muestra información del proyecto y enlaces oficiales."""
     print("╔═════════════════════════════════════════════════════════════╗")
     print("║                       DaVinci Flow                          ║")
-    print("║         Subtítulos Dinámicos Multicapa & SFX Engine         ║")
+    print("║   Subtítulos Dinámicos, Guion & Asistente IA (Gemini Engine)║")
     print("║                     Versión 0.1.0 • MIT                     ║")
     print("╚═════════════════════════════════════════════════════════════╝")
     print("👤 Autor: biglexj (2026)")
@@ -149,6 +197,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("Error: --limit no puede ser negativo.", file=sys.stderr)
         return 2
 
+    script_text = _load_script_text(args.script)
+    glossary = parse_glossary_str(args.glossary)
+    use_ai = args.correct_ai or bool(script_text or glossary or args.gemini_key)
+
     try:
         # Modo Reconciliación
         if args.reconcile:
@@ -172,6 +224,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 profile_name=args.profile,
                 enable_sfx=not args.no_sfx,
                 dry_run=args.dry_run,
+                original_script=script_text,
+                glossary=glossary,
+                api_key=args.gemini_key,
+                use_ai_correction=use_ai,
+                insert_markers=args.add_markers,
             )
             mode_label = "SIMULACIÓN (Dry-Run)" if args.dry_run else "GENERACIÓN"
             print(f"[{mode_label}] Ejecución: {record.execution_id}")
@@ -185,11 +242,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # Modo Planificación / Exportación
         if args.plan or args.export_plan:
-            plan = plan_active_subtitles(
+            plan, corr = plan_active_subtitles(
                 track_index=args.track,
                 theme_name=args.theme,
                 profile_name=args.profile,
                 enable_sfx=not args.no_sfx,
+                original_script=script_text,
+                glossary=glossary,
+                api_key=args.gemini_key,
+                use_ai_correction=use_ai,
             )
             print(f"Proyecto: {plan.project_name}")
             print(f"Línea de tiempo: {plan.timeline_name}")
@@ -197,6 +258,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Tema: {plan.theme_name} | Perfil: {plan.profile_name}")
             print(f"Huella origen (SHA-256): {plan.source_hash[:16]}…")
             print(f"Total bloques: {plan.block_count} (Capas: {plan.layer_distribution})")
+
+            if corr:
+                print(f"✨ Correcciones IA: {corr.total_corrections} modificados | Marcadores detectados: {corr.total_markers}")
+                if corr.corrections:
+                    for c in corr.corrections[:5]:
+                        print(f"   • [{c.start_frame:g}-{c.end_frame:g}] '{c.original_text}' -> '{c.corrected_text}' ({c.reason})")
 
             visible_blocks = plan.blocks if args.limit == 0 else plan.blocks[: args.limit]
             for b in visible_blocks:

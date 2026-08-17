@@ -45,7 +45,7 @@ class MainCliTests(unittest.TestCase):
             main_text="Prueba",
             context_text="Contexto",
         )
-        mock_plan.return_value = GenerationPlan(
+        plan = GenerationPlan(
             plan_id="plan_test",
             project_name="TestProj",
             timeline_name="TestTimeline",
@@ -59,6 +59,7 @@ class MainCliTests(unittest.TestCase):
             source_hash="abcd1234efgh5678",
             blocks=(block,),
         )
+        mock_plan.return_value = (plan, None)
 
         result = main(["--plan"])
         self.assertEqual(result, 0)
@@ -67,6 +68,10 @@ class MainCliTests(unittest.TestCase):
             theme_name="ely",
             profile_name="natural",
             enable_sfx=True,
+            original_script="",
+            glossary={},
+            api_key=None,
+            use_ai_correction=False,
         )
 
     @patch("davinci_flow.__main__.generate_from_active_timeline")
@@ -81,7 +86,7 @@ class MainCliTests(unittest.TestCase):
             profile_name="natural",
             items=(),
         )
-        result = main(["--generate", "--dry-run", "--no-sfx"])
+        result = main(["--generate", "--dry-run", "--no-sfx", "--correct-ai", "--add-markers"])
         self.assertEqual(result, 0)
         mock_generate.assert_called_once_with(
             track_index=1,
@@ -89,6 +94,52 @@ class MainCliTests(unittest.TestCase):
             profile_name="natural",
             enable_sfx=False,
             dry_run=True,
+            original_script="",
+            glossary={},
+            api_key=None,
+            use_ai_correction=True,
+            insert_markers=True,
+        )
+
+    @patch("davinci_flow.__main__.plan_active_subtitles")
+    def test_plan_with_script_and_glossary(self, mock_plan: MagicMock) -> None:
+        cue = SubtitleCue(text="Prueba", start_frame=0.0, end_frame=24.0, track_index=1)
+        block = CaptionBlock(
+            id="b1",
+            source_cues=(cue,),
+            start_frame=0.0,
+            end_frame=24.0,
+            original_text="Prueba",
+            normalized_text="Prueba",
+            main_text="Prueba",
+        )
+        plan = GenerationPlan(
+            plan_id="plan_test",
+            project_name="TestProj",
+            timeline_name="TestTimeline",
+            track_index=1,
+            fps=24.0,
+            width=1920,
+            height=1080,
+            aspect_ratio="16:9",
+            theme_name="ely",
+            profile_name="natural",
+            source_hash="abcd1234efgh5678",
+            blocks=(block,),
+        )
+        mock_plan.return_value = (plan, None)
+
+        result = main(["--plan", "--script", "Guion de prueba", "--glossary", "marca: MiMarca", "--gemini-key", "clave123"])
+        self.assertEqual(result, 0)
+        mock_plan.assert_called_once_with(
+            track_index=1,
+            theme_name="ely",
+            profile_name="natural",
+            enable_sfx=True,
+            original_script="Guion de prueba",
+            glossary={"marca": "MiMarca"},
+            api_key="clave123",
+            use_ai_correction=True,
         )
 
     @patch("davinci_flow.__main__.reconcile_active_timeline")

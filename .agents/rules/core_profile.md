@@ -4,11 +4,11 @@ trigger: always_on
 
 # Perfil de Documentación Core — DaVinci Flow
 
-- Última revisión: 2026-08-15
+- Última revisión: 2026-08-17
 - Tipo principal: `Automatización para aplicación de escritorio`
 - Plataformas: `Windows 11 y DaVinci Resolve 21`
 - Stack: `Python 3.11 de 64 bits, API de scripting de DaVinci Resolve y unittest`
-- Funciones activas: `Conexión local con Resolve y lectura no destructiva de subtítulos`
+- Funciones activas: `Conexión local con Resolve, generación de subtítulos dinámicos multicapa, marcadores en línea de tiempo e integración opcional con Gemini para alineación de guion`
 
 ## Regla de selección
 
@@ -29,10 +29,10 @@ No aplicar una capacidad por semejanza. Instancia única, bandeja, autoactualiza
 - `global/documentation/documentation-governance.md`
 - `global/quality/quality-baseline.md`
 - `global/security/security-baseline.md`
+- `features/ai-models/README.md`
 - `types/multiplatform/README.md`, únicamente para encapsular dependencias de plataforma.
 
 ## Excepciones locales
 
-- La interfaz, el instalador, la autoactualización y la integración con IA todavía no son funciones activas.
+- La autoactualización y la bandeja del sistema todavía no son funciones activas.
 - La compatibilidad con macOS se conserva como objetivo futuro, pero no se declara validada.
-

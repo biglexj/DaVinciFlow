@@ -28,3 +28,20 @@ class PlanSerializationError(DaVinciFlowError):
 class PlanVersionMismatchError(PlanSerializationError):
     """La versión del plan no es compatible con la versión del software."""
 
+
+class GeminiError(DaVinciFlowError):
+    """Error general en la integración con la API de Google Gemini."""
+
+
+class GeminiCredentialsError(GeminiError):
+    """La clave API de Gemini no está configurada o es inválida."""
+
+
+class ScriptAlignmentError(GeminiError):
+    """Error al procesar o alinear los subtítulos con el guion original."""
+
+
+class MarkerError(DaVinciFlowError):
+    """Error al insertar o gestionar marcadores en la línea de tiempo."""
+
+

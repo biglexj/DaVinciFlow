@@ -10,6 +10,31 @@ from davinci_flow.resolve.track_manager import ResolveTrackManager
 from davinci_flow.themes.tokens import ThemeTokens, get_theme
 
 
+def frames_to_timecode(frame: float, fps: float = 24.0, start_timecode: str = "01:00:00:00") -> str:
+    """Convierte un número de fotogramas a una cadena de código de tiempo HH:MM:SS:FF."""
+    effective_fps = max(1.0, float(fps))
+    base_frames = 0
+    try:
+        parts = start_timecode.split(":")
+        if len(parts) == 4:
+            h, m, s, f = (int(p) for p in parts)
+            base_frames = int((h * 3600 + m * 60 + s) * effective_fps + f)
+    except Exception:
+        base_frames = 0
+
+    total_frames = max(0, int(base_frames + frame))
+    fps_int = max(1, int(round(effective_fps)))
+
+    frame_part = total_frames % fps_int
+    total_seconds = total_frames // fps_int
+    second_part = total_seconds % 60
+    total_minutes = total_seconds // 60
+    minute_part = total_minutes % 60
+    hour_part = total_minutes // 60
+
+    return f"{hour_part:02d}:{minute_part:02d}:{second_part:02d}:{frame_part:02d}"
+
+
 class ResolveTimelineWriter:
     """Aplica un GenerationPlan sobre la línea de tiempo de DaVinci Resolve de forma reversible."""
 
@@ -63,7 +88,9 @@ class ResolveTimelineWriter:
                         text=block.context_text,
                         role="context",
                         theme=theme,
+                        fps=plan.fps,
                     )
+
                 items.append(
                     GenerationItemRecord(
                         item_id=item_id,
@@ -91,6 +118,7 @@ class ResolveTimelineWriter:
                     text=block.main_text,
                     role="main",
                     theme=theme,
+                    fps=plan.fps,
                 )
             items.append(
                 GenerationItemRecord(
@@ -120,6 +148,7 @@ class ResolveTimelineWriter:
                         text=block.accent_text,
                         role="accent",
                         theme=theme,
+                        fps=plan.fps,
                     )
                 items.append(
                     GenerationItemRecord(
@@ -254,8 +283,28 @@ class ResolveTimelineWriter:
         text: str,
         role: str,
         theme: ThemeTokens,
+        fps: float = 24.0,
     ) -> Any:
-        """Inserta y configura un clip TextPlus mediante la API de Resolve."""
+        """Inserta y posiciona un clip TextPlus mediante la API de Resolve."""
+        start_tc = "01:00:00:00"
+        get_start_tc = getattr(self.timeline, "GetStartTimecode", None)
+        if callable(get_start_tc):
+            try:
+                tc_val = str(get_start_tc() or "").strip()
+                if tc_val:
+                    start_tc = tc_val
+            except Exception:
+                pass
+
+        # Posicionar el cursor en el inicio del bloque
+        target_tc = frames_to_timecode(start_frame, fps=fps, start_timecode=start_tc)
+        set_tc_fn = getattr(self.timeline, "SetCurrentTimecode", None)
+        if callable(set_tc_fn):
+            try:
+                set_tc_fn(target_tc)
+            except Exception:
+                pass
+
         insert_fn = getattr(self.timeline, "InsertFusionTitleIntoTimeline", None)
         if not callable(insert_fn):
             insert_fn = getattr(self.timeline, "InsertFusionGeneratorIntoTimeline", None)
@@ -275,6 +324,15 @@ class ResolveTimelineWriter:
         if title_item is None:
             return None
 
+        # Ajustar duración
+        duration_frames = max(1, int(round(end_frame - start_frame)))
+        set_dur_fn = getattr(title_item, "SetDuration", None)
+        if callable(set_dur_fn):
+            try:
+                set_dur_fn(duration_frames)
+            except Exception:
+                pass
+
         try:
             set_prop = getattr(title_item, "SetProperty", None)
             if callable(set_prop):
@@ -283,6 +341,7 @@ class ResolveTimelineWriter:
                 set_prop("TrackIndex", int(track_index))
         except Exception:
             pass
+
 
         try:
             get_comp = getattr(title_item, "GetFusionCompByIndex", None)

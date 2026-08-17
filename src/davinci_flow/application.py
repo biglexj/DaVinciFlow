@@ -1,14 +1,21 @@
 """Casos de uso principales y orquestación de DaVinci Flow."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from davinci_flow.ai.aligner import (
+    CorrectionResult,
+    ScriptAligner,
+    TimelineMarker,
+)
+from davinci_flow.ai.credentials import save_gemini_api_key
 from davinci_flow.generation.plan import GenerationPlan, build_generation_plan
 from davinci_flow.generation.reconciler import PlanDiff, reconcile_subtitles
 from davinci_flow.generation.record import GenerationExecutionRecord
 from davinci_flow.resolve import (
+    ResolveMarkerWriter,
     ResolveSubtitleReader,
     ResolveTimelineWriter,
     connect_to_resolve,
@@ -88,15 +95,59 @@ def scan_active_subtitles(track_index: int = 1) -> SubtitleScan:
     )
 
 
+def align_and_correct_subtitles(
+    track_index: int = 1,
+    original_script: str = "",
+    glossary: dict[str, str] | None = None,
+    detect_markers: bool = True,
+    api_key: str | None = None,
+) -> CorrectionResult:
+    """Lee subtítulos de Resolve, los compara contra el guion original y los corrige con Gemini."""
+    scan = scan_active_subtitles(track_index=track_index)
+    aligner = ScriptAligner(api_key=api_key)
+    return aligner.align_and_correct(
+        cues=scan.cues,
+        original_script=original_script,
+        glossary=glossary,
+        detect_markers=detect_markers,
+    )
+
+
+def insert_ai_timeline_markers(
+    markers: Sequence[TimelineMarker],
+    clear_existing_color: bool = False,
+) -> int:
+    """Inserta en la línea de tiempo activa de DaVinci Resolve los marcadores generados."""
+    session = connect_to_resolve()
+    writer = ResolveMarkerWriter(session.timeline)
+    return writer.apply_markers(markers, clear_existing_color=clear_existing_color)
+
+
 def plan_active_subtitles(
     track_index: int = 1,
     theme_name: str = "ely",
     profile_name: str = "natural",
     enable_sfx: bool = True,
-) -> GenerationPlan:
-    """Lee la pista activa y produce un GenerationPlan clasificado con propuestas de SFX."""
+    original_script: str = "",
+    glossary: dict[str, str] | None = None,
+    api_key: str | None = None,
+    use_ai_correction: bool = False,
+) -> tuple[GenerationPlan, CorrectionResult | None]:
+    """Lee la pista activa y produce un GenerationPlan clasificado con soporte de corrección por IA."""
     session = connect_to_resolve()
     cues = ResolveSubtitleReader(session.timeline).read_track(track_index)
+    correction_res: CorrectionResult | None = None
+
+    if use_ai_correction or original_script or glossary or api_key:
+        aligner = ScriptAligner(api_key=api_key)
+        correction_res = aligner.align_and_correct(
+            cues=cues,
+            original_script=original_script,
+            glossary=glossary,
+            detect_markers=True,
+        )
+        cues = correction_res.corrected_cues
+
     base_plan = build_generation_plan(
         project_name=str(session.project.GetName()),
         timeline_name=str(session.timeline.GetName()),
@@ -109,7 +160,7 @@ def plan_active_subtitles(
     if enable_sfx:
         sfx_engine = SFXProposalEngine()
         processed_blocks = sfx_engine.process_blocks(base_plan.blocks, profile_name=profile_name)
-        return GenerationPlan(
+        final_plan = GenerationPlan(
             plan_id=base_plan.plan_id,
             project_name=base_plan.project_name,
             timeline_name=base_plan.timeline_name,
@@ -127,8 +178,9 @@ def plan_active_subtitles(
             track_mapping=base_plan.track_mapping,
             blocks=processed_blocks,
         )
+        return final_plan, correction_res
 
-    return base_plan
+    return base_plan, correction_res
 
 
 def generate_from_active_timeline(
@@ -137,17 +189,31 @@ def generate_from_active_timeline(
     profile_name: str = "natural",
     enable_sfx: bool = True,
     dry_run: bool = False,
+    original_script: str = "",
+    glossary: dict[str, str] | None = None,
+    api_key: str | None = None,
+    use_ai_correction: bool = False,
+    insert_markers: bool = False,
     progress_callback: Callable[[int, int, str], None] | None = None,
     is_cancelled: Callable[[], bool] | None = None,
 ) -> GenerationExecutionRecord:
-    """Ejecuta el flujo completo de análisis, planificación y generación en Resolve."""
+    """Ejecuta el flujo completo de análisis, corrección IA, planificación y generación en Resolve."""
     session = connect_to_resolve()
-    plan = plan_active_subtitles(
+    plan, correction_res = plan_active_subtitles(
         track_index=track_index,
         theme_name=theme_name,
         profile_name=profile_name,
         enable_sfx=enable_sfx,
+        original_script=original_script,
+        glossary=glossary,
+        api_key=api_key,
+        use_ai_correction=use_ai_correction,
     )
+
+    if insert_markers and correction_res and correction_res.markers and not dry_run:
+        marker_writer = ResolveMarkerWriter(session.timeline)
+        marker_writer.apply_markers(correction_res.markers)
+
     writer = ResolveTimelineWriter(session.timeline)
     return writer.apply_plan(
         plan,
@@ -174,3 +240,7 @@ def revert_active_generation() -> int:
     writer = ResolveTimelineWriter(session.timeline)
     return writer.clear_generated_tracks()
 
+
+def save_user_gemini_key(api_key: str) -> Path:
+    """Guarda la clave API de Gemini en la configuración local del usuario."""
+    return save_gemini_api_key(api_key)
