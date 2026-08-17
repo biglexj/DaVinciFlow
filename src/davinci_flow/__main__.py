@@ -100,12 +100,20 @@ def _parser() -> argparse.ArgumentParser:
         help="Inserta marcadores en puntos clave importantes en la línea de tiempo de Resolve.",
     )
     parser.add_argument(
+        "--srt",
+        type=str,
+        default=None,
+        metavar="SRT_PATH",
+        help="Ruta a un archivo .srt para procesar subtítulos directamente.",
+    )
+    parser.add_argument(
         "--export-plan",
         type=str,
         default=None,
         metavar="PATH",
         help="Ruta de archivo JSON donde guardar el plan de generación calculado.",
     )
+
     parser.add_argument(
         "--reconcile",
         type=str,
@@ -229,6 +237,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 api_key=args.gemini_key,
                 use_ai_correction=use_ai,
                 insert_markers=args.add_markers,
+                srt_path=args.srt,
             )
             mode_label = "SIMULACIÓN (Dry-Run)" if args.dry_run else "GENERACIÓN"
             print(f"[{mode_label}] Ejecución: {record.execution_id}")
@@ -251,6 +260,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 glossary=glossary,
                 api_key=args.gemini_key,
                 use_ai_correction=use_ai,
+                srt_path=args.srt,
             )
             print(f"Proyecto: {plan.project_name}")
             print(f"Línea de tiempo: {plan.timeline_name}")
@@ -287,7 +297,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         # Modo Escaneo Básico
-        scan = scan_active_subtitles(args.track)
+        scan = scan_active_subtitles(args.track, srt_path=args.srt)
+
     except DaVinciFlowError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

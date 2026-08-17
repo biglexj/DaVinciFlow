@@ -72,6 +72,7 @@ class MainCliTests(unittest.TestCase):
             glossary={},
             api_key=None,
             use_ai_correction=False,
+            srt_path=None,
         )
 
     @patch("davinci_flow.__main__.generate_from_active_timeline")
@@ -99,6 +100,7 @@ class MainCliTests(unittest.TestCase):
             api_key=None,
             use_ai_correction=True,
             insert_markers=True,
+            srt_path=None,
         )
 
     @patch("davinci_flow.__main__.plan_active_subtitles")
@@ -140,7 +142,9 @@ class MainCliTests(unittest.TestCase):
             glossary={"marca": "MiMarca"},
             api_key="clave123",
             use_ai_correction=True,
+            srt_path=None,
         )
+
 
     @patch("davinci_flow.__main__.reconcile_active_timeline")
     def test_reconcile_flag_prints_diff(self, mock_reconcile: MagicMock) -> None:

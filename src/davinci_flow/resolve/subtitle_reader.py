@@ -6,22 +6,32 @@ from davinci_flow.errors import SubtitleTrackError
 from davinci_flow.subtitles import SubtitleCue
 
 
-def _extract_subtitle_text(item: Any) -> str:
+def _extract_subtitle_text(item: Any, fallback_index: int = 1) -> str:
     """Extrae el contenido textual de un elemento de subtítulo con múltiples estrategias de respaldo."""
-    # 1. Nombre principal del clip / subtítulo
+    candidate_name = ""
     name_fn = getattr(item, "GetName", None)
     if callable(name_fn):
         try:
             name = str(name_fn() or "").strip()
             if name:
-                return name
+                if not name.lower().startswith("subtítulo ") and not name.lower().startswith("subtitle "):
+                    return name
+                candidate_name = name
         except Exception:
             pass
 
-    # 2. Propiedad interna 'Text' o 'Clip Name'
     prop_fn = getattr(item, "GetProperty", None)
     if callable(prop_fn):
-        for prop_key in ("Text", "Clip Name", "SubtitleText"):
+        try:
+            all_props = prop_fn()
+            if isinstance(all_props, dict):
+                for k in ("Text", "Clip Name", "SubtitleText", "Subtitle", "Name"):
+                    if k in all_props and str(all_props[k]).strip():
+                        return str(all_props[k]).strip()
+        except Exception:
+            pass
+
+        for prop_key in ("Text", "Clip Name", "SubtitleText", "Subtitle", "Name"):
             try:
                 val = str(prop_fn(prop_key) or "").strip()
                 if val:
@@ -29,7 +39,6 @@ def _extract_subtitle_text(item: Any) -> str:
             except Exception:
                 continue
 
-    # 3. Composición Fusion embebida
     fusion_comp_fn = getattr(item, "GetFusionCompByIndex", None)
     if callable(fusion_comp_fn):
         try:
@@ -45,21 +54,19 @@ def _extract_subtitle_text(item: Any) -> str:
         except Exception:
             pass
 
-    return ""
+    return candidate_name
 
 
 def _extract_frame(item: Any, method_name: str, fallback_prop: str) -> float:
     """Obtiene el número de fotograma de inicio o fin de forma compatible entre versiones de Resolve."""
     fn = getattr(item, method_name, None)
     if callable(fn):
-        # Intentar primero con argumento False (tiempo relativo)
         try:
             val = fn(False)
             if val is not None:
                 return float(val)
         except Exception:
             pass
-        # Intentar sin argumentos
         try:
             val = fn()
             if val is not None:
@@ -99,8 +106,8 @@ class ResolveSubtitleReader:
 
         items = self._timeline.GetItemListInTrack("subtitle", track_index) or []
         cues: list[SubtitleCue] = []
-        for item in items:
-            text = _extract_subtitle_text(item)
+        for idx, item in enumerate(items, start=1):
+            text = _extract_subtitle_text(item, fallback_index=idx)
             if not text:
                 continue
 

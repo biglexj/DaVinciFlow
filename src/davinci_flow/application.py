@@ -22,11 +22,12 @@ from davinci_flow.resolve import (
 )
 from davinci_flow.sfx.engine import SFXProposalEngine
 from davinci_flow.subtitles import SubtitleCue
+from davinci_flow.subtitles.srt_parser import load_srt_file, parse_srt_content
 
 
 @dataclass(frozen=True, slots=True)
 class SubtitleScan:
-    """Resultado de leer subtítulos de la línea de tiempo activa."""
+    """Resultado de leer subtítulos de la línea de tiempo activa o de un archivo SRT."""
 
     project_name: str
     timeline_name: str
@@ -66,7 +67,7 @@ def inspect_active_timeline() -> TimelineSummary:
 
     reader = ResolveSubtitleReader(tl)
     cues_counts: dict[int, int] = {}
-    for idx in range(1, sub_count + 1):
+    for idx in range(1, max(2, sub_count + 1)):
         try:
             cues = reader.read_track(idx)
             cues_counts[idx] = len(cues)
@@ -83,8 +84,28 @@ def inspect_active_timeline() -> TimelineSummary:
     )
 
 
-def scan_active_subtitles(track_index: int = 1) -> SubtitleScan:
-    """Conecta con Resolve y obtiene una instantánea de la pista solicitada."""
+def scan_active_subtitles(
+    track_index: int = 1,
+    srt_path: str | Path | None = None,
+) -> SubtitleScan:
+    """Conecta con Resolve u obtiene subtítulos directamente desde un archivo SRT."""
+    if srt_path:
+        cues = load_srt_file(srt_path, track_index=track_index)
+        try:
+            session = connect_to_resolve()
+            proj_name = str(session.project.GetName())
+            tl_name = str(session.timeline.GetName())
+        except Exception:
+            proj_name = "Archivo SRT"
+            tl_name = Path(srt_path).name
+
+        return SubtitleScan(
+            project_name=proj_name,
+            timeline_name=tl_name,
+            track_index=track_index,
+            cues=cues,
+        )
+
     session = connect_to_resolve()
     cues = ResolveSubtitleReader(session.timeline).read_track(track_index)
     return SubtitleScan(
@@ -101,9 +122,10 @@ def align_and_correct_subtitles(
     glossary: dict[str, str] | None = None,
     detect_markers: bool = True,
     api_key: str | None = None,
+    srt_path: str | Path | None = None,
 ) -> CorrectionResult:
-    """Lee subtítulos de Resolve, los compara contra el guion original y los corrige con Gemini."""
-    scan = scan_active_subtitles(track_index=track_index)
+    """Lee subtítulos de Resolve o archivo SRT, los compara contra el guion original y los corrige con Gemini."""
+    scan = scan_active_subtitles(track_index=track_index, srt_path=srt_path)
     aligner = ScriptAligner(api_key=api_key)
     return aligner.align_and_correct(
         cues=scan.cues,
@@ -132,10 +154,24 @@ def plan_active_subtitles(
     glossary: dict[str, str] | None = None,
     api_key: str | None = None,
     use_ai_correction: bool = False,
+    srt_path: str | Path | None = None,
 ) -> tuple[GenerationPlan, CorrectionResult | None]:
-    """Lee la pista activa y produce un GenerationPlan clasificado con soporte de corrección por IA."""
-    session = connect_to_resolve()
-    cues = ResolveSubtitleReader(session.timeline).read_track(track_index)
+    """Lee la pista activa o archivo SRT y produce un GenerationPlan clasificado con soporte de corrección por IA."""
+    if srt_path:
+        cues = load_srt_file(srt_path, track_index=track_index)
+        try:
+            session = connect_to_resolve()
+            proj_name = str(session.project.GetName())
+            tl_name = str(session.timeline.GetName())
+        except Exception:
+            proj_name = "Proyecto DaVinci"
+            tl_name = Path(srt_path).stem
+    else:
+        session = connect_to_resolve()
+        proj_name = str(session.project.GetName())
+        tl_name = str(session.timeline.GetName())
+        cues = ResolveSubtitleReader(session.timeline).read_track(track_index)
+
     correction_res: CorrectionResult | None = None
 
     if use_ai_correction or original_script or glossary or api_key:
@@ -149,8 +185,8 @@ def plan_active_subtitles(
         cues = correction_res.corrected_cues
 
     base_plan = build_generation_plan(
-        project_name=str(session.project.GetName()),
-        timeline_name=str(session.timeline.GetName()),
+        project_name=proj_name,
+        timeline_name=tl_name,
         cues=cues,
         track_index=track_index,
         theme_name=theme_name,
@@ -194,6 +230,7 @@ def generate_from_active_timeline(
     api_key: str | None = None,
     use_ai_correction: bool = False,
     insert_markers: bool = False,
+    srt_path: str | Path | None = None,
     progress_callback: Callable[[int, int, str], None] | None = None,
     is_cancelled: Callable[[], bool] | None = None,
 ) -> GenerationExecutionRecord:
@@ -208,6 +245,7 @@ def generate_from_active_timeline(
         glossary=glossary,
         api_key=api_key,
         use_ai_correction=use_ai_correction,
+        srt_path=srt_path,
     )
 
     if insert_markers and correction_res and correction_res.markers and not dry_run:
