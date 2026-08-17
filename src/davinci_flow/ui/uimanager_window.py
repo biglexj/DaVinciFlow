@@ -64,7 +64,7 @@ def _try_create_uimanager_window(
     fusion_app: Any = None,
     bmd_module: Any = None,
 ) -> bool:
-    """Crea la ventana nativa mediante UIManager de Resolve ubicada a la derecha y sin recortes."""
+    """Crea la ventana nativa mediante UIManager de Resolve perfectamente compacta y alineada."""
     if fusion_app is None:
         if resolve_app is not None and hasattr(resolve_app, "Fusion"):
             try:
@@ -109,19 +109,19 @@ def _try_create_uimanager_window(
 
     dispatcher = bmd_module.UIDispatcher(ui)
 
-    # Posicionada a la derecha (X: 580, Y: 50) con ancho 840 y alto 740
+    # Ventana compacta a la derecha (X: 680, Y: 50, Ancho: 660, Alto: 710)
     win = dispatcher.AddWindow(
         {
             "WindowTitle": "DaVinci Flow — Subtítulos Dinámicos, Guion & Asistente IA",
-            "ID": "DaVinciFlowWinV3",
-            "Geometry": [580, 50, 840, 740],
-            "MinimumSize": [760, 620],
-            "Margin": 12,
-            "Spacing": 5,
+            "ID": "DaVinciFlowWinV4",
+            "Geometry": [680, 50, 660, 710],
+            "MinimumSize": [640, 600],
+            "Margin": 10,
+            "Spacing": 4,
         },
         [
             ui.VGroup(
-                {"Spacing": 5, "Margin": 0},
+                {"Spacing": 4, "Margin": 0},
                 [
                     # 1. Encabezado Centrado
                     ui.VGroup(
@@ -131,14 +131,14 @@ def _try_create_uimanager_window(
                                 {
                                     "Text": "<b>DaVinci Flow</b> — Subtítulos Dinámicos Multicapa & Asistente IA",
                                     "Alignment": {"AlignHCenter": True},
-                                    "Font": ui.Font({"PixelSize": 13, "Bold": True}),
+                                    "Font": ui.Font({"PixelSize": 12, "Bold": True}),
                                     "Weight": 0,
                                 }
                             ),
                             ui.Label(
                                 {
                                     "ID": "HeaderInfoLabel",
-                                    "Text": "Inspeccionando sesión activa de DaVinci Resolve...",
+                                    "Text": "Inspeccionando sesión activa...",
                                     "Alignment": {"AlignHCenter": True},
                                     "Font": ui.Font({"PixelSize": 10}),
                                     "Weight": 0,
@@ -148,7 +148,7 @@ def _try_create_uimanager_window(
                     ),
                     ui.VGap(1),
 
-                    # 2. Fila 1: Pista, Tema, Perfil, Leer Resolve, Cargar SRT
+                    # 2. Fila 1: Pista, Tema, Perfil, Leer Resolve, Cargar SRT (Ancho total ~620px)
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
@@ -159,7 +159,7 @@ def _try_create_uimanager_window(
                                     "Value": 1,
                                     "Minimum": 1,
                                     "Maximum": 16,
-                                    "FixedSize": [45, 24],
+                                    "FixedSize": [42, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -167,7 +167,7 @@ def _try_create_uimanager_window(
                             ui.ComboBox(
                                 {
                                     "ID": "ThemeCombo",
-                                    "FixedSize": [85, 24],
+                                    "FixedSize": [80, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -175,16 +175,15 @@ def _try_create_uimanager_window(
                             ui.ComboBox(
                                 {
                                     "ID": "ProfileCombo",
-                                    "FixedSize": [105, 24],
+                                    "FixedSize": [100, 24],
                                     "Weight": 0,
                                 }
                             ),
-                            ui.HGap(4),
                             ui.Button(
                                 {
                                     "ID": "ReadTimelineBtn",
                                     "Text": "🎬 Leer Pista",
-                                    "FixedSize": [115, 24],
+                                    "FixedSize": [110, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -192,49 +191,55 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "LoadSrtBtn",
                                     "Text": "📂 Cargar SRT",
-                                    "FixedSize": [115, 24],
+                                    "FixedSize": [110, 24],
                                     "Weight": 0,
                                 }
                             ),
                         ]
                     ),
 
-                    # 3. Encabezado API Key con Botón Guardar
+                    # 3. Fila 2: API Key + Botón Guardar en la misma línea alineada (Ancho ~620px)
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
-                            ui.Label({"Text": "API Key Gemini:", "Weight": 1.0}),
+                            ui.Label({"Text": "API Key Gemini:", "FixedSize": [100, 24], "Weight": 0}),
+                            ui.LineEdit(
+                                {
+                                    "ID": "ApiKeyInput",
+                                    "PlaceholderText": "Clave API Gemini o usa GEMINI_API_KEY...",
+                                    "EchoMode": "Password",
+                                    "FixedSize": [400, 24],
+                                    "Weight": 0,
+                                }
+                            ),
                             ui.Button(
                                 {
                                     "ID": "SaveKeyBtn",
-                                    "Text": "💾 Guardar Clave",
-                                    "FixedSize": [120, 22],
+                                    "Text": "💾 Guardar",
+                                    "FixedSize": [90, 24],
                                     "Weight": 0,
                                 }
                             ),
                         ]
                     ),
-                    # Input API Key a ancho completo
-                    ui.LineEdit(
-                        {
-                            "ID": "ApiKeyInput",
-                            "PlaceholderText": "Ingresa tu clave de Google Gemini o usa variable GEMINI_API_KEY...",
-                            "EchoMode": "Password",
-                            "Weight": 0,
-                        }
+
+                    # 4. Fila 3: Glosario de Marcas / Jergas alineado (Ancho ~620px)
+                    ui.HGroup(
+                        {"Spacing": 6, "Weight": 0},
+                        [
+                            ui.Label({"Text": "Glosario/Marcas:", "FixedSize": [100, 24], "Weight": 0}),
+                            ui.LineEdit(
+                                {
+                                    "ID": "GlossaryInput",
+                                    "PlaceholderText": "Reemplazos fijos (ej: biglex: Biglex J, resolve: DaVinci)",
+                                    "FixedSize": [496, 24],
+                                    "Weight": 0,
+                                }
+                            ),
+                        ]
                     ),
 
-                    # 4. Glosario / Reemplazos de Marcas
-                    ui.Label({"Text": "Glosario de Marcas / Jergas (ej: biglex: Biglex J, resolve: DaVinci):", "Weight": 0}),
-                    ui.LineEdit(
-                        {
-                            "ID": "GlossaryInput",
-                            "PlaceholderText": "Reemplazos fijos separados por comas (ej: biglex: Biglex J, davinci: DaVinci)",
-                            "Weight": 0,
-                        }
-                    ),
-
-                    # 5. Encabezado de Guion con Botón de Carga
+                    # 5. Fila 4: Encabezado Guion con Botón de Carga
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
@@ -247,8 +252,8 @@ def _try_create_uimanager_window(
                             ui.Button(
                                 {
                                     "ID": "LoadScriptBtn",
-                                    "Text": "📄 Cargar Guion (.txt)",
-                                    "FixedSize": [150, 22],
+                                    "Text": "📄 Cargar Guion .txt",
+                                    "FixedSize": [140, 22],
                                     "Weight": 0,
                                 }
                             ),
@@ -259,22 +264,23 @@ def _try_create_uimanager_window(
                         {
                             "ID": "ScriptTextEdit",
                             "PlaceholderText": "Pega aquí o carga el guion original completo para comparar y corregir los subtítulos...",
-                            "Weight": 0.28,
+                            "FixedSize": [602, 75],
+                            "Weight": 0,
                         }
                     ),
 
-                    # 6. Checkboxes de Opciones
+                    # 6. Fila 5: Checkboxes de Opciones (Ancho ~620px)
                     ui.HGroup(
                         {"Spacing": 10, "Weight": 0},
                         [
-                            ui.CheckBox({"ID": "SFXCheck", "Text": "Efectos SFX", "Checked": True, "Weight": 0}),
-                            ui.CheckBox({"ID": "DryRunCheck", "Text": "Modo Dry-Run", "Checked": False, "Weight": 0}),
+                            ui.CheckBox({"ID": "SFXCheck", "Text": "SFX", "Checked": True, "Weight": 0}),
+                            ui.CheckBox({"ID": "DryRunCheck", "Text": "Dry-Run", "Checked": False, "Weight": 0}),
                             ui.CheckBox({"ID": "CorrectAiCheck", "Text": "✨ Corregir con Guion", "Checked": True, "Weight": 0}),
-                            ui.CheckBox({"ID": "MarkersAiCheck", "Text": "🎯 Marcadores en Timeline", "Checked": True, "Weight": 0}),
+                            ui.CheckBox({"ID": "MarkersAiCheck", "Text": "🎯 Marcadores Timeline", "Checked": True, "Weight": 0}),
                         ]
                     ),
 
-                    # 7. Botones de Acción
+                    # 7. Fila 6: Botones de Acción (Ancho ~600px)
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
@@ -282,7 +288,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "AnalyzeBtn",
                                     "Text": "🔍 Analizar Capas",
-                                    "FixedSize": [130, 26],
+                                    "FixedSize": [120, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -290,7 +296,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "AiCorrectBtn",
                                     "Text": "✨ Corregir con IA",
-                                    "FixedSize": [135, 26],
+                                    "FixedSize": [125, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -298,7 +304,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "GenerateBtn",
                                     "Text": "⚡ Generar en Timeline",
-                                    "FixedSize": [170, 26],
+                                    "FixedSize": [160, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -306,7 +312,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "RevertBtn",
                                     "Text": "🔄 Deshacer",
-                                    "FixedSize": [95, 26],
+                                    "FixedSize": [90, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -314,7 +320,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "StopBtn",
                                     "Text": "⏹️ Detener",
-                                    "FixedSize": [80, 26],
+                                    "FixedSize": [75, 26],
                                     "Weight": 0,
                                     "Enabled": False,
                                 }
@@ -322,7 +328,7 @@ def _try_create_uimanager_window(
                         ]
                     ),
 
-                    # 8. Árbol de Subtítulos y Capas
+                    # 8. Fila 7: Árbol de Subtítulos y Capas
                     ui.Tree(
                         {
                             "ID": "BlocksTree",
@@ -331,7 +337,7 @@ def _try_create_uimanager_window(
                         }
                     ),
 
-                    # 9. Barra de Estado y Cierre
+                    # 9. Fila 8: Barra de Estado y Cierre
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
@@ -347,7 +353,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "AboutBtn",
                                     "Text": "ℹ️ Info",
-                                    "FixedSize": [65, 22],
+                                    "FixedSize": [60, 22],
                                     "Weight": 0,
                                 }
                             ),
@@ -355,7 +361,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "CloseBtn",
                                     "Text": "Cerrar",
-                                    "FixedSize": [70, 22],
+                                    "FixedSize": [65, 22],
                                     "Weight": 0,
                                 }
                             ),
@@ -390,11 +396,11 @@ def _try_create_uimanager_window(
         tree.ColumnCount = 6
         tree.SetHeaderLabels(["Tiempo (f)", "Capas", "Contexto", "Principal (Corregido)", "Acento", "SFX"])
         tree.ColumnWidth[0] = 85
-        tree.ColumnWidth[1] = 60
-        tree.ColumnWidth[2] = 130
-        tree.ColumnWidth[3] = 260
-        tree.ColumnWidth[4] = 130
-        tree.ColumnWidth[5] = 75
+        tree.ColumnWidth[1] = 55
+        tree.ColumnWidth[2] = 110
+        tree.ColumnWidth[3] = 200
+        tree.ColumnWidth[4] = 100
+        tree.ColumnWidth[5] = 60
     except Exception:
         pass
 
@@ -635,7 +641,7 @@ def _try_create_uimanager_window(
     win.On.StopBtn.Clicked = on_stop
     win.On.AboutBtn.Clicked = on_about
     win.On.CloseBtn.Clicked = on_close
-    win.On.DaVinciFlowWinV3.Close = on_close
+    win.On.DaVinciFlowWinV4.Close = on_close
 
     win.Show()
     dispatcher.RunLoop()
@@ -647,17 +653,17 @@ def _create_tkinter_window() -> None:
     """Crea una ventana gráfica dark-mode usando Tkinter con pestañas para Generación y Guion IA."""
     root = tk.Tk()
     root.title("DaVinci Flow — Subtítulos Dinámicos, Guion & Asistente IA")
-    root.geometry("860x720+580+50")
-    root.minsize(760, 600)
+    root.geometry("680x710+680+50")
+    root.minsize(640, 580)
     root.configure(bg="#0F172A")
 
     style = ttk.Style(root)
     style.theme_use("clam")
     style.configure(".", background="#0F172A", foreground="#F8FAFC", font=("Segoe UI", 10))
     style.configure("TLabel", background="#0F172A", foreground="#F8FAFC")
-    style.configure("Header.TLabel", font=("Segoe UI", 14, "bold"), foreground="#06B6D4")
+    style.configure("Header.TLabel", font=("Segoe UI", 13, "bold"), foreground="#06B6D4")
     style.configure("SubHeader.TLabel", font=("Segoe UI", 9), foreground="#94A3B8")
-    style.configure("TButton", font=("Segoe UI", 10, "bold"), background="#1E293B", foreground="#38BDF8", borderwidth=1)
+    style.configure("TButton", font=("Segoe UI", 9, "bold"), background="#1E293B", foreground="#38BDF8", borderwidth=1)
     style.map("TButton", background=[("active", "#334155")])
     style.configure("Accent.TButton", background="#06B6D4", foreground="#0F172A")
     style.map("Accent.TButton", background=[("active", "#22D3EE")])
@@ -666,53 +672,53 @@ def _create_tkinter_window() -> None:
     style.configure("Stop.TButton", background="#EF4444", foreground="#FFFFFF")
     style.map("Stop.TButton", background=[("active", "#DC2626")])
     style.configure("TNotebook", background="#0F172A", tabmargins=[2, 5, 2, 0])
-    style.configure("TNotebook.Tab", background="#1E293B", foreground="#94A3B8", padding=[14, 6], font=("Segoe UI", 10, "bold"))
+    style.configure("TNotebook.Tab", background="#1E293B", foreground="#94A3B8", padding=[12, 5], font=("Segoe UI", 9, "bold"))
     style.map("TNotebook.Tab", background=[("selected", "#06B6D4")], foreground=[("selected", "#0F172A")])
-    style.configure("Treeview", background="#1E293B", foreground="#F8FAFC", fieldbackground="#1E293B", rowheight=26)
-    style.configure("Treeview.Heading", background="#334155", foreground="#38BDF8", font=("Segoe UI", 10, "bold"))
+    style.configure("Treeview", background="#1E293B", foreground="#F8FAFC", fieldbackground="#1E293B", rowheight=24)
+    style.configure("Treeview.Heading", background="#334155", foreground="#38BDF8", font=("Segoe UI", 9, "bold"))
 
     header_frame = tk.Frame(root, bg="#0F172A")
-    header_frame.pack(fill="x", padx=16, pady=(10, 4))
+    header_frame.pack(fill="x", padx=14, pady=(8, 2))
     ttk.Label(header_frame, text="DaVinci Flow", style="Header.TLabel").pack()
     header_info = ttk.Label(header_frame, text="Subtítulos Dinámicos, Guion & Asistente IA • biglexj (2026)", style="SubHeader.TLabel")
     header_info.pack()
 
     notebook = ttk.Notebook(root)
-    notebook.pack(fill="both", expand=True, padx=16, pady=6)
+    notebook.pack(fill="both", expand=True, padx=14, pady=4)
 
     # Pestaña 1: Generación & Subtítulos
     tab_gen = tk.Frame(notebook, bg="#0F172A")
     notebook.add(tab_gen, text="🎬 Subtítulos & Generación")
 
-    ctrl_frame = tk.Frame(tab_gen, bg="#1E293B", padx=12, pady=10)
-    ctrl_frame.pack(fill="x", padx=4, pady=6)
+    ctrl_frame = tk.Frame(tab_gen, bg="#1E293B", padx=10, pady=8)
+    ctrl_frame.pack(fill="x", padx=2, pady=4)
 
-    ttk.Label(ctrl_frame, text="Pista:").grid(row=0, column=0, padx=4, pady=4, sticky="w")
+    ttk.Label(ctrl_frame, text="Pista:").grid(row=0, column=0, padx=3, pady=3, sticky="w")
     track_var = tk.IntVar(value=1)
     track_spin = ttk.Spinbox(ctrl_frame, from_=1, to=16, textvariable=track_var, width=4)
-    track_spin.grid(row=0, column=1, padx=4, pady=4)
+    track_spin.grid(row=0, column=1, padx=3, pady=3)
 
-    ttk.Label(ctrl_frame, text="Tema:").grid(row=0, column=2, padx=4, pady=4, sticky="w")
+    ttk.Label(ctrl_frame, text="Tema:").grid(row=0, column=2, padx=3, pady=3, sticky="w")
     theme_var = tk.StringVar(value="ely")
-    theme_combo = ttk.Combobox(ctrl_frame, textvariable=theme_var, values=["ely", "aurora"], width=8, state="readonly")
-    theme_combo.grid(row=0, column=3, padx=4, pady=4)
+    theme_combo = ttk.Combobox(ctrl_frame, textvariable=theme_var, values=["ely", "aurora"], width=7, state="readonly")
+    theme_combo.grid(row=0, column=3, padx=3, pady=3)
 
-    ttk.Label(ctrl_frame, text="Perfil:").grid(row=0, column=4, padx=4, pady=4, sticky="w")
+    ttk.Label(ctrl_frame, text="Perfil:").grid(row=0, column=4, padx=3, pady=3, sticky="w")
     profile_var = tk.StringVar(value="natural")
-    profile_combo = ttk.Combobox(ctrl_frame, textvariable=profile_var, values=["natural", "dinamico", "reflexivo", "educativo", "video_corto"], width=11, state="readonly")
-    profile_combo.grid(row=0, column=5, padx=4, pady=4)
+    profile_combo = ttk.Combobox(ctrl_frame, textvariable=profile_var, values=["natural", "dinamico", "reflexivo", "educativo", "video_corto"], width=10, state="readonly")
+    profile_combo.grid(row=0, column=5, padx=3, pady=3)
 
     sfx_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(ctrl_frame, text="SFX", variable=sfx_var).grid(row=0, column=6, padx=6, pady=4)
+    ttk.Checkbutton(ctrl_frame, text="SFX", variable=sfx_var).grid(row=0, column=6, padx=4, pady=3)
 
     dry_run_var = tk.BooleanVar(value=False)
-    ttk.Checkbutton(ctrl_frame, text="Dry-Run", variable=dry_run_var).grid(row=0, column=7, padx=6, pady=4)
+    ttk.Checkbutton(ctrl_frame, text="Dry-Run", variable=dry_run_var).grid(row=0, column=7, padx=4, pady=3)
 
     correct_ai_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(ctrl_frame, text="✨ Usar Guion/IA", variable=correct_ai_var).grid(row=0, column=8, padx=6, pady=4)
+    ttk.Checkbutton(ctrl_frame, text="✨ Guion/IA", variable=correct_ai_var).grid(row=0, column=8, padx=4, pady=3)
 
     markers_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(ctrl_frame, text="🎯 Marcadores", variable=markers_var).grid(row=0, column=9, padx=6, pady=4)
+    ttk.Checkbutton(ctrl_frame, text="🎯 Marcadores", variable=markers_var).grid(row=0, column=9, padx=4, pady=3)
 
     # Sub-fila de botones de importación
     import_row = tk.Frame(ctrl_frame, bg="#1E293B")
@@ -728,10 +734,10 @@ def _create_tkinter_window() -> None:
         if f:
             loaded_srt_tk.clear()
             loaded_srt_tk.append(f)
-            status_label.config(text=f"📂 Subtítulos SRT cargados: {Path(f).name}. Pulsa 'Analizar Capas'.")
+            status_label.config(text=f"📂 Subtítulos SRT: {Path(f).name}. Pulsa 'Analizar Capas'.")
             do_analyze()
 
-    ttk.Button(import_row, text="📂 Cargar archivo .SRT...", command=choose_srt, style="TButton").pack(side="left", padx=(0, 8))
+    ttk.Button(import_row, text="📂 Cargar archivo .SRT...", command=choose_srt, style="TButton").pack(side="left", padx=(0, 6))
 
     def reset_timeline() -> None:
         loaded_srt_tk.clear()
@@ -743,7 +749,7 @@ def _create_tkinter_window() -> None:
             status_label.config(text=f"Aviso: {e}")
         do_analyze()
 
-    ttk.Button(import_row, text="🎬 Leer Pista Resolve", command=reset_timeline, style="TButton").pack(side="left", padx=8)
+    ttk.Button(import_row, text="🎬 Leer Pista Resolve", command=reset_timeline, style="TButton").pack(side="left", padx=6)
 
     btn_frame = tk.Frame(tab_gen, bg="#0F172A")
     btn_frame.pack(fill="x", padx=4, pady=4)
@@ -760,12 +766,12 @@ def _create_tkinter_window() -> None:
     tree.heading("accent", text="Acento")
     tree.heading("sfx", text="SFX")
 
-    tree.column("time", width=95, anchor="center")
-    tree.column("layers", width=70, anchor="center")
-    tree.column("context", width=140)
-    tree.column("main", width=280)
-    tree.column("accent", width=140)
-    tree.column("sfx", width=90, anchor="center")
+    tree.column("time", width=85, anchor="center")
+    tree.column("layers", width=55, anchor="center")
+    tree.column("context", width=110)
+    tree.column("main", width=200)
+    tree.column("accent", width=100)
+    tree.column("sfx", width=60, anchor="center")
 
     scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=scrollbar.set)
@@ -786,7 +792,7 @@ def _create_tkinter_window() -> None:
             api_key_var.set(get_gemini_api_key())
         except Exception:
             pass
-    api_key_entry = ttk.Entry(ai_creds_frame, textvariable=api_key_var, show="*", width=36)
+    api_key_entry = ttk.Entry(ai_creds_frame, textvariable=api_key_var, show="*", width=32)
     api_key_entry.grid(row=0, column=1, padx=4, pady=4, sticky="w")
 
     def save_key_action() -> None:
@@ -804,7 +810,7 @@ def _create_tkinter_window() -> None:
 
     ttk.Label(ai_creds_frame, text="Glosario / Jergas:").grid(row=1, column=0, padx=4, pady=4, sticky="w")
     glossary_var = tk.StringVar()
-    glossary_entry = ttk.Entry(ai_creds_frame, textvariable=glossary_var, width=54)
+    glossary_entry = ttk.Entry(ai_creds_frame, textvariable=glossary_var, width=50)
     glossary_entry.grid(row=1, column=1, columnspan=2, padx=4, pady=4, sticky="w")
 
     script_label_frame = tk.Frame(tab_ai, bg="#0F172A")
@@ -822,13 +828,13 @@ def _create_tkinter_window() -> None:
             script_text_area.insert("1.0", content)
             status_label.config(text=f"📄 Guion cargado: {Path(f).name} ({len(content.splitlines())} líneas).")
 
-    ttk.Button(script_label_frame, text="📂 Cargar Guion .txt / .md", command=choose_script, style="TButton").pack(side="right")
+    ttk.Button(script_label_frame, text="📂 Cargar Guion .txt", command=choose_script, style="TButton").pack(side="right")
 
-    script_text_area = tk.Text(tab_ai, bg="#1E293B", fg="#F8FAFC", insertbackground="#38BDF8", font=("Consolas", 10), height=14)
+    script_text_area = tk.Text(tab_ai, bg="#1E293B", fg="#F8FAFC", insertbackground="#38BDF8", font=("Consolas", 10), height=12)
     script_text_area.pack(fill="both", expand=True, pady=4)
 
     status_label = ttk.Label(root, text="Inspeccionando línea de tiempo...", style="SubHeader.TLabel")
-    status_label.pack(fill="x", padx=16, pady=4)
+    status_label.pack(fill="x", padx=14, pady=4)
 
     cancel_flag_tk = [False]
     current_plan_tk: list[GenerationPlan] = []
@@ -893,7 +899,7 @@ def _create_tkinter_window() -> None:
         notebook.select(tab_gen)
         do_analyze()
 
-    ttk.Button(ai_creds_frame, text="✨ Analizar & Corregir con IA", command=do_ai_correct_action, style="Ai.TButton").grid(row=0, column=3, rowspan=2, padx=8, pady=4)
+    ttk.Button(ai_creds_frame, text="✨ Analizar & Corregir con IA", command=do_ai_correct_action, style="Ai.TButton").grid(row=0, column=3, rowspan=2, padx=6, pady=4)
 
     def do_stop() -> None:
         cancel_flag_tk[0] = True
