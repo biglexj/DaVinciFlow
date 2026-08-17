@@ -1,4 +1,4 @@
-"""Interfaz gráfica de DaVinci Flow con diseño neutral nativo de DaVinci Resolve."""
+"""Interfaz gráfica de DaVinci Flow no bloqueante con soporte para Guion, SRT, Corrección IA y Marcadores."""
 
 import json
 import re
@@ -64,7 +64,7 @@ def _try_create_uimanager_window(
     fusion_app: Any = None,
     bmd_module: Any = None,
 ) -> bool:
-    """Crea la ventana nativa mediante UIManager con estilo neutral estándar de DaVinci Resolve."""
+    """Crea la ventana nativa con estilo gris neutro DaVinci y botón Cargar Guion junto a la etiqueta."""
     if fusion_app is None:
         if resolve_app is not None and hasattr(resolve_app, "Fusion"):
             try:
@@ -109,21 +109,21 @@ def _try_create_uimanager_window(
 
     dispatcher = bmd_module.UIDispatcher(ui)
 
-    # Ventana compacta ubicada a la derecha con estilo gris neutral
+    # Ventana compacta con neutro DaVinci (X: 680, Y: 50, Ancho: 660, Alto: 715)
     win = dispatcher.AddWindow(
         {
             "WindowTitle": "DaVinci Flow — Subtítulos Dinámicos, Guion & Asistente IA",
             "ID": "DaVinciFlowWinV5",
-            "Geometry": [660, 50, 680, 710],
-            "MinimumSize": [660, 600],
-            "Margin": 12,
-            "Spacing": 5,
+            "Geometry": [680, 50, 660, 715],
+            "MinimumSize": [640, 600],
+            "Margin": 10,
+            "Spacing": 4,
         },
         [
             ui.VGroup(
-                {"Spacing": 5, "Margin": 0},
+                {"Spacing": 4, "Margin": 0},
                 [
-                    # 1. Encabezado Centrado Neutral
+                    # 1. Encabezado Centrado
                     ui.VGroup(
                         {"Spacing": 1, "Weight": 0},
                         [
@@ -179,45 +179,44 @@ def _try_create_uimanager_window(
                                     "Weight": 0,
                                 }
                             ),
-                            ui.HGap(2),
                             ui.Button(
                                 {
                                     "ID": "ReadTimelineBtn",
-                                    "Text": "Leer Pista",
-                                    "FixedSize": [115, 24],
+                                    "Text": "🎬 Leer Pista",
+                                    "FixedSize": [110, 24],
                                     "Weight": 0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "LoadSrtBtn",
-                                    "Text": "Cargar SRT...",
-                                    "FixedSize": [115, 24],
+                                    "Text": "📂 Cargar SRT",
+                                    "FixedSize": [110, 24],
                                     "Weight": 0,
                                 }
                             ),
                         ]
                     ),
 
-                    # 3. Fila 2: API Key + Botón Guardar
+                    # 3. Fila 2: API Key + Botón Guardar en la misma línea
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
-                            ui.Label({"Text": "API Key Gemini:", "FixedSize": [105, 24], "Weight": 0}),
+                            ui.Label({"Text": "API Key Gemini:", "FixedSize": [100, 24], "Weight": 0}),
                             ui.LineEdit(
                                 {
                                     "ID": "ApiKeyInput",
                                     "PlaceholderText": "Clave API Gemini o usa GEMINI_API_KEY...",
                                     "EchoMode": "Password",
-                                    "FixedSize": [425, 24],
+                                    "FixedSize": [400, 24],
                                     "Weight": 0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "SaveKeyBtn",
-                                    "Text": "Guardar",
-                                    "FixedSize": [85, 24],
+                                    "Text": "💾 Guardar",
+                                    "FixedSize": [90, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -228,38 +227,43 @@ def _try_create_uimanager_window(
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
-                            ui.Label({"Text": "Glosario/Marcas:", "FixedSize": [105, 24], "Weight": 0}),
+                            ui.Label({"Text": "Glosario/Marcas:", "FixedSize": [100, 24], "Weight": 0}),
                             ui.LineEdit(
                                 {
                                     "ID": "GlossaryInput",
                                     "PlaceholderText": "Reemplazos fijos (ej: biglex: Biglex J, resolve: DaVinci)",
-                                    "FixedSize": [516, 24],
+                                    "FixedSize": [496, 24],
                                     "Weight": 0,
                                 }
                             ),
                         ]
                     ),
 
-                    # 5. Fila 4: Encabezado Guion con Botón de Carga
+                    # 5. Fila 4: Guion Original inmediatamente seguido por el botón Cargar Guion
                     ui.HGroup(
-                        {"Spacing": 6, "Weight": 0},
+                        {"Spacing": 8, "Weight": 0},
                         [
                             ui.Label(
                                 {
-                                    "Text": "Guion Original (Referencia):",
-                                    "FixedSize": [220, 24],
+                                    "Text": "Guion Original:",
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.Button(
+                                {
+                                    "ID": "LoadScriptBtn",
+                                    "Text": "📄 Cargar Guion .txt",
+                                    "FixedSize": [140, 22],
+                                    "Weight": 0,
+                                }
+                            ),
+                            ui.Label(
+                                {
+                                    "Text": "(Referencia para corrección y marcadores)",
                                     "Weight": 0,
                                 }
                             ),
                             ui.HGap(1),
-                            ui.Button(
-                                {
-                                    "ID": "LoadScriptBtn",
-                                    "Text": "Cargar Guion...",
-                                    "FixedSize": [125, 22],
-                                    "Weight": 0,
-                                }
-                            ),
                         ]
                     ),
                     # Área de Texto de Guion
@@ -267,19 +271,19 @@ def _try_create_uimanager_window(
                         {
                             "ID": "ScriptTextEdit",
                             "PlaceholderText": "Pega aquí o carga el guion original completo para comparar y corregir los subtítulos...",
-                            "FixedSize": [626, 75],
+                            "FixedSize": [602, 75],
                             "Weight": 0,
                         }
                     ),
 
-                    # 6. Fila 5: Checkboxes de Opciones Neutrales
+                    # 6. Fila 5: Checkboxes de Opciones
                     ui.HGroup(
-                        {"Spacing": 12, "Weight": 0},
+                        {"Spacing": 10, "Weight": 0},
                         [
                             ui.CheckBox({"ID": "SFXCheck", "Text": "SFX", "Checked": True, "Weight": 0}),
-                            ui.CheckBox({"ID": "DryRunCheck", "Text": "Modo Dry-Run", "Checked": False, "Weight": 0}),
-                            ui.CheckBox({"ID": "CorrectAiCheck", "Text": "Corregir con Guion", "Checked": True, "Weight": 0}),
-                            ui.CheckBox({"ID": "MarkersAiCheck", "Text": "Marcadores en Timeline", "Checked": True, "Weight": 0}),
+                            ui.CheckBox({"ID": "DryRunCheck", "Text": "Dry-Run", "Checked": False, "Weight": 0}),
+                            ui.CheckBox({"ID": "CorrectAiCheck", "Text": "✨ Corregir con Guion", "Checked": True, "Weight": 0}),
+                            ui.CheckBox({"ID": "MarkersAiCheck", "Text": "🎯 Marcadores Timeline", "Checked": True, "Weight": 0}),
                         ]
                     ),
 
@@ -290,15 +294,15 @@ def _try_create_uimanager_window(
                             ui.Button(
                                 {
                                     "ID": "AnalyzeBtn",
-                                    "Text": "Analizar Capas",
-                                    "FixedSize": [125, 26],
+                                    "Text": "🔍 Analizar Capas",
+                                    "FixedSize": [120, 26],
                                     "Weight": 0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "AiCorrectBtn",
-                                    "Text": "Corregir con IA",
+                                    "Text": "✨ Corregir con IA",
                                     "FixedSize": [125, 26],
                                     "Weight": 0,
                                 }
@@ -306,15 +310,15 @@ def _try_create_uimanager_window(
                             ui.Button(
                                 {
                                     "ID": "GenerateBtn",
-                                    "Text": "Generar en Timeline",
-                                    "FixedSize": [165, 26],
+                                    "Text": "⚡ Generar en Timeline",
+                                    "FixedSize": [160, 26],
                                     "Weight": 0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "RevertBtn",
-                                    "Text": "Deshacer",
+                                    "Text": "🔄 Deshacer",
                                     "FixedSize": [90, 26],
                                     "Weight": 0,
                                 }
@@ -322,8 +326,8 @@ def _try_create_uimanager_window(
                             ui.Button(
                                 {
                                     "ID": "StopBtn",
-                                    "Text": "Detener",
-                                    "FixedSize": [80, 26],
+                                    "Text": "⏹️ Detener",
+                                    "FixedSize": [75, 26],
                                     "Weight": 0,
                                     "Enabled": False,
                                 }
@@ -355,8 +359,8 @@ def _try_create_uimanager_window(
                             ui.Button(
                                 {
                                     "ID": "AboutBtn",
-                                    "Text": "Acerca de",
-                                    "FixedSize": [85, 22],
+                                    "Text": "ℹ️ Info",
+                                    "FixedSize": [60, 22],
                                     "Weight": 0,
                                 }
                             ),
@@ -364,7 +368,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "CloseBtn",
                                     "Text": "Cerrar",
-                                    "FixedSize": [75, 22],
+                                    "FixedSize": [65, 22],
                                     "Weight": 0,
                                 }
                             ),
@@ -376,6 +380,78 @@ def _try_create_uimanager_window(
     )
 
     items = win.GetItems()
+
+    # Aplicar paleta gris neutra DaVinci a la ventana
+    davinci_neutral_qss = """
+        QWidget {
+            background-color: #202020;
+            color: #CCCCCC;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 11px;
+        }
+        QLineEdit, QTextEdit, QSpinBox, QComboBox {
+            background-color: #181818;
+            color: #E0E0E0;
+            border: 1px solid #383838;
+            border-radius: 3px;
+            padding: 2px 4px;
+            selection-background-color: #404040;
+            selection-color: #FFFFFF;
+        }
+        QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QComboBox:focus {
+            border: 1px solid #4F4F4F;
+        }
+        QPushButton {
+            background-color: #2B2B2B;
+            color: #D6D6D6;
+            border: 1px solid #3C3C3C;
+            border-radius: 3px;
+            padding: 3px 8px;
+        }
+        QPushButton:hover {
+            background-color: #383838;
+            border: 1px solid #4C4C4C;
+        }
+        QPushButton:pressed {
+            background-color: #1C1C1C;
+            border: 1px solid #303030;
+        }
+        QTreeWidget, QTreeView {
+            background-color: #181818;
+            color: #CCCCCC;
+            border: 1px solid #383838;
+            alternate-background-color: #1E1E1E;
+        }
+        QHeaderView::section {
+            background-color: #262626;
+            color: #999999;
+            border: 1px solid #333333;
+            padding: 3px;
+            font-weight: bold;
+        }
+        QCheckBox {
+            color: #CCCCCC;
+            spacing: 5px;
+        }
+        QCheckBox::indicator {
+            width: 13px;
+            height: 13px;
+            background-color: #181818;
+            border: 1px solid #383838;
+            border-radius: 2px;
+        }
+        QCheckBox::indicator:checked {
+            background-color: #3A3A3A;
+            border: 1px solid #505050;
+        }
+    """
+    try:
+        win.SetAttribute("StyleSheet", davinci_neutral_qss)
+    except Exception:
+        try:
+            win.StyleSheet = davinci_neutral_qss
+        except Exception:
+            pass
 
     items["ThemeCombo"].AddItem("Ely")
     items["ThemeCombo"].AddItem("Aurora")
@@ -400,9 +476,9 @@ def _try_create_uimanager_window(
         tree.SetHeaderLabels(["Tiempo (f)", "Capas", "Contexto", "Principal (Corregido)", "Acento", "SFX"])
         tree.ColumnWidth[0] = 85
         tree.ColumnWidth[1] = 55
-        tree.ColumnWidth[2] = 115
-        tree.ColumnWidth[3] = 210
-        tree.ColumnWidth[4] = 105
+        tree.ColumnWidth[2] = 110
+        tree.ColumnWidth[3] = 200
+        tree.ColumnWidth[4] = 100
         tree.ColumnWidth[5] = 60
     except Exception:
         pass
@@ -420,9 +496,9 @@ def _try_create_uimanager_window(
                 f"Proyecto: {summary.project_name} | Línea de tiempo: {summary.timeline_name} | Pistas Subtítulos: {summary.subtitle_track_count}"
             )
             if sub_cues > 0:
-                items["StatusLabel"].Text = f"Detectados {sub_cues} subtítulos en Pista 1. Pulsa 'Analizar Capas' o 'Corregir con IA'."
+                items["StatusLabel"].Text = f"✅ Detectados {sub_cues} subtítulos en Pista 1. Pulsa 'Analizar Capas' o 'Corregir con IA'."
             else:
-                items["StatusLabel"].Text = "Pista 1 sin subtítulos detectados. Puedes cargar un archivo .SRT o comprobar la pista."
+                items["StatusLabel"].Text = "⚠️ Pista 1 sin subtítulos detectados. Puedes cargar un archivo .SRT o comprobar la pista."
         except Exception as err:
             items["StatusLabel"].Text = f"Aviso de conexión: {err}"
 
@@ -431,13 +507,13 @@ def _try_create_uimanager_window(
     def on_save_key(ev: Any) -> None:
         key_text = str(items["ApiKeyInput"].Text or "").strip()
         if not key_text:
-            items["StatusLabel"].Text = "La clave API no puede estar vacía."
+            items["StatusLabel"].Text = "⚠️ La clave API no puede estar vacía."
             return
         try:
             save_gemini_api_key(key_text)
-            items["StatusLabel"].Text = f"Clave API guardada ({mask_api_key(key_text)})."
+            items["StatusLabel"].Text = f"✅ Clave API guardada ({mask_api_key(key_text)})."
         except Exception as err:
-            items["StatusLabel"].Text = f"Error al guardar clave: {err}"
+            items["StatusLabel"].Text = f"❌ Error al guardar clave: {err}"
 
     def on_load_srt(ev: Any) -> None:
         try:
@@ -452,7 +528,7 @@ def _try_create_uimanager_window(
             if filepath:
                 loaded_srt_path.clear()
                 loaded_srt_path.append(filepath)
-                items["StatusLabel"].Text = f"Subtítulos SRT: {Path(filepath).name}. Analizando..."
+                items["StatusLabel"].Text = f"📂 Subtítulos SRT: {Path(filepath).name}. Analizando..."
                 on_analyze(None)
         except Exception as err:
             items["StatusLabel"].Text = f"Error al abrir diálogo SRT: {err}"
@@ -470,13 +546,13 @@ def _try_create_uimanager_window(
             if filepath:
                 content = Path(filepath).read_text(encoding="utf-8", errors="ignore")
                 items["ScriptTextEdit"].PlainText = content
-                items["StatusLabel"].Text = f"Guion cargado: {Path(filepath).name} ({len(content.splitlines())} líneas)."
+                items["StatusLabel"].Text = f"📄 Guion cargado: {Path(filepath).name} ({len(content.splitlines())} líneas)."
         except Exception as err:
             items["StatusLabel"].Text = f"Error al cargar guion: {err}"
 
     def on_stop(ev: Any) -> None:
         cancel_flag[0] = True
-        items["StatusLabel"].Text = "Cancelación solicitada... Deteniendo tras el bloque actual."
+        items["StatusLabel"].Text = "⏹️ Cancelación solicitada... Deteniendo tras el bloque actual."
 
     def on_analyze(ev: Any) -> None:
         if is_running[0]:
@@ -515,7 +591,7 @@ def _try_create_uimanager_window(
                     srt_path=srt_file,
                 )
                 if plan.block_count == 0:
-                    items["StatusLabel"].Text = f"La pista {track} está vacía. No contiene subtítulos."
+                    items["StatusLabel"].Text = f"⚠️ La pista {track} está vacía. No contiene subtítulos."
                     items["BlocksTree"].Clear()
                     current_plan.clear()
                     return
@@ -537,9 +613,9 @@ def _try_create_uimanager_window(
                     items["BlocksTree"].AddTopLevelItem(it)
 
                 corr_msg = f" (IA: {corr.total_corrections} corregidos, {corr.total_markers} marcadores)" if corr and (corr.total_corrections > 0 or corr.total_markers > 0) else ""
-                items["StatusLabel"].Text = f"Plan listo: {plan.block_count} bloques clasificados{corr_msg}."
+                items["StatusLabel"].Text = f"✅ Plan listo: {plan.block_count} bloques clasificados{corr_msg}."
             except Exception as err:
-                items["StatusLabel"].Text = f"Error: {err}"
+                items["StatusLabel"].Text = f"❌ Error: {err}"
             finally:
                 is_running[0] = False
                 items["AnalyzeBtn"].Enabled = True
@@ -600,12 +676,12 @@ def _try_create_uimanager_window(
                     is_cancelled=lambda: cancel_flag[0],
                 )
                 if record.status == "cancelled":
-                    items["StatusLabel"].Text = f"Generación detenida ({record.item_count} clips creados)."
+                    items["StatusLabel"].Text = f"⏹️ Generación detenida ({record.item_count} clips creados)."
                 else:
                     lbl = "Simulación" if dry_run else "Generación"
-                    items["StatusLabel"].Text = f"{lbl} completada: {record.item_count} clips creados en Resolve."
+                    items["StatusLabel"].Text = f"🎉 {lbl} completada: {record.item_count} clips creados en Resolve."
             except Exception as err:
-                items["StatusLabel"].Text = f"Error: {err}"
+                items["StatusLabel"].Text = f"❌ Error: {err}"
             finally:
                 is_running[0] = False
                 items["AnalyzeBtn"].Enabled = True
@@ -622,9 +698,9 @@ def _try_create_uimanager_window(
         try:
             from davinci_flow.application import revert_active_generation
             count = revert_active_generation()
-            items["StatusLabel"].Text = f"Deshacer completado: {count} clips eliminados de las pistas."
+            items["StatusLabel"].Text = f"🔄 Deshacer completado: {count} clips eliminados de las pistas."
         except Exception as err:
-            items["StatusLabel"].Text = f"Error al deshacer: {err}"
+            items["StatusLabel"].Text = f"❌ Error al deshacer: {err}"
 
     def on_about(ev: Any) -> None:
         items["StatusLabel"].Text = "DaVinci Flow v0.1.0 • biglexj | Donaciones: https://www.biglexj.com/donaciones"
@@ -653,43 +729,47 @@ def _try_create_uimanager_window(
 
 
 def _create_tkinter_window() -> None:
-    """Crea una ventana gráfica dark-mode usando Tkinter con estilo gris neutral de DaVinci Resolve."""
+    """Crea una ventana gráfica dark-mode usando Tkinter con la paleta neutra de DaVinci."""
     root = tk.Tk()
     root.title("DaVinci Flow — Subtítulos Dinámicos, Guion & Asistente IA")
-    root.geometry("680x710+660+50")
-    root.minsize(660, 580)
-    root.configure(bg="#1E1E22")
+    root.geometry("680x715+680+50")
+    root.minsize(640, 580)
+    root.configure(bg="#202020")
 
     style = ttk.Style(root)
     style.theme_use("clam")
-    style.configure(".", background="#1E1E22", foreground="#D4D4D8", font=("Segoe UI", 9))
-    style.configure("TLabel", background="#1E1E22", foreground="#D4D4D8")
-    style.configure("Header.TLabel", font=("Segoe UI", 12, "bold"), foreground="#E4E4E7")
-    style.configure("SubHeader.TLabel", font=("Segoe UI", 9), foreground="#A1A1AA")
-    style.configure("TButton", font=("Segoe UI", 9), background="#2E2E34", foreground="#E4E4E7", borderwidth=1)
-    style.map("TButton", background=[("active", "#3E3E46")])
-    style.configure("Accent.TButton", background="#3E3E46", foreground="#FFFFFF", font=("Segoe UI", 9, "bold"))
-    style.map("Accent.TButton", background=[("active", "#4E4E56")])
-    style.configure("TNotebook", background="#1E1E22", tabmargins=[2, 5, 2, 0])
-    style.configure("TNotebook.Tab", background="#28282D", foreground="#A1A1AA", padding=[12, 5], font=("Segoe UI", 9))
-    style.map("TNotebook.Tab", background=[("selected", "#383840")], foreground=[("selected", "#FFFFFF")])
-    style.configure("Treeview", background="#26262B", foreground="#E4E4E7", fieldbackground="#26262B", rowheight=24)
-    style.configure("Treeview.Heading", background="#323238", foreground="#D4D4D8", font=("Segoe UI", 9, "bold"))
+    style.configure(".", background="#202020", foreground="#CCCCCC", font=("Segoe UI", 10))
+    style.configure("TLabel", background="#202020", foreground="#CCCCCC")
+    style.configure("Header.TLabel", font=("Segoe UI", 12, "bold"), foreground="#E0E0E0")
+    style.configure("SubHeader.TLabel", font=("Segoe UI", 9), foreground="#888888")
+    style.configure("TButton", font=("Segoe UI", 9, "bold"), background="#2B2B2B", foreground="#D6D6D6", borderwidth=1)
+    style.map("TButton", background=[("active", "#383838")])
+    style.configure("Accent.TButton", background="#353535", foreground="#FFFFFF")
+    style.map("Accent.TButton", background=[("active", "#454545")])
+    style.configure("Ai.TButton", background="#303030", foreground="#FFFFFF")
+    style.map("Ai.TButton", background=[("active", "#404040")])
+    style.configure("Stop.TButton", background="#3A2828", foreground="#FF9999")
+    style.map("Stop.TButton", background=[("active", "#4D3030")])
+    style.configure("TNotebook", background="#202020", tabmargins=[2, 5, 2, 0])
+    style.configure("TNotebook.Tab", background="#282828", foreground="#888888", padding=[12, 5], font=("Segoe UI", 9, "bold"))
+    style.map("TNotebook.Tab", background=[("selected", "#383838")], foreground=[("selected", "#FFFFFF")])
+    style.configure("Treeview", background="#181818", foreground="#CCCCCC", fieldbackground="#181818", rowheight=24)
+    style.configure("Treeview.Heading", background="#262626", foreground="#999999", font=("Segoe UI", 9, "bold"))
 
-    header_frame = tk.Frame(root, bg="#1E1E22")
+    header_frame = tk.Frame(root, bg="#202020")
     header_frame.pack(fill="x", padx=14, pady=(8, 2))
     ttk.Label(header_frame, text="DaVinci Flow", style="Header.TLabel").pack()
-    header_info = ttk.Label(header_frame, text="Subtítulos Dinámicos, Guion & Asistente IA • biglexj", style="SubHeader.TLabel")
+    header_info = ttk.Label(header_frame, text="Subtítulos Dinámicos, Guion & Asistente IA • biglexj (2026)", style="SubHeader.TLabel")
     header_info.pack()
 
     notebook = ttk.Notebook(root)
     notebook.pack(fill="both", expand=True, padx=14, pady=4)
 
     # Pestaña 1: Generación & Subtítulos
-    tab_gen = tk.Frame(notebook, bg="#1E1E22")
-    notebook.add(tab_gen, text="Subtítulos & Generación")
+    tab_gen = tk.Frame(notebook, bg="#202020")
+    notebook.add(tab_gen, text="🎬 Subtítulos & Generación")
 
-    ctrl_frame = tk.Frame(tab_gen, bg="#28282D", padx=10, pady=8)
+    ctrl_frame = tk.Frame(tab_gen, bg="#262626", padx=10, pady=8)
     ctrl_frame.pack(fill="x", padx=2, pady=4)
 
     ttk.Label(ctrl_frame, text="Pista:").grid(row=0, column=0, padx=3, pady=3, sticky="w")
@@ -714,13 +794,13 @@ def _create_tkinter_window() -> None:
     ttk.Checkbutton(ctrl_frame, text="Dry-Run", variable=dry_run_var).grid(row=0, column=7, padx=4, pady=3)
 
     correct_ai_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(ctrl_frame, text="Guion/IA", variable=correct_ai_var).grid(row=0, column=8, padx=4, pady=3)
+    ttk.Checkbutton(ctrl_frame, text="✨ Guion/IA", variable=correct_ai_var).grid(row=0, column=8, padx=4, pady=3)
 
     markers_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(ctrl_frame, text="Marcadores", variable=markers_var).grid(row=0, column=9, padx=4, pady=3)
+    ttk.Checkbutton(ctrl_frame, text="🎯 Marcadores", variable=markers_var).grid(row=0, column=9, padx=4, pady=3)
 
     # Sub-fila de botones de importación
-    import_row = tk.Frame(ctrl_frame, bg="#28282D")
+    import_row = tk.Frame(ctrl_frame, bg="#262626")
     import_row.grid(row=1, column=0, columnspan=10, pady=(6, 2), sticky="w")
 
     loaded_srt_tk: list[str] = []
@@ -733,27 +813,27 @@ def _create_tkinter_window() -> None:
         if f:
             loaded_srt_tk.clear()
             loaded_srt_tk.append(f)
-            status_label.config(text=f"Subtítulos SRT: {Path(f).name}. Pulsa 'Analizar Capas'.")
+            status_label.config(text=f"📂 Subtítulos SRT: {Path(f).name}. Pulsa 'Analizar Capas'.")
             do_analyze()
 
-    ttk.Button(import_row, text="Cargar SRT...", command=choose_srt, style="TButton").pack(side="left", padx=(0, 6))
+    ttk.Button(import_row, text="📂 Cargar archivo .SRT...", command=choose_srt, style="TButton").pack(side="left", padx=(0, 6))
 
     def reset_timeline() -> None:
         loaded_srt_tk.clear()
         try:
             summary = inspect_active_timeline()
             c_count = summary.subtitle_cues_counts.get(1, 0)
-            status_label.config(text=f"Pista Resolve re-leída: {c_count} subtítulos detectados.")
+            status_label.config(text=f"🎬 Pista Resolve re-leída: {c_count} subtítulos detectados.")
         except Exception as e:
             status_label.config(text=f"Aviso: {e}")
         do_analyze()
 
-    ttk.Button(import_row, text="Leer Pista Resolve", command=reset_timeline, style="TButton").pack(side="left", padx=6)
+    ttk.Button(import_row, text="🎬 Leer Pista Resolve", command=reset_timeline, style="TButton").pack(side="left", padx=6)
 
-    btn_frame = tk.Frame(tab_gen, bg="#1E1E22")
+    btn_frame = tk.Frame(tab_gen, bg="#202020")
     btn_frame.pack(fill="x", padx=4, pady=4)
 
-    tree_frame = tk.Frame(tab_gen, bg="#1E1E22")
+    tree_frame = tk.Frame(tab_gen, bg="#202020")
     tree_frame.pack(fill="both", expand=True, padx=4, pady=4)
 
     columns = ("time", "layers", "context", "main", "accent", "sfx")
@@ -767,9 +847,9 @@ def _create_tkinter_window() -> None:
 
     tree.column("time", width=85, anchor="center")
     tree.column("layers", width=55, anchor="center")
-    tree.column("context", width=115)
-    tree.column("main", width=210)
-    tree.column("accent", width=105)
+    tree.column("context", width=110)
+    tree.column("main", width=200)
+    tree.column("accent", width=100)
     tree.column("sfx", width=60, anchor="center")
 
     scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
@@ -778,10 +858,10 @@ def _create_tkinter_window() -> None:
     scrollbar.pack(side="right", fill="y")
 
     # Pestaña 2: Guion Original & Asistente Gemini
-    tab_ai = tk.Frame(notebook, bg="#1E1E22", padx=10, pady=10)
-    notebook.add(tab_ai, text="Guion & Asistente Gemini")
+    tab_ai = tk.Frame(notebook, bg="#202020", padx=10, pady=10)
+    notebook.add(tab_ai, text="✨ Guion & Asistente Gemini")
 
-    ai_creds_frame = tk.Frame(tab_ai, bg="#28282D", padx=12, pady=10)
+    ai_creds_frame = tk.Frame(tab_ai, bg="#262626", padx=12, pady=8)
     ai_creds_frame.pack(fill="x", pady=(0, 8))
 
     ttk.Label(ai_creds_frame, text="API Key Gemini:").grid(row=0, column=0, padx=4, pady=4, sticky="w")
@@ -805,16 +885,16 @@ def _create_tkinter_window() -> None:
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar: {e}")
 
-    ttk.Button(ai_creds_frame, text="Guardar Clave", command=save_key_action, style="TButton").grid(row=0, column=2, padx=6, pady=4)
+    ttk.Button(ai_creds_frame, text="💾 Guardar Clave", command=save_key_action, style="TButton").grid(row=0, column=2, padx=6, pady=4)
 
     ttk.Label(ai_creds_frame, text="Glosario / Jergas:").grid(row=1, column=0, padx=4, pady=4, sticky="w")
     glossary_var = tk.StringVar()
     glossary_entry = ttk.Entry(ai_creds_frame, textvariable=glossary_var, width=50)
     glossary_entry.grid(row=1, column=1, columnspan=2, padx=4, pady=4, sticky="w")
 
-    script_label_frame = tk.Frame(tab_ai, bg="#1E1E22")
+    script_label_frame = tk.Frame(tab_ai, bg="#202020")
     script_label_frame.pack(fill="x", pady=(6, 2))
-    ttk.Label(script_label_frame, text="Guion original de referencia:").pack(side="left")
+    ttk.Label(script_label_frame, text="Guion Original:").pack(side="left")
 
     def choose_script() -> None:
         f = filedialog.askopenfilename(
@@ -825,11 +905,11 @@ def _create_tkinter_window() -> None:
             content = Path(f).read_text(encoding="utf-8", errors="ignore")
             script_text_area.delete("1.0", "end")
             script_text_area.insert("1.0", content)
-            status_label.config(text=f"Guion cargado: {Path(f).name} ({len(content.splitlines())} líneas).")
+            status_label.config(text=f"📄 Guion cargado: {Path(f).name} ({len(content.splitlines())} líneas).")
 
-    ttk.Button(script_label_frame, text="Cargar Guion...", command=choose_script, style="TButton").pack(side="right")
+    ttk.Button(script_label_frame, text="📄 Cargar Guion .txt", command=choose_script, style="TButton").pack(side="left", padx=8)
 
-    script_text_area = tk.Text(tab_ai, bg="#26262B", fg="#E4E4E7", insertbackground="#E4E4E7", font=("Consolas", 10), height=12)
+    script_text_area = tk.Text(tab_ai, bg="#181818", fg="#E0E0E0", insertbackground="#CCCCCC", font=("Consolas", 10), height=12)
     script_text_area.pack(fill="both", expand=True, pady=4)
 
     status_label = ttk.Label(root, text="Inspeccionando línea de tiempo...", style="SubHeader.TLabel")
@@ -843,9 +923,9 @@ def _create_tkinter_window() -> None:
         header_info.config(text=f"Proyecto: {summary.project_name} | Línea de tiempo: {summary.timeline_name}")
         c_count = summary.subtitle_cues_counts.get(1, 0)
         if c_count > 0:
-            status_label.config(text=f"Detectados {c_count} subtítulos en Pista 1. Pulsa 'Analizar Capas'.")
+            status_label.config(text=f"✅ Detectados {c_count} subtítulos en Pista 1. Pulsa 'Analizar Capas'.")
         else:
-            status_label.config(text="No se encontraron subtítulos en la pista 1. Puedes cargar un archivo .SRT.")
+            status_label.config(text="⚠️ No se encontraron subtítulos en la pista 1. Puedes cargar un archivo .SRT.")
     except Exception as err:
         status_label.config(text=f"Listo para conectar ({err})")
 
@@ -871,7 +951,7 @@ def _create_tkinter_window() -> None:
                 srt_path=srt_f,
             )
             if plan.block_count == 0:
-                status_label.config(text=f"La pista {track_var.get()} no contiene subtítulos.")
+                status_label.config(text=f"⚠️ La pista {track_var.get()} no contiene subtítulos.")
                 tree.delete(*tree.get_children())
                 current_plan_tk.clear()
                 return
@@ -889,20 +969,20 @@ def _create_tkinter_window() -> None:
                     b.sfx_proposal or "—",
                 ))
             corr_txt = f" ({corr.total_corrections} correcciones IA, {corr.total_markers} marcadores)" if corr and (corr.total_corrections > 0 or corr.total_markers > 0) else ""
-            status_label.config(text=f"Plan listo: {plan.block_count} bloques clasificados{corr_txt}.")
+            status_label.config(text=f"✅ Plan listo: {plan.block_count} bloques clasificados{corr_txt}.")
         except DaVinciFlowError as err:
-            status_label.config(text=f"Error: {err}")
+            status_label.config(text=f"❌ Error: {err}")
 
     def do_ai_correct_action() -> None:
         correct_ai_var.set(True)
         notebook.select(tab_gen)
         do_analyze()
 
-    ttk.Button(ai_creds_frame, text="Corregir con IA", command=do_ai_correct_action, style="Accent.TButton").grid(row=0, column=3, rowspan=2, padx=6, pady=4)
+    ttk.Button(ai_creds_frame, text="✨ Analizar & Corregir con IA", command=do_ai_correct_action, style="Ai.TButton").grid(row=0, column=3, rowspan=2, padx=6, pady=4)
 
     def do_stop() -> None:
         cancel_flag_tk[0] = True
-        status_label.config(text="Cancelación solicitada...")
+        status_label.config(text="⏹️ Cancelación solicitada...")
 
     def do_generate() -> None:
         cancel_flag_tk[0] = False
@@ -940,12 +1020,12 @@ def _create_tkinter_window() -> None:
                     is_cancelled=lambda: cancel_flag_tk[0],
                 )
                 if record.status == "cancelled":
-                    status_label.config(text=f"Generación cancelada por el usuario ({record.item_count} clips creados).")
+                    status_label.config(text=f"⏹️ Generación cancelada por el usuario ({record.item_count} clips creados).")
                 else:
                     mode = "Simulación" if is_dry else "Generación"
-                    status_label.config(text=f"{mode} completada: {record.item_count} clips creados.")
+                    status_label.config(text=f"🎉 {mode} completada: {record.item_count} clips creados.")
             except DaVinciFlowError as err:
-                status_label.config(text=f"Error: {err}")
+                status_label.config(text=f"❌ Error: {err}")
 
         threading.Thread(target=worker_gen, daemon=True).start()
 
@@ -955,14 +1035,14 @@ def _create_tkinter_window() -> None:
         try:
             from davinci_flow.application import revert_active_generation
             removed = revert_active_generation()
-            status_label.config(text=f"Deshacer global completado: {removed} clips eliminados.")
+            status_label.config(text=f"🔄 Deshacer global completado: {removed} clips eliminados.")
         except Exception as err:
-            status_label.config(text=f"Error al deshacer: {err}")
+            status_label.config(text=f"❌ Error al deshacer: {err}")
 
-    ttk.Button(btn_frame, text="Analizar Capas", command=do_analyze, style="TButton").pack(side="left", padx=(0, 6))
-    ttk.Button(btn_frame, text="Generar en Línea de Tiempo", command=do_generate, style="Accent.TButton").pack(side="left", padx=6)
-    ttk.Button(btn_frame, text="Deshacer", command=do_revert, style="TButton").pack(side="left", padx=6)
-    ttk.Button(btn_frame, text="Detener", command=do_stop, style="TButton").pack(side="left", padx=6)
+    ttk.Button(btn_frame, text="🔍 Analizar Capas", command=do_analyze, style="TButton").pack(side="left", padx=(0, 6))
+    ttk.Button(btn_frame, text="⚡ Generar en Línea de Tiempo", command=do_generate, style="Accent.TButton").pack(side="left", padx=6)
+    ttk.Button(btn_frame, text="🔄 Deshacer", command=do_revert, style="TButton").pack(side="left", padx=6)
+    ttk.Button(btn_frame, text="⏹️ Detener", command=do_stop, style="Stop.TButton").pack(side="left", padx=6)
 
     root.mainloop()
 
