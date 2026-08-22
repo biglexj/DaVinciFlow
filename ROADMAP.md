@@ -8,28 +8,33 @@ Plan de trabajo, objetivos de producto y hoja de ruta estratégica del proyecto.
 
 ## 🔴 Pendientes activos
 
-- [ ] **v0.1.0 — Base técnica y lectura de subtítulos** — `process/active/2026-08-15_base-inicial/`
-- [ ] **MVP — Subtítulos dinámicos multicapa y SFX** — `process/active/2026-08-15_subtitulos-dinamicos-y-sfx/`
-- [ ] **Integración Gemini, alineación con guion original y marcadores en línea de tiempo** — `process/active/2026-08-17_integracion-gemini-guion-y-marcadores/`
-
+- [ ] **Sinergia con el Ecosistema Biglex (Web Launchpad & Aurora Synapse)** — `process/active/2026-08-21_interconexion-ecosistema-web/`
+- [ ] **Plantillas Fusion Personalizables (.setting) para Ely y Aurora** — `process/active/2026-08-22_plantillas-fusion-setting/`
 
 ---
 
 ## 🟡 Intermedio (Prioridad Media/Baja)
 
-- [ ] Generar títulos Fusion en capas de contexto, énfasis y complemento.
-- [ ] Incorporar una biblioteca SFX propia con previsualización y límites de densidad.
-- [ ] Diseñar el flujo guiado de análisis, revisión y regeneración selectiva.
-- [ ] Evaluar una clasificación semántica opcional mediante una API de lenguaje independiente del proveedor.
+- [ ] Generar títulos Fusion en capas de contexto, énfasis y complemento con transiciones automáticas.
+- [ ] Incorporar una biblioteca SFX propia con previsualización y límites de densidad configurables.
+- [ ] Diseñar el flujo guiado de análisis, revisión y regeneración selectiva por bloques.
+- [ ] Integración con proveedores LLM alternativos mediante adaptadores independientes.
 
 ---
 
 ## ⚪ Descartado / En Pausa
 
-- ⏸️ Transcripción local con modelos pesados; DaVinci Flow utilizará inicialmente los subtítulos creados por Resolve.
+- ⏸️ Transcripción local pesada en GPU con Whisper; DaVinci Flow aprovecha la transcripción nativa de Resolve, archivos SRT o la suite externa LyraFlow.
 
 ---
 
 ## 🟢 Completado
 
-- Sin versiones completadas.
+- [x] **v0.1.0 — Base técnica, lectura de subtítulos, IA con Gemini y marcadores** — `process/completed/2026/2026-08-17_integracion-gemini-guion-y-marcadores/`
+  - Conexión local robusta con DaVinci Resolve 21 vía API de scripting.
+  - Lector híbrido de subtítulos desde pista activa de Resolve y archivos `.SRT`.
+  - Motor de clasificación de subtítulos multicapa (Contexto, Principal, Acento y SFX).
+  - Integración de Google Gemini API para corrección con guion original y glosario de marcas/jergas.
+  - Inserción automatizada de marcadores temáticos en la línea de tiempo.
+  - Interfaz gráfica UIManager nativa de DaVinci y fallback Tkinter con paleta neutra `#202020`.
+  - Suite de pruebas unitarias al 100% (87 tests aprobados).
