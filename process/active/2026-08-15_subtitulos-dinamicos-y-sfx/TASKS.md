@@ -1,13 +1,13 @@
 # Subtítulos dinámicos y SFX — Tareas
 
-- Estado: `PENDING`
+- Estado: `ACTIVE — validación técnica real completada; revisión visual y auditiva pendiente`
 - Regla: trabajar en orden y no comenzar una fase cuya puerta precedente esté pendiente.
 
 ## Dependencia previa
 
-- [ ] T00.1 — Abrir Resolve 21 con un proyecto de prueba y una pista de subtítulos nativa.
-- [ ] T00.2 — Completar la validación real del proceso `2026-08-15_base-inicial`.
-- [ ] T00.3 — Registrar la aprobación de G0 antes de crear capacidades de escritura.
+- [x] T00.1 — Abrir Resolve 21 con el proyecto transcrito indicado por Biglex y una pista de subtítulos nativa.
+- [x] T00.2 — Completar la validación real del proceso `2026-08-15_base-inicial`.
+- [x] T00.3 — Registrar evidencia técnica de G0 antes de consolidar la escritura.
 
 ## Fase 1 — Dominio y plan de generación
 
@@ -25,11 +25,11 @@
 
 - [x] T02.1 — Comprobar desde Python qué títulos Fusion reconoce Resolve 21.
 - [x] T02.2 — Crear una plantilla propia mínima sin adoptar branding externo.
-- [x] T02.3 — Insertar un bloque en una copia de la línea de tiempo.
+- [x] T02.3 — Insertar un bloque de forma reversible en la línea de tiempo indicada por Biglex, sin crear otro proyecto.
 - [x] T02.4 — Ajustar texto, inicio, final y duración mediante la API disponible.
 - [x] T02.5 — Registrar el elemento creado y retirarlo de forma segura.
 - [x] T02.6 — Probar fallos: pista bloqueada, plantilla ausente y rango inválido.
-- [x] T02.7 — Completar V2 y solicitar aprobación G2.
+- [ ] T02.7 — Obtener aprobación visual de G2 por parte de Biglex.
 
 ## Fase 3 — Multicapa y Brand Guard
 
@@ -48,14 +48,14 @@
 
 - [x] T04.1 — Crear el modo de análisis sin escritura.
 - [x] T04.2 — Mostrar roles, tiempos, tema, confianza y motivos por bloque.
-- [x] T04.3 — Permitir aprobar, desactivar o corregir bloques.
+- [ ] T04.3 — Permitir aprobar, desactivar o corregir bloques directamente desde la tabla.
 - [x] T04.4 — Añadir marcadores propios solo si la prueba vertical confirma su utilidad.
 - [x] T04.5 — Registrar ejecuciones y elementos generados.
 - [x] T04.6 — Detectar subtítulos nuevos, modificados y eliminados.
-- [x] T04.7 — Regenerar un intervalo sin tocar los demás bloques.
+- [ ] T04.7 — Regenerar físicamente un intervalo sin tocar los demás bloques.
 - [x] T04.8 — Retirar únicamente una ejecución seleccionada.
 - [x] T04.9 — Recuperarse de una generación interrumpida.
-- [x] T04.10 — Completar V4 y solicitar aprobación G4.
+- [ ] T04.10 — Completar la revisión funcional de V4 y solicitar aprobación G4.
 
 ## Fase 5 — Motor SFX
 
@@ -65,10 +65,10 @@
 - [x] T05.4 — Implementar límites de densidad, reutilización y exclusión.
 - [x] T05.5 — Crear o reutilizar la pista `DF_SFX`.
 - [x] T05.6 — Insertar un SFX aprobado en el tiempo correcto.
-- [x] T05.7 — Configurar ganancia y fundidos compatibles con la API real.
-- [x] T05.8 — Permitir preescucha, sustitución y desactivación.
+- [ ] T05.7 — Configurar ganancia y fundidos compatibles con la API real.
+- [ ] T05.8 — Permitir preescucha, sustitución y desactivación desde la interfaz.
 - [x] T05.9 — Probar rangos reflexivos y `SFX_OFF`.
-- [x] T05.10 — Completar V5 y solicitar aprobación G5.
+- [ ] T05.10 — Completar revisión auditiva de V5 y solicitar aprobación G5.
 
 ## Fase 6 — Interfaz guiada
 
@@ -81,7 +81,7 @@
 - [x] T06.7 — Implementar el resumen y la generación.
 - [x] T06.8 — Mostrar progreso, cancelación y errores recuperables.
 - [x] T06.9 — Incorporar información de versión, autoría, licencia y enlaces oficiales cuando exista una UI distribuible.
-- [x] T06.10 — Completar V6 y solicitar aprobación G6.
+- [ ] T06.10 — Completar el recorrido visual de V6 y solicitar aprobación G6.
 
 ## Fase 7 — Evaluación opcional de API de lenguaje
 
@@ -95,8 +95,8 @@
 
 ## Cierre
 
-- [ ] TC.1 — Actualizar README, ROADMAP y notas sin anunciar una publicación inexistente.
-- [ ] TC.2 — Ejecutar toda la matriz automatizada.
+- [x] TC.1 — Actualizar README, ROADMAP y notas sin anunciar una publicación inexistente.
+- [x] TC.2 — Ejecutar toda la matriz automatizada (95 pruebas correctas en Python 3.13).
 - [ ] TC.3 — Completar las pruebas manuales en Resolve.
 - [ ] TC.4 — Confirmar que no quedan claves, rutas privadas o recursos sin licencia.
 - [ ] TC.5 — Obtener aprobación final de Biglex.

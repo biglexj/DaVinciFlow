@@ -7,7 +7,7 @@ trigger: always_on
 - Última revisión: 2026-08-17
 - Tipo principal: `Automatización para aplicación de escritorio`
 - Plataformas: `Windows 11 y DaVinci Resolve 21`
-- Stack: `Python 3.11 de 64 bits, API de scripting de DaVinci Resolve y unittest`
+- Stack: `Python 3.13 de 64 bits, API de scripting de DaVinci Resolve 21 y unittest`
 - Funciones activas: `Conexión local con Resolve, generación de subtítulos dinámicos multicapa, marcadores en línea de tiempo e integración opcional con Gemini para alineación de guion`
 
 ## Regla de selección

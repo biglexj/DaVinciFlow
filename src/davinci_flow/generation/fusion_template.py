@@ -45,7 +45,7 @@ def generate_textplus_fusion_setting(
     # Escapar comillas dobles y caracteres especiales en Lua
     safe_text = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
-    return f"""{{"
+    return f"""{{
 \tTools = ordered() {{
 \t\tDF_Text_{role} = TextPlus {{
 \t\t\tInputs = {{

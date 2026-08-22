@@ -1,5 +1,6 @@
 # Aprobación — Base inicial de DaVinci Flow
 
-- Estado: pendiente de validación técnica y revisión de Biglex.
+- Estado: validación técnica completada; revisión final de Biglex pendiente.
 - Alcance aprobado para ejecución: base Python y lectura no destructiva de subtítulos.
-- Próxima decisión: validar la lectura real y, después, revisar `process/active/2026-08-15_subtitulos-dinamicos-y-sfx/`.
+- Evidencia: 369 subtítulos leídos desde `Crear proyecto 1 / Timeline 1` el 21 de agosto de 2026.
+- Próxima decisión: revisión final de Biglex y continuidad en `process/active/2026-08-15_subtitulos-dinamicos-y-sfx/`.

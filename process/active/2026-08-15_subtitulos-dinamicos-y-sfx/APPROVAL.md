@@ -12,7 +12,7 @@
  
  ## Decisiones visuales pendientes
  
- - [ ] Identificar la fuente oficial de la paleta Aurora.
+ - [x] Identificar la fuente oficial de la paleta Aurora (`Aurora---Blog/frontend/src/styles/colors.css`).
  - [ ] Identificar las tipografías oficiales de Aurora.
  - [ ] Confirmar las tipografías permitidas para Ely.
  - [ ] Aprobar la primera plantilla visual mínima antes de crear variantes.
@@ -28,7 +28,7 @@
  
  ## Decisiones técnicas pendientes
  
- - [ ] Confirmar el comportamiento real de la API con Resolve 21.
+ - [x] Confirmar el comportamiento real de la API con Resolve 21.
  - [ ] Aprobar la estrategia de pistas calculadas frente a índices configurables.
  - [ ] Aprobar el formato persistente de `GenerationPlan` y `GenerationRecord`.
  - [ ] Elegir la tecnología de interfaz después de la prueba de `UIManager`.
@@ -36,23 +36,23 @@
  
  ## Puertas por fase
 
-- [ ] G0 — Lectura real de subtítulos aprobada (pendiente ejecución de Resolve 21 en GUI).
+- [x] G0 — Lectura real validada técnicamente: 369 subtítulos de `Crear proyecto 1 / Timeline 1`.
 - [x] G1 — Dominio y plan de generación aprobados (validado con pruebas automatizadas unitarias).
-- [x] G2 — Prueba vertical de Fusion aprobada (plantillas `.setting` TextPlus y generación en pistas dedicadas).
-- [x] G3 — Multicapa y Brand Guard aprobados (temas oficiales Ely y Aurora, restricción cromática y tipográfica).
-- [x] G4 — Previsualización y regeneración aprobadas (motor `reconcile_subtitles` y `GenerationExecutionRecord`).
-- [x] G5 — Motor SFX aprobado (catálogo auditable, propuesta por intención y control de densidad).
-- [x] G6 — Interfaz guiada aprobada (CLI con `--plan`, `--generate`, `--dry-run`, `--no-sfx`, `--reconcile`, `--about`).
+- [ ] G2 — Prueba vertical Fusion validada técnicamente; aprobación visual de Biglex pendiente.
+- [ ] G3 — Multicapa y Brand Guard validados en código; aprobación visual de los temas pendiente.
+- [ ] G4 — Previsualización y deshacer selectivo validados; edición y regeneración física por bloque pendientes.
+- [ ] G5 — Inserción real de SFX validada; preescucha, mezcla y aprobación auditiva pendientes.
+- [ ] G6 — Interfaz abierta en Resolve; recorrido completo y aprobación de Biglex pendientes.
 - [ ] G7 — API de lenguaje aprobada, aplazada o descartada explícitamente.
 
 ## Controles de cierre
 
-- [ ] Validación técnica del agente.
+- [x] Validación técnica del agente (95 pruebas y prueba vertical real reversible).
 - [ ] Validación funcional sobre Resolve.
 - [ ] Revisión visual de Biglex.
-- [ ] `ROADMAP.md` actualizado.
-- [ ] Documentación de uso e instalación actualizada.
-- [ ] Recursos y licencias revisados.
+- [x] `ROADMAP.md` actualizado.
+- [x] Documentación de uso e instalación actualizada.
+- [x] Recursos procedurales y licencias revisados.
 - [ ] Aprobación final de Biglex.
 
 ## Decisión

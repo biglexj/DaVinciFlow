@@ -7,7 +7,7 @@ name = "davinci-flow"
 version = "0.1.0"
 description = "Automatización modular de subtítulos y edición para DaVinci Resolve."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13,<3.14"
 license = { text = "MIT" }
 authors = [{ name = "biglexj" }]
 dependencies = []

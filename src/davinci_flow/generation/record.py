@@ -26,7 +26,8 @@ class GenerationItemRecord:
     start_frame: float
     end_frame: float
     content_text: str
-    status: str = "applied"  # "applied", "replaced", "reverted"
+    status: str = "applied"  # "planned", "applied", "replaced", "reverted", "missing"
+    native_item_id: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -42,6 +43,7 @@ class GenerationItemRecord:
             "end_frame": self.end_frame,
             "content_text": self.content_text,
             "status": self.status,
+            "native_item_id": self.native_item_id,
             "created_at": self.created_at,
         }
 
@@ -59,6 +61,11 @@ class GenerationItemRecord:
             end_frame=float(data["end_frame"]),
             content_text=str(data["content_text"]),
             status=str(data.get("status", "applied")),
+            native_item_id=(
+                str(data["native_item_id"])
+                if data.get("native_item_id") is not None
+                else None
+            ),
             created_at=str(data.get("created_at", "")),
         )
 

@@ -45,3 +45,6 @@ class MarkerError(DaVinciFlowError):
     """Error al insertar o gestionar marcadores en la línea de tiempo."""
 
 
+class TimelineWriteError(DaVinciFlowError):
+    """Resolve no confirmó una escritura solicitada sobre la línea de tiempo."""
+

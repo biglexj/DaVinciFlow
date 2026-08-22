@@ -2,6 +2,8 @@
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+import os
+from math import gcd
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +16,7 @@ from davinci_flow.ai.credentials import save_gemini_api_key
 from davinci_flow.generation.plan import GenerationPlan, build_generation_plan
 from davinci_flow.generation.reconciler import PlanDiff, reconcile_subtitles
 from davinci_flow.generation.record import GenerationExecutionRecord
+from davinci_flow.errors import TimelineWriteError
 from davinci_flow.resolve import (
     ResolveMarkerWriter,
     ResolveSubtitleReader,
@@ -23,6 +26,56 @@ from davinci_flow.resolve import (
 from davinci_flow.sfx.engine import SFXProposalEngine
 from davinci_flow.subtitles import SubtitleCue
 from davinci_flow.subtitles.srt_parser import load_srt_file, parse_srt_content
+
+
+def _last_execution_record_path() -> Path:
+    """Ruta local del último registro físico, fuera del repositorio y sin datos secretos."""
+    app_data = os.environ.get("APPDATA")
+    base = Path(app_data) if app_data else Path.home() / ".davinci-flow"
+    return base / "DaVinciFlow" / "records" / "last_execution.json"
+
+
+def _timeline_metrics(timeline: Any) -> tuple[str | None, float, int, int, str]:
+    """Lee FPS, resolución e identificador reales con valores seguros de respaldo."""
+    timeline_id: str | None = None
+    get_unique_id = getattr(timeline, "GetUniqueId", None)
+    if callable(get_unique_id):
+        try:
+            raw_id = get_unique_id()
+            if raw_id:
+                timeline_id = str(raw_id)
+        except Exception:
+            pass
+
+    def setting(keys: tuple[str, ...], default: str) -> str:
+        get_setting = getattr(timeline, "GetSetting", None)
+        if not callable(get_setting):
+            return default
+        for key in keys:
+            try:
+                value = get_setting(key)
+                if value not in (None, ""):
+                    return str(value)
+            except Exception:
+                continue
+        return default
+
+    try:
+        fps = float(setting(("timelineFrameRate", "timelinePlaybackFrameRate"), "24"))
+    except ValueError:
+        fps = 24.0
+    try:
+        width = int(float(setting(("timelineResolutionWidth",), "1920")))
+        height = int(float(setting(("timelineResolutionHeight",), "1080")))
+    except ValueError:
+        width, height = 1920, 1080
+
+    if fps <= 0:
+        fps = 24.0
+    if width <= 0 or height <= 0:
+        width, height = 1920, 1080
+    divisor = gcd(width, height)
+    return timeline_id, fps, width, height, f"{width // divisor}:{height // divisor}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,14 +143,16 @@ def scan_active_subtitles(
 ) -> SubtitleScan:
     """Conecta con Resolve u obtiene subtítulos directamente desde un archivo SRT."""
     if srt_path:
-        cues = load_srt_file(srt_path, track_index=track_index)
         try:
             session = connect_to_resolve()
             proj_name = str(session.project.GetName())
             tl_name = str(session.timeline.GetName())
+            _timeline_id, fps, _width, _height, _aspect = _timeline_metrics(session.timeline)
         except Exception:
             proj_name = "Archivo SRT"
             tl_name = Path(srt_path).name
+            fps = 24.0
+        cues = load_srt_file(srt_path, track_index=track_index, fps=fps)
 
         return SubtitleScan(
             project_name=proj_name,
@@ -155,21 +210,25 @@ def plan_active_subtitles(
     api_key: str | None = None,
     use_ai_correction: bool = False,
     srt_path: str | Path | None = None,
+    resolve_session: Any | None = None,
 ) -> tuple[GenerationPlan, CorrectionResult | None]:
     """Lee la pista activa o archivo SRT y produce un GenerationPlan clasificado con soporte de corrección por IA."""
     if srt_path:
-        cues = load_srt_file(srt_path, track_index=track_index)
         try:
-            session = connect_to_resolve()
+            session = resolve_session or connect_to_resolve()
             proj_name = str(session.project.GetName())
             tl_name = str(session.timeline.GetName())
+            timeline_id, fps, width, height, aspect_ratio = _timeline_metrics(session.timeline)
         except Exception:
             proj_name = "Proyecto DaVinci"
             tl_name = Path(srt_path).stem
+            timeline_id, fps, width, height, aspect_ratio = None, 24.0, 1920, 1080, "16:9"
+        cues = load_srt_file(srt_path, track_index=track_index, fps=fps)
     else:
-        session = connect_to_resolve()
+        session = resolve_session or connect_to_resolve()
         proj_name = str(session.project.GetName())
         tl_name = str(session.timeline.GetName())
+        timeline_id, fps, width, height, aspect_ratio = _timeline_metrics(session.timeline)
         cues = ResolveSubtitleReader(session.timeline).read_track(track_index)
 
     correction_res: CorrectionResult | None = None
@@ -189,6 +248,11 @@ def plan_active_subtitles(
         timeline_name=tl_name,
         cues=cues,
         track_index=track_index,
+        timeline_id=timeline_id,
+        fps=fps,
+        width=width,
+        height=height,
+        aspect_ratio=aspect_ratio,
         theme_name=theme_name,
         profile_name=profile_name,
     )
@@ -246,19 +310,24 @@ def generate_from_active_timeline(
         api_key=api_key,
         use_ai_correction=use_ai_correction,
         srt_path=srt_path,
+        resolve_session=session,
     )
 
     if insert_markers and correction_res and correction_res.markers and not dry_run:
         marker_writer = ResolveMarkerWriter(session.timeline)
         marker_writer.apply_markers(correction_res.markers)
 
-    writer = ResolveTimelineWriter(session.timeline)
-    return writer.apply_plan(
+    media_pool = session.project.GetMediaPool()
+    writer = ResolveTimelineWriter(session.timeline, media_pool=media_pool)
+    record = writer.apply_plan(
         plan,
         dry_run=dry_run,
         progress_callback=progress_callback,
         is_cancelled=is_cancelled,
     )
+    if not dry_run:
+        record.save_to_file(_last_execution_record_path())
+    return record
 
 
 def reconcile_active_timeline(
@@ -273,10 +342,27 @@ def reconcile_active_timeline(
 
 
 def revert_active_generation() -> int:
-    """Elimina en un solo paso global todos los elementos generados en las pistas de DaVinci Flow."""
+    """Deshace únicamente la última ejecución registrada en el proyecto y timeline activos."""
     session = connect_to_resolve()
-    writer = ResolveTimelineWriter(session.timeline)
-    return writer.clear_generated_tracks()
+    record_path = _last_execution_record_path()
+    if not record_path.is_file():
+        raise TimelineWriteError("No existe una generación registrada que se pueda deshacer.")
+
+    record = GenerationExecutionRecord.load_from_file(record_path)
+    project_name = str(session.project.GetName())
+    timeline_name = str(session.timeline.GetName())
+    if record.project_name != project_name or record.timeline_name != timeline_name:
+        raise TimelineWriteError(
+            "La última generación pertenece a otro proyecto o línea de tiempo; no se eliminó nada."
+        )
+
+    writer = ResolveTimelineWriter(
+        session.timeline,
+        media_pool=session.project.GetMediaPool(),
+    )
+    reverted = writer.revert_execution(record)
+    reverted.save_to_file(record_path)
+    return sum(1 for item in reverted.items if item.status == "reverted")
 
 
 def save_user_gemini_key(api_key: str) -> Path:

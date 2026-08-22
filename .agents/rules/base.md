@@ -10,7 +10,7 @@ trigger: always_on
 - Autor: biglexj.
 - Licencia: MIT.
 - Producto actual: automatización para DaVinci Resolve 21, no aplicación independiente.
-- Stack activo: Python 3.11 de 64 bits y API de scripting de DaVinci Resolve.
+- Stack activo: Python 3.13 de 64 bits y API de scripting de DaVinci Resolve 21.
 - Las plantillas visuales futuras usarán Fusion `.setting` y exclusivamente temas oficiales de Aurora o Ely.
 
 ## Arquitectura

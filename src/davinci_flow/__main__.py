@@ -242,7 +242,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             mode_label = "SIMULACIÓN (Dry-Run)" if args.dry_run else "GENERACIÓN"
             print(f"[{mode_label}] Ejecución: {record.execution_id}")
             print(f"Proyecto: {record.project_name} | Línea de tiempo: {record.timeline_name}")
-            print(f"Total elementos creados: {record.item_count} (Estado: {record.status})")
+            item_label = "planificados" if args.dry_run else "creados"
+            print(f"Total elementos {item_label}: {record.item_count} (Estado: {record.status})")
             for item in record.items[:15]:
                 print(f"  [{item.track_name} / {item.role}] f:{item.start_frame:g}-{item.end_frame:g} -> {item.content_text}")
             if record.item_count > 15:

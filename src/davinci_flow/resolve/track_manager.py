@@ -67,7 +67,9 @@ class ResolveTrackManager:
         set_name_fn = getattr(self.timeline, "SetTrackName", None)
 
         if not callable(add_track_fn) or not callable(set_name_fn):
-            return track_map
+            raise TrackManagementError(
+                "Resolve no expone las operaciones necesarias para crear y nombrar pistas dedicadas."
+            )
 
         # 1. Asegurar la cantidad necesaria de pistas de vídeo
         curr_v_count = self._safe_get_track_count("video")
@@ -79,45 +81,59 @@ class ResolveTrackManager:
 
         while curr_v_count < max_v_needed:
             try:
-                add_track_fn("video")
-                curr_v_count += 1
-            except Exception:
-                break
+                result = add_track_fn("video")
+            except Exception as error:
+                raise TrackManagementError("No se pudo crear una pista de vídeo dedicada.") from error
+            if result is False:
+                raise TrackManagementError("Resolve rechazó la creación de una pista de vídeo dedicada.")
+            new_count = self._safe_get_track_count("video")
+            if new_count <= curr_v_count:
+                raise TrackManagementError("Resolve no confirmó la nueva pista de vídeo dedicada.")
+            curr_v_count = new_count
 
         # Asignar nombres oficiales a las pistas de vídeo
         for name in ("DF_CONTEXT", "DF_MAIN", "DF_ACCENT"):
             idx = track_map.get(name)
             if idx:
                 try:
-                    set_name_fn("video", idx, name)
-                except Exception:
-                    pass
+                    result = set_name_fn("video", idx, name)
+                except Exception as error:
+                    raise TrackManagementError(f"No se pudo nombrar la pista {name}.") from error
+                if result is False or self._safe_get_track_name("video", idx) != name:
+                    raise TrackManagementError(f"Resolve no confirmó el nombre de pista {name}.")
 
         # 2. Asegurar pista de audio para SFX por encima de las del usuario
         curr_a_count = self._safe_get_track_count("audio")
         sfx_idx = track_map.get("DF_SFX", 1)
         while curr_a_count < sfx_idx:
             try:
-                add_track_fn("audio")
-                curr_a_count += 1
-            except Exception:
-                break
+                result = add_track_fn("audio")
+            except Exception as error:
+                raise TrackManagementError("No se pudo crear la pista de audio DF_SFX.") from error
+            if result is False:
+                raise TrackManagementError("Resolve rechazó la creación de la pista de audio DF_SFX.")
+            new_count = self._safe_get_track_count("audio")
+            if new_count <= curr_a_count:
+                raise TrackManagementError("Resolve no confirmó la pista de audio DF_SFX.")
+            curr_a_count = new_count
 
         try:
-            set_name_fn("audio", sfx_idx, "DF_SFX")
-        except Exception:
-            pass
+            result = set_name_fn("audio", sfx_idx, "DF_SFX")
+        except Exception as error:
+            raise TrackManagementError("No se pudo nombrar la pista DF_SFX.") from error
+        if result is False or self._safe_get_track_name("audio", sfx_idx) != "DF_SFX":
+            raise TrackManagementError("Resolve no confirmó el nombre de pista DF_SFX.")
 
         return track_map
 
     def _safe_get_track_count(self, track_type: str) -> int:
         getter = getattr(self.timeline, "GetTrackCount", None)
         if not callable(getter):
-            return 1
+            return 0
         try:
-            return int(getter(track_type) or 1)
+            return int(getter(track_type) or 0)
         except Exception:
-            return 1
+            return 0
 
     def _safe_get_track_name(self, track_type: str, index: int) -> str:
         getter = getattr(self.timeline, "GetTrackName", None)

@@ -1,6 +1,6 @@
 # DaVinci Flow
 
-DaVinci Flow es una automatización modular en Python para DaVinci Resolve 21 que transforma subtítulos nativos en títulos dinámicos multicapa, jerarquía visual y propuestas de efectos sonoros (SFX), manteniendo el flujo de edición no destructivo y 100% reversible.
+DaVinci Flow es una automatización modular en Python para DaVinci Resolve 21. Primero analiza la transcripción existente —pista de subtítulos nativa o archivo SRT— y, a partir de ese texto y sus tiempos, decide la jerarquía de capas, los títulos Fusion y las propuestas de efectos sonoros.
 
 ## 📸 Capturas de Pantalla
 
@@ -10,13 +10,13 @@ DaVinci Flow es una automatización modular en Python para DaVinci Resolve 21 qu
 
 ## 🚀 Capacidades Principales
 
-- **Lectura no destructiva**: Ingesta de subtítulos nativos de Resolve sin alterar clips originales.
+- **Transcripción como fuente de verdad**: Lee la pista nativa o un SRT; las capas son un resultado del análisis, no la entrada.
 - **Clasificación semántica determinista**: Desglose en hasta 3 capas de texto (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`) e intención comunicativa (`statement`, `question`, `exclamation`, `emphasis`, `negation`).
 - **Brand Guard y temas oficiales**: Soporte estricto para los temas **Ely** y **Aurora** con validación de paletas HEX y fuentes tipográficas oficiales.
-- **Plantillas Fusion (.setting)**: Generación limpia de nodos TextPlus y composiciones gráficas.
-- **Motor SFX inteligente**: Propuestas de audio catalogadas con autoría y licencias auditables, control de densidad y soporte para rangos `[SFX_OFF]`.
-- **Idempotencia y regeneración parcial**: Detección de subtítulos modificados/añadidos mediante huellas SHA-256 para actualizar únicamente los bloques necesarios.
-- **Reversión segura**: Retirada controlada de los elementos generados por DaVinci Flow sin tocar pistas ajenas.
+- **Composiciones Fusion propias**: Cada capa se inserta con pista, inicio y duración verificados contra el `TimelineItem` devuelto por Resolve.
+- **Motor SFX funcional**: Propone y materializa WAV originales de DaVinci Flow, con control de densidad y soporte para `[SFX_OFF]`.
+- **Idempotencia**: Un mismo plan reutiliza sus clips identificados en vez de duplicarlos.
+- **Reversión selectiva**: El botón Deshacer retira únicamente la última ejecución registrada; no vacía todas las pistas DF.
 
 ---
 
@@ -28,7 +28,8 @@ src/davinci_flow/
 ├── application.py           Coordinación de casos de uso del producto
 ├── errors.py                Jerarquía de errores controlados
 ├── generation/              Plan de generación, diffs, plantillas Fusion y registros
-│   ├── fusion_template.py   Generador de .setting y conversión de color
+│   ├── fusion_template.py   Generador de composiciones Fusion y conversión de color
+│   ├── carrier_media.py     AVI mínimo para duración exacta de composiciones Fusion
 │   ├── plan.py              Modelo GenerationPlan versionado (1.0.0) y persistencia
 │   ├── reconciler.py        Motor de reconciliación y diff de subtítulos
 │   └── record.py            Auditoría de clips generados y reversión
@@ -39,6 +40,7 @@ src/davinci_flow/
 │   └── track_manager.py     Gestión de pistas DF_CONTEXT, DF_MAIN, DF_ACCENT, DF_SFX
 ├── sfx/                     Biblioteca y motor de efectos de sonido
 │   ├── catalog.py           Descriptor auditable AssetDescriptor y catálogo
+│   ├── assets.py            Materialización de WAV procedurales incluidos
 │   └── engine.py            Motor de propuesta y perfiles de densidad
 ├── subtitles/               Modelos de dominio, normalizador y clasificador
 │   ├── block.py             CaptionBlock con roles y trazabilidad
@@ -56,7 +58,7 @@ src/davinci_flow/
 
 - **Sistema Operativo**: Windows 11 (64 bits).
 - **Entorno Host**: DaVinci Resolve 21 (Studio o Free con scripting habilitado).
-- **Stack**: Python 3.11 de 64 bits.
+- **Stack externo verificado**: Python 3.13 de 64 bits. En esta instalación, `fusionscript.dll` de Resolve 21 no es compatible con Python 3.11/3.12.
 - **Dependencias externas**: Ninguna (librería estándar de Python y API de Resolve).
 
 ---
@@ -71,27 +73,27 @@ $env:PYTHONPATH = "$PWD\src"
 
 ### 1. Información y Acerca de
 ```powershell
-python -m davinci_flow --about
+uv run --python 3.13 python -m davinci_flow --about
 ```
 
 ### 2. Previsualizar el Plan de Capas (Modo Seco)
 ```powershell
-python -m davinci_flow --plan --track 1 --theme ely --profile natural
+uv run --python 3.13 python -m davinci_flow --plan --track 1 --theme ely --profile natural
 ```
 
 ### 3. Exportar el Plan Calculado a Archivo JSON
 ```powershell
-python -m davinci_flow --plan --export-plan "temp/plan_generacion.json"
+uv run --python 3.13 python -m davinci_flow --plan --export-plan "temp/plan_generacion.json"
 ```
 
 ### 4. Simulación de Generación (Dry-Run)
 ```powershell
-python -m davinci_flow --generate --dry-run --theme ely
+uv run --python 3.13 python -m davinci_flow --generate --dry-run --theme ely
 ```
 
 ### 5. Comparar y Reconciliar contra un Plan Previo
 ```powershell
-python -m davinci_flow --reconcile "temp/plan_generacion.json"
+uv run --python 3.13 python -m davinci_flow --reconcile "temp/plan_generacion.json"
 ```
 
 ---
@@ -100,8 +102,10 @@ python -m davinci_flow --reconcile "temp/plan_generacion.json"
 
 ```powershell
 $env:PYTHONPATH = "$PWD\src"
-python -m unittest discover -s tests -v
+uv run --python 3.13 python -m unittest discover -s tests -v
 ```
+
+La validación del 21 de agosto de 2026 leyó 369 subtítulos reales de `Timeline 1` y comprobó una muestra reversible de tres capas Fusion más un SFX. Esta evidencia no sustituye la revisión visual y auditiva de Biglex antes de generar toda la línea de tiempo.
 
 ---
 

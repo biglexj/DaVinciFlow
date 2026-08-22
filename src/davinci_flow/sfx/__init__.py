@@ -7,6 +7,7 @@ from davinci_flow.sfx.catalog import (
     SFXCatalogError,
 )
 from davinci_flow.sfx.engine import PROFILE_COOLDOWNS, SFXProposalEngine
+from davinci_flow.sfx.assets import default_sfx_root, ensure_builtin_sfx_assets
 
 __all__ = [
     "DEFAULT_SFX_ASSETS",
@@ -15,4 +16,6 @@ __all__ = [
     "SFXCatalog",
     "SFXCatalogError",
     "SFXProposalEngine",
+    "default_sfx_root",
+    "ensure_builtin_sfx_assets",
 ]

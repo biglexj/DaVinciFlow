@@ -49,11 +49,11 @@ class ThemeTokens:
 # Registro oficial de temas permitidos
 ELY_THEME = ThemeTokens(
     name="ely",
-    primary_color="#06B6D4",
-    secondary_color="#3B82F6",
-    accent_color="#8B5CF6",
+    primary_color="#00C7B1",
+    secondary_color="#FB7793",
+    accent_color="#FFE6CA",
     text_color="#FFFFFF",
-    context_color="#94A3B8",
+    context_color="#6E7179",
     font_family_main="Montserrat",
     font_family_context="Inter",
     font_family_accent="Montserrat",
@@ -67,9 +67,9 @@ ELY_THEME = ThemeTokens(
 
 AURORA_THEME = ThemeTokens(
     name="aurora",
-    primary_color="#F59E0B",
-    secondary_color="#EF4444",
-    accent_color="#EC4899",
+    primary_color="#F83C78",
+    secondary_color="#389EA2",
+    accent_color="#00AAFF",
     text_color="#FFFFFF",
     context_color="#CBD5E1",
     font_family_main="Poppins",

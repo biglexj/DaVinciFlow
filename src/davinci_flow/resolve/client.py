@@ -106,6 +106,16 @@ def _load_resolve_module() -> ModuleType:
     )
 
 
+def _validate_external_python_runtime() -> None:
+    """Evita cargar una ABI nativa incompatible, que cerraría Python sin excepción recuperable."""
+    if sys.platform == "win32" and sys.version_info[:2] != (3, 13):
+        current = f"{sys.version_info[0]}.{sys.version_info[1]}"
+        raise ResolveConnectionError(
+            "DaVinci Resolve 21 en este equipo requiere Python 3.13 de 64 bits para el scripting externo "
+            f"(runtime actual: Python {current}). Ejecuta con Python 3.13 o abre DaVinci Flow desde Resolve."
+        )
+
+
 def connect_to_resolve(resolve_instance: Any = None) -> ResolveSession:
     """Obtiene el proyecto y la línea de tiempo activos sin modificarlos."""
     resolve = resolve_instance
@@ -124,6 +134,7 @@ def connect_to_resolve(resolve_instance: Any = None) -> ResolveSession:
                 "DaVinci Resolve no está en ejecución. Ábrelo antes de iniciar DaVinci Flow."
             )
 
+        _validate_external_python_runtime()
         module = _load_resolve_module()
         resolve = module.scriptapp("Resolve")
         if resolve is None:

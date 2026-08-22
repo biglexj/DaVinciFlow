@@ -109,13 +109,13 @@ def _try_create_uimanager_window(
 
     dispatcher = bmd_module.UIDispatcher(ui)
 
-    # Ventana compacta con neutro DaVinci (X: 680, Y: 50, Ancho: 660, Alto: 715)
+    # Ventana amplia para que las filas de opciones y acciones no se compriman.
     win = dispatcher.AddWindow(
         {
             "WindowTitle": "DaVinci Flow — Subtítulos Dinámicos, Guion & Asistente IA",
             "ID": "DaVinciFlowWinV5",
-            "Geometry": [680, 50, 660, 715],
-            "MinimumSize": [640, 600],
+            "Geometry": [480, 50, 900, 715],
+            "MinimumSize": [820, 600],
             "Margin": 10,
             "Spacing": 4,
         },
@@ -208,7 +208,7 @@ def _try_create_uimanager_window(
                                     "ID": "ApiKeyInput",
                                     "PlaceholderText": "Clave API Gemini o usa GEMINI_API_KEY...",
                                     "EchoMode": "Password",
-                                    "FixedSize": [400, 24],
+                                    "FixedSize": [640, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -232,7 +232,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "GlossaryInput",
                                     "PlaceholderText": "Reemplazos fijos (ej: biglex: Biglex J, resolve: DaVinci)",
-                                    "FixedSize": [496, 24],
+                                    "FixedSize": [736, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -271,7 +271,7 @@ def _try_create_uimanager_window(
                         {
                             "ID": "ScriptTextEdit",
                             "PlaceholderText": "Pega aquí o carga el guion original completo para comparar y corregir los subtítulos...",
-                            "FixedSize": [602, 75],
+                            "FixedSize": [842, 75],
                             "Weight": 0,
                         }
                     ),
@@ -294,8 +294,8 @@ def _try_create_uimanager_window(
                             ui.Button(
                                 {
                                     "ID": "AnalyzeBtn",
-                                    "Text": "🔍 Analizar Capas",
-                                    "FixedSize": [120, 26],
+                                    "Text": "🔍 Analizar Transcripción",
+                                    "FixedSize": [170, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -303,7 +303,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "AiCorrectBtn",
                                     "Text": "✨ Corregir con IA",
-                                    "FixedSize": [125, 26],
+                                    "FixedSize": [145, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -311,7 +311,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "GenerateBtn",
                                     "Text": "⚡ Generar en Timeline",
-                                    "FixedSize": [160, 26],
+                                    "FixedSize": [180, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -319,7 +319,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "RevertBtn",
                                     "Text": "🔄 Deshacer",
-                                    "FixedSize": [90, 26],
+                                    "FixedSize": [105, 26],
                                     "Weight": 0,
                                 }
                             ),
@@ -327,7 +327,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "StopBtn",
                                     "Text": "⏹️ Detener",
-                                    "FixedSize": [75, 26],
+                                    "FixedSize": [90, 26],
                                     "Weight": 0,
                                     "Enabled": False,
                                 }
@@ -496,7 +496,7 @@ def _try_create_uimanager_window(
                 f"Proyecto: {summary.project_name} | Línea de tiempo: {summary.timeline_name} | Pistas Subtítulos: {summary.subtitle_track_count}"
             )
             if sub_cues > 0:
-                items["StatusLabel"].Text = f"✅ Detectados {sub_cues} subtítulos en Pista 1. Pulsa 'Analizar Capas' o 'Corregir con IA'."
+                items["StatusLabel"].Text = f"✅ Detectados {sub_cues} subtítulos en Pista 1. Pulsa 'Analizar Transcripción' o 'Corregir con IA'."
             else:
                 items["StatusLabel"].Text = "⚠️ Pista 1 sin subtítulos detectados. Puedes cargar un archivo .SRT o comprobar la pista."
         except Exception as err:
@@ -578,7 +578,7 @@ def _try_create_uimanager_window(
 
         def worker() -> None:
             try:
-                items["StatusLabel"].Text = "Analizando subtítulos y clasificando capas..."
+                items["StatusLabel"].Text = "Analizando la transcripción y preparando sus capas..."
                 plan, corr = plan_active_subtitles(
                     track_index=track,
                     theme_name=theme_name,
@@ -678,8 +678,10 @@ def _try_create_uimanager_window(
                 if record.status == "cancelled":
                     items["StatusLabel"].Text = f"⏹️ Generación detenida ({record.item_count} clips creados)."
                 else:
-                    lbl = "Simulación" if dry_run else "Generación"
-                    items["StatusLabel"].Text = f"🎉 {lbl} completada: {record.item_count} clips creados en Resolve."
+                    if dry_run:
+                        items["StatusLabel"].Text = f"🔎 Análisis completado: {record.item_count} elementos planificados; Resolve no fue modificado."
+                    else:
+                        items["StatusLabel"].Text = f"🎉 Generación completada: {record.item_count} clips creados y verificados en Resolve."
             except Exception as err:
                 items["StatusLabel"].Text = f"❌ Error: {err}"
             finally:
@@ -694,11 +696,11 @@ def _try_create_uimanager_window(
     def on_revert(ev: Any) -> None:
         if is_running[0]:
             return
-        items["StatusLabel"].Text = "Eliminando clips generados en pistas de DaVinci Flow..."
+        items["StatusLabel"].Text = "Deshaciendo únicamente la última generación registrada..."
         try:
             from davinci_flow.application import revert_active_generation
             count = revert_active_generation()
-            items["StatusLabel"].Text = f"🔄 Deshacer completado: {count} clips eliminados de las pistas."
+            items["StatusLabel"].Text = f"🔄 Deshacer completado: {count} clips de la última generación eliminados."
         except Exception as err:
             items["StatusLabel"].Text = f"❌ Error al deshacer: {err}"
 
@@ -732,8 +734,8 @@ def _create_tkinter_window() -> None:
     """Crea una ventana gráfica dark-mode usando Tkinter con la paleta neutra de DaVinci."""
     root = tk.Tk()
     root.title("DaVinci Flow — Subtítulos Dinámicos, Guion & Asistente IA")
-    root.geometry("680x715+680+50")
-    root.minsize(640, 580)
+    root.geometry("920x715+480+50")
+    root.minsize(840, 580)
     root.configure(bg="#202020")
 
     style = ttk.Style(root)
@@ -813,7 +815,7 @@ def _create_tkinter_window() -> None:
         if f:
             loaded_srt_tk.clear()
             loaded_srt_tk.append(f)
-            status_label.config(text=f"📂 Subtítulos SRT: {Path(f).name}. Pulsa 'Analizar Capas'.")
+            status_label.config(text=f"📂 Transcripción SRT: {Path(f).name}. Pulsa 'Analizar Transcripción'.")
             do_analyze()
 
     ttk.Button(import_row, text="📂 Cargar archivo .SRT...", command=choose_srt, style="TButton").pack(side="left", padx=(0, 6))
@@ -923,14 +925,14 @@ def _create_tkinter_window() -> None:
         header_info.config(text=f"Proyecto: {summary.project_name} | Línea de tiempo: {summary.timeline_name}")
         c_count = summary.subtitle_cues_counts.get(1, 0)
         if c_count > 0:
-            status_label.config(text=f"✅ Detectados {c_count} subtítulos en Pista 1. Pulsa 'Analizar Capas'.")
+            status_label.config(text=f"✅ Detectados {c_count} subtítulos en Pista 1. Pulsa 'Analizar Transcripción'.")
         else:
             status_label.config(text="⚠️ No se encontraron subtítulos en la pista 1. Puedes cargar un archivo .SRT.")
     except Exception as err:
         status_label.config(text=f"Listo para conectar ({err})")
 
     def do_analyze() -> None:
-        status_label.config(text="Analizando subtítulos y clasificando capas...")
+        status_label.config(text="Analizando la transcripción y preparando sus capas...")
         root.update_idletasks()
         try:
             script_val = script_text_area.get("1.0", "end-1c").strip()
@@ -1013,7 +1015,7 @@ def _create_tkinter_window() -> None:
                     original_script=script_val,
                     glossary=gloss_val,
                     api_key=key_val,
-                    use_ai_correction=use_ai,
+                    use_ai_correction=use_ai_val,
                     insert_markers=add_markers_val,
                     srt_path=srt_f,
                     progress_callback=progress_cb,
@@ -1022,8 +1024,10 @@ def _create_tkinter_window() -> None:
                 if record.status == "cancelled":
                     status_label.config(text=f"⏹️ Generación cancelada por el usuario ({record.item_count} clips creados).")
                 else:
-                    mode = "Simulación" if is_dry else "Generación"
-                    status_label.config(text=f"🎉 {mode} completada: {record.item_count} clips creados.")
+                    if is_dry:
+                        status_label.config(text=f"🔎 Análisis completado: {record.item_count} elementos planificados; Resolve no fue modificado.")
+                    else:
+                        status_label.config(text=f"🎉 Generación completada: {record.item_count} clips creados y verificados.")
             except DaVinciFlowError as err:
                 status_label.config(text=f"❌ Error: {err}")
 
@@ -1035,11 +1039,11 @@ def _create_tkinter_window() -> None:
         try:
             from davinci_flow.application import revert_active_generation
             removed = revert_active_generation()
-            status_label.config(text=f"🔄 Deshacer global completado: {removed} clips eliminados.")
+            status_label.config(text=f"🔄 Deshacer completado: {removed} clips de la última generación eliminados.")
         except Exception as err:
             status_label.config(text=f"❌ Error al deshacer: {err}")
 
-    ttk.Button(btn_frame, text="🔍 Analizar Capas", command=do_analyze, style="TButton").pack(side="left", padx=(0, 6))
+    ttk.Button(btn_frame, text="🔍 Analizar Transcripción", command=do_analyze, style="TButton").pack(side="left", padx=(0, 6))
     ttk.Button(btn_frame, text="⚡ Generar en Línea de Tiempo", command=do_generate, style="Accent.TButton").pack(side="left", padx=6)
     ttk.Button(btn_frame, text="🔄 Deshacer", command=do_revert, style="TButton").pack(side="left", padx=6)
     ttk.Button(btn_frame, text="⏹️ Detener", command=do_stop, style="Stop.TButton").pack(side="left", padx=6)

@@ -23,9 +23,9 @@ class AssetDescriptor:
     cooldown_frames: float = 72.0  # 3 segundos a 24 fps
     allowed_intents: tuple[str, ...] = ("emphasis", "question", "statement")
     prohibited_intents: tuple[str, ...] = ()
-    author: str = "biglexj"
-    license: str = "MIT / Royalty Free"
-    source: str = "DaVinci Flow Core Library"
+    author: str = "DaVinci Flow"
+    license: str = "MIT / Libre de regalías"
+    source: str = "Generador procedural de DaVinci Flow"
 
     def __post_init__(self) -> None:
         if not self.id.strip():
@@ -52,9 +52,9 @@ DEFAULT_SFX_ASSETS: Sequence[AssetDescriptor] = (
         cooldown_frames=60.0,
         allowed_intents=("emphasis", "statement", "exclamation"),
         prohibited_intents=(),
-        author="biglexj",
-        license="MIT / Royalty Free",
-        source="DaVinci Flow Curated Pack",
+        author="DaVinci Flow",
+        license="MIT / Libre de regalías",
+        source="Generador procedural de DaVinci Flow",
     ),
     AssetDescriptor(
         id="sfx_pop_subtle_01",
@@ -66,9 +66,9 @@ DEFAULT_SFX_ASSETS: Sequence[AssetDescriptor] = (
         cooldown_frames=48.0,
         allowed_intents=("emphasis", "question"),
         prohibited_intents=(),
-        author="biglexj",
-        license="MIT / Royalty Free",
-        source="DaVinci Flow Curated Pack",
+        author="DaVinci Flow",
+        license="MIT / Libre de regalías",
+        source="Generador procedural de DaVinci Flow",
     ),
     AssetDescriptor(
         id="sfx_bell_chime_01",
@@ -80,9 +80,9 @@ DEFAULT_SFX_ASSETS: Sequence[AssetDescriptor] = (
         cooldown_frames=120.0,
         allowed_intents=("statement", "question"),
         prohibited_intents=("exclamation",),
-        author="biglexj",
-        license="MIT / Royalty Free",
-        source="DaVinci Flow Curated Pack",
+        author="DaVinci Flow",
+        license="MIT / Libre de regalías",
+        source="Generador procedural de DaVinci Flow",
     ),
     AssetDescriptor(
         id="sfx_click_tech_01",
@@ -94,9 +94,9 @@ DEFAULT_SFX_ASSETS: Sequence[AssetDescriptor] = (
         cooldown_frames=36.0,
         allowed_intents=("emphasis", "statement"),
         prohibited_intents=(),
-        author="biglexj",
-        license="MIT / Royalty Free",
-        source="DaVinci Flow Curated Pack",
+        author="DaVinci Flow",
+        license="MIT / Libre de regalías",
+        source="Generador procedural de DaVinci Flow",
     ),
 )
 

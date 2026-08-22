@@ -1,40 +1,32 @@
 # 🎯 DaVinci Flow — Roadmap
 
-Plan de trabajo, objetivos de producto y hoja de ruta estratégica del proyecto.
+Plan de trabajo, objetivos de producto y estado verificable del proyecto.
 
-> **Regla del roadmap:** El Roadmap reúne los pendientes, prioridades, pausas y logros del producto. La ejecución detallada se registra dentro de `process/active/YYYY-MM-DD_objetivo/`. Cuando un proceso queda aprobado, el elemento correspondiente pasa a **Completado** (`- [x] **vX.X.X**`).
-
----
+> Un build o una prueba simulada no equivalen a una función terminada. Un hito pasa a Completado únicamente después de la prueba real y la aprobación correspondiente.
 
 ## 🔴 Pendientes activos
 
-- [ ] **Sinergia con el Ecosistema Biglex (Web Launchpad & Aurora Synapse)** — `process/active/2026-08-21_interconexion-ecosistema-web/`
-- [ ] **Plantillas Fusion Personalizables (.setting) para Ely y Aurora** — `process/active/2026-08-22_plantillas-fusion-setting/`
+- [ ] **v0.1.0 — Cierre funcional de transcripción, Fusion y SFX** — `process/active/2026-08-15_subtitulos-dinamicos-y-sfx/`
+  - Lectura real aprobada técnicamente: 369 subtítulos de `Crear proyecto 1 / Timeline 1`.
+  - Prueba vertical real aprobada técnicamente: tres capas Fusion y un SFX insertados, verificados y revertidos.
+  - Pendiente: revisión visual y auditiva de Biglex antes de una generación completa.
+- [ ] **Integración de Gemini, guion y marcadores** — `process/active/2026-08-17_integracion-gemini-guion-y-marcadores/`
+  - Pruebas automatizadas correctas.
+  - Pendiente: prueba real con API y aprobación del resultado.
 
----
+## 🟡 Siguientes mejoras
 
-## 🟡 Intermedio (Prioridad Media/Baja)
+- [ ] Permitir editar, aprobar o desactivar cada bloque directamente en la tabla.
+- [ ] Añadir preescucha, sustitución, ganancia y fundidos de SFX desde la interfaz.
+- [ ] Crear variantes visuales y transiciones automáticas para las plantillas Fusion.
+- [ ] Completar regeneración selectiva por intervalo sobre la línea de tiempo.
+- [ ] Evaluar la integración con el ecosistema Biglex cuando el MVP esté aprobado.
 
-- [ ] Generar títulos Fusion en capas de contexto, énfasis y complemento con transiciones automáticas.
-- [ ] Incorporar una biblioteca SFX propia con previsualización y límites de densidad configurables.
-- [ ] Diseñar el flujo guiado de análisis, revisión y regeneración selectiva por bloques.
-- [ ] Integración con proveedores LLM alternativos mediante adaptadores independientes.
+## ⚪ En pausa
 
----
-
-## ⚪ Descartado / En Pausa
-
-- ⏸️ Transcripción local pesada en GPU con Whisper; DaVinci Flow aprovecha la transcripción nativa de Resolve, archivos SRT o la suite externa LyraFlow.
-
----
+- ⏸️ Transcripción local pesada con Whisper. El MVP aprovecha la transcripción nativa de Resolve o archivos SRT.
+- ⏸️ Proveedores LLM adicionales. Gemini permanece detrás de un adaptador y no es requisito para el motor local.
 
 ## 🟢 Completado
 
-- [x] **v0.1.0 — Base técnica, lectura de subtítulos, IA con Gemini y marcadores** — `process/completed/2026/2026-08-17_integracion-gemini-guion-y-marcadores/`
-  - Conexión local robusta con DaVinci Resolve 21 vía API de scripting.
-  - Lector híbrido de subtítulos desde pista activa de Resolve y archivos `.SRT`.
-  - Motor de clasificación de subtítulos multicapa (Contexto, Principal, Acento y SFX).
-  - Integración de Google Gemini API para corrección con guion original y glosario de marcas/jergas.
-  - Inserción automatizada de marcadores temáticos en la línea de tiempo.
-  - Interfaz gráfica UIManager nativa de DaVinci y fallback Tkinter con paleta neutra `#202020`.
-  - Suite de pruebas unitarias al 100% (87 tests aprobados).
+- Ningún hito de producto está cerrado todavía. La base técnica está implementada, pero la aprobación visual y auditiva sigue pendiente.

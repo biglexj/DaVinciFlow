@@ -18,15 +18,18 @@ class ThemesAndBrandGuardTests(unittest.TestCase):
     def test_get_official_ely_theme(self) -> None:
         theme = get_theme("ely")
         self.assertEqual(theme.name, "ely")
-        self.assertEqual(theme.primary_color, "#06B6D4")
-        self.assertEqual(theme.accent_color, "#8B5CF6")
+        self.assertEqual(theme.primary_color, "#00C7B1")
+        self.assertEqual(theme.secondary_color, "#FB7793")
+        self.assertEqual(theme.accent_color, "#FFE6CA")
+        self.assertEqual(theme.context_color, "#6E7179")
         self.assertEqual(theme.font_family_main, "Montserrat")
 
     def test_get_official_aurora_theme(self) -> None:
         theme = get_theme("aurora")
         self.assertEqual(theme.name, "aurora")
-        self.assertEqual(theme.primary_color, "#F59E0B")
-        self.assertEqual(theme.accent_color, "#EC4899")
+        self.assertEqual(theme.primary_color, "#F83C78")
+        self.assertEqual(theme.secondary_color, "#389EA2")
+        self.assertEqual(theme.accent_color, "#00AAFF")
         self.assertEqual(theme.font_family_main, "Poppins")
 
     def test_rejects_unauthorized_theme_name(self) -> None:
