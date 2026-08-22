@@ -2,6 +2,10 @@
 
 DaVinci Flow es una automatización modular en Python para DaVinci Resolve 21 que transforma subtítulos nativos en títulos dinámicos multicapa, jerarquía visual y propuestas de efectos sonoros (SFX), manteniendo el flujo de edición no destructivo y 100% reversible.
 
+## 📸 Capturas de Pantalla
+
+![Editor de subtítulos](screenshots/editor.png)
+
 ---
 
 ## 🚀 Capacidades Principales
