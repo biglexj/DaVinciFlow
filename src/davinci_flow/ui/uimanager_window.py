@@ -113,11 +113,11 @@ def _try_create_uimanager_window(
     win = dispatcher.AddWindow(
         {
             "WindowTitle": "DaVinci Flow — Subtítulos Dinámicos, Guion & Asistente IA",
-            "ID": "DaVinciFlowWinV5",
-            "Geometry": [480, 50, 900, 715],
-            "MinimumSize": [820, 600],
-            "Margin": 10,
-            "Spacing": 4,
+            "ID": "DaVinciFlowWindow_v6",
+            "Geometry": [350, 50, 940, 740],
+            "MinimumSize": [860, 620],
+            "Margin": 12,
+            "Spacing": 5,
         },
         [
             ui.VGroup(
@@ -144,7 +144,7 @@ def _try_create_uimanager_window(
                                     "Weight": 0,
                                 }
                             ),
-                        ],
+                        ]
                     ),
                     ui.VGap(1),
 
@@ -159,7 +159,7 @@ def _try_create_uimanager_window(
                                     "Value": 1,
                                     "Minimum": 1,
                                     "Maximum": 16,
-                                    "FixedSize": [42, 24],
+                                    "FixedSize": [45, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -179,6 +179,7 @@ def _try_create_uimanager_window(
                                     "Weight": 0,
                                 }
                             ),
+                            ui.HGap(1),
                             ui.Button(
                                 {
                                     "ID": "ReadTimelineBtn",
@@ -202,21 +203,20 @@ def _try_create_uimanager_window(
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
-                            ui.Label({"Text": "API Key Gemini:", "FixedSize": [100, 24], "Weight": 0}),
+                            ui.Label({"Text": "API Key Gemini:", "Weight": 0}),
                             ui.LineEdit(
                                 {
                                     "ID": "ApiKeyInput",
                                     "PlaceholderText": "Clave API Gemini o usa GEMINI_API_KEY...",
                                     "EchoMode": "Password",
-                                    "FixedSize": [640, 24],
-                                    "Weight": 0,
+                                    "Weight": 1.0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "SaveKeyBtn",
                                     "Text": "💾 Guardar",
-                                    "FixedSize": [90, 24],
+                                    "FixedSize": [85, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -227,13 +227,12 @@ def _try_create_uimanager_window(
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
-                            ui.Label({"Text": "Glosario/Marcas:", "FixedSize": [100, 24], "Weight": 0}),
+                            ui.Label({"Text": "Glosario/Marcas:", "Weight": 0}),
                             ui.LineEdit(
                                 {
                                     "ID": "GlossaryInput",
                                     "PlaceholderText": "Reemplazos fijos (ej: biglex: Biglex J, resolve: DaVinci)",
-                                    "FixedSize": [736, 24],
-                                    "Weight": 0,
+                                    "Weight": 1.0,
                                 }
                             ),
                         ]
@@ -271,7 +270,8 @@ def _try_create_uimanager_window(
                         {
                             "ID": "ScriptTextEdit",
                             "PlaceholderText": "Pega aquí o carga el guion original completo para comparar y corregir los subtítulos...",
-                            "FixedSize": [842, 75],
+                            "MinimumSize": [100, 70],
+                            "MaximumSize": [4000, 80],
                             "Weight": 0,
                         }
                     ),
@@ -287,7 +287,7 @@ def _try_create_uimanager_window(
                         ]
                     ),
 
-                    # 7. Fila 6: Botones de Acción
+                    # 7. Fila 6A: Botones de Acción Principales
                     ui.HGroup(
                         {"Spacing": 6, "Weight": 0},
                         [
@@ -295,40 +295,42 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "AnalyzeBtn",
                                     "Text": "🔍 Analizar Transcripción",
-                                    "FixedSize": [170, 26],
-                                    "Weight": 0,
+                                    "Weight": 1.0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "AiCorrectBtn",
                                     "Text": "✨ Corregir con IA",
-                                    "FixedSize": [145, 26],
-                                    "Weight": 0,
+                                    "Weight": 1.0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "GenerateBtn",
                                     "Text": "⚡ Generar en Timeline",
-                                    "FixedSize": [180, 26],
-                                    "Weight": 0,
+                                    "Weight": 1.0,
                                 }
                             ),
+                        ]
+                    ),
+
+                    # Fila 6B: Botones de Control y Reversión
+                    ui.HGroup(
+                        {"Spacing": 6, "Weight": 0},
+                        [
                             ui.Button(
                                 {
                                     "ID": "RevertBtn",
-                                    "Text": "🔄 Deshacer",
-                                    "FixedSize": [105, 26],
-                                    "Weight": 0,
+                                    "Text": "🔄 Deshacer Última Generación",
+                                    "Weight": 1.0,
                                 }
                             ),
                             ui.Button(
                                 {
                                     "ID": "StopBtn",
-                                    "Text": "⏹️ Detener",
-                                    "FixedSize": [90, 26],
-                                    "Weight": 0,
+                                    "Text": "⏹️ Detener Proceso",
+                                    "Weight": 1.0,
                                     "Enabled": False,
                                 }
                             ),
@@ -346,7 +348,7 @@ def _try_create_uimanager_window(
 
                     # 9. Fila 8: Barra de Estado y Cierre
                     ui.HGroup(
-                        {"Spacing": 6, "Weight": 0},
+                        {"Spacing": 8, "Weight": 0},
                         [
                             ui.Label(
                                 {
@@ -360,7 +362,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "AboutBtn",
                                     "Text": "ℹ️ Info",
-                                    "FixedSize": [60, 22],
+                                    "FixedSize": [70, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -368,7 +370,7 @@ def _try_create_uimanager_window(
                                 {
                                     "ID": "CloseBtn",
                                     "Text": "Cerrar",
-                                    "FixedSize": [65, 22],
+                                    "FixedSize": [80, 24],
                                     "Weight": 0,
                                 }
                             ),
@@ -722,7 +724,7 @@ def _try_create_uimanager_window(
     win.On.StopBtn.Clicked = on_stop
     win.On.AboutBtn.Clicked = on_about
     win.On.CloseBtn.Clicked = on_close
-    win.On.DaVinciFlowWinV5.Close = on_close
+    win.On.DaVinciFlowWindow_v6.Close = on_close
 
     win.Show()
     dispatcher.RunLoop()

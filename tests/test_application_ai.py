@@ -1,6 +1,8 @@
 """Pruebas unitarias de integración de alto nivel para IA y marcadores en application.py."""
 
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from davinci_flow.ai.aligner import CorrectionResult, TimelineMarker
@@ -10,6 +12,7 @@ from davinci_flow.application import (
     insert_ai_timeline_markers,
     plan_active_subtitles,
 )
+from davinci_flow.errors import ResolveConnectionError, TimelineWriteError
 from davinci_flow.subtitles.model import SubtitleCue
 
 
@@ -78,6 +81,31 @@ class ApplicationAiTests(unittest.TestCase):
         applied = insert_ai_timeline_markers(markers, clear_existing_color=True)
         self.assertEqual(applied, 3)
         mock_writer.apply_markers.assert_called_once_with(markers, clear_existing_color=True)
+
+    @patch("davinci_flow.application.connect_to_resolve")
+    def test_dry_run_with_srt_does_not_require_resolve_session(self, mock_connect: MagicMock) -> None:
+        mock_connect.side_effect = ResolveConnectionError("Sin sesión")
+        srt_path = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".srt", delete=False, encoding="utf-8"
+        )
+        try:
+            srt_path.write(
+                "1\n00:00:00,200 --> 00:00:03,600\nHola a todo el mundo\n"
+            )
+            srt_path.close()
+            record = generate_from_active_timeline(dry_run=True, srt_path=srt_path.name)
+        finally:
+            Path(srt_path.name).unlink(missing_ok=True)
+
+        self.assertEqual(record.status, "dry_run")
+        self.assertTrue(record.items)
+        self.assertTrue(all(item.status == "planned" for item in record.items))
+
+    @patch("davinci_flow.application.connect_to_resolve")
+    def test_generate_without_srt_still_requires_resolve_session(self, mock_connect: MagicMock) -> None:
+        mock_connect.side_effect = ResolveConnectionError("No hay sesión")
+        with self.assertRaises(ResolveConnectionError):
+            generate_from_active_timeline(dry_run=True, srt_path=None)
 
 
 if __name__ == "__main__":

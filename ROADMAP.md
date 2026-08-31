@@ -13,13 +13,22 @@ Plan de trabajo, objetivos de producto y estado verificable del proyecto.
 - [ ] **Integración de Gemini, guion y marcadores** — `process/active/2026-08-17_integracion-gemini-guion-y-marcadores/`
   - Pruebas automatizadas correctas.
   - Pendiente: prueba real con API y aprobación del resultado.
+- [ ] **v0.2.0 — Animaciones Fusion paramétricas, SFX en pausas y marcadores cromáticos** — `process/active/2026-08-31_animaciones-fusion-sfx-pausas-y-marcadores/`
+  - Motor de plantillas Fusion con keyframing Bezier (`pop_bounce`, `slide_up`, `fade_smooth`, `kinetic_pulse`).
+  - Detección de silencios y pausas temporales para disparo automático de SFX de transición.
+  - Estandarización de marcadores de Resolve por código cromático (Azul: Capítulos, Amarillo: Clave, Verde: SFX, Cian: Preguntas, Magenta: Corrección IA).
+  - Guía técnica y editorial redactada para publicación en Aurora Blog (`docs/es/guides/flujo-de-trabajo-y-marcadores.md`).
+- [ ] **Previsualización offline (dry-run con SRT sin Resolve)** — `process/active/2026-08-24_dry-run-offline-srt/`
+  - `--generate --dry-run --srt` produce el record de previsualización sin exigir una sesión activa de Resolve.
+  - Verificado: 97/97 pruebas automatizadas en verde.
+  - Pendiente: validación funcional y aprobación de Biglex.
 
 ## 🟡 Siguientes mejoras
 
-- [ ] Permitir editar, aprobar o desactivar cada bloque directamente en la tabla.
-- [ ] Añadir preescucha, sustitución, ganancia y fundidos de SFX desde la interfaz.
-- [ ] Crear variantes visuales y transiciones automáticas para las plantillas Fusion.
+- [ ] Permitir editar, aprobar o desactivar cada bloque directamente en la tabla con selector de animación y SFX.
+- [ ] Añadir preescucha, sustitución, ganancia y fundidos de SFX desde la interfaz nativa.
 - [ ] Completar regeneración selectiva por intervalo sobre la línea de tiempo.
+- [ ] Publicar artículo de divulgación y tutorial en Aurora Blog (`Aurora---Blog`).
 - [ ] Evaluar la integración con el ecosistema Biglex cuando el MVP esté aprobado.
 
 ## ⚪ En pausa

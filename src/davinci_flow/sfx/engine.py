@@ -1,4 +1,4 @@
-"""Motor de propuesta de SFX según intención narrativa y límites de densidad."""
+"""Motor de propuesta de SFX según intención narrativa, detección de pausas y límites de densidad."""
 
 from typing import Sequence
 
@@ -16,7 +16,7 @@ PROFILE_COOLDOWNS = {
 
 
 class SFXProposalEngine:
-    """Calcula deterministamente propuestas de efectos sonoros respetando la densidad y la intención."""
+    """Calcula deterministamente propuestas de efectos sonoros respetando la densidad, la intención y pausas."""
 
     def __init__(self, catalog: SFXCatalog | None = None) -> None:
         self.catalog = catalog or SFXCatalog()
@@ -26,8 +26,10 @@ class SFXProposalEngine:
         blocks: Sequence[CaptionBlock],
         profile_name: str = "natural",
         disable_sfx: bool = False,
+        detect_gaps: bool = True,
+        min_gap_frames: float = 24.0,
     ) -> tuple[CaptionBlock, ...]:
-        """Asigna propuestas de SFX a los bloques cumpliendo reglas editoriales."""
+        """Asigna propuestas de SFX a los bloques cumpliendo reglas editoriales y de ritmo."""
         if disable_sfx:
             return tuple(
                 CaptionBlock(
@@ -50,35 +52,60 @@ class SFXProposalEngine:
                 for b in blocks
             )
 
-        min_cooldown = PROFILE_COOLDOWNS.get(profile_name.lower(), 84.0)
+        prof_lower = profile_name.lower()
+        min_cooldown = PROFILE_COOLDOWNS.get(prof_lower, 84.0)
         last_sfx_end = -float("inf")
+        prev_block_end = -float("inf")
         result: list[CaptionBlock] = []
 
         for b in blocks:
+            # Si el bloque ya cuenta con un SFX manual explícito, conservarlo si está habilitado
+            if b.sfx_proposal and b.is_enabled and "sfx_off" not in b.normalized_text.lower():
+                last_sfx_end = b.start_frame
+                prev_block_end = b.end_frame
+                result.append(b)
+                continue
+
             # Si el bloque contiene la marca explícita SFX_OFF o está inactivo, omitir SFX
             if "sfx_off" in b.normalized_text.lower() or not b.is_enabled:
+                prev_block_end = b.end_frame
                 result.append(b)
                 continue
 
-            # Verificar si ha transcurrido el tiempo de enfriamiento mínimo
+            # Detección de brecha temporal (pausa/silencio o corte de escena)
+            gap_duration = b.start_frame - prev_block_end if prev_block_end > -float("inf") else 0.0
+            is_significant_pause = detect_gaps and (gap_duration >= min_gap_frames)
+
+            # Distancia desde el último SFX insertado
             distance_from_last = b.start_frame - last_sfx_end
             if distance_from_last < min_cooldown:
-                # No asignar SFX para no saturar la mezcla de audio
+                # Enfriamiento activo: no saturar la mezcla de audio
+                prev_block_end = b.end_frame
                 result.append(b)
                 continue
 
-            # Selección determinista por intención
+            # Selección determinista por intención y pausas
             chosen_sfx: str | None = None
             if b.intent == "emphasis":
                 chosen_sfx = "sfx_whoosh_clean_01"
             elif b.intent == "question":
                 chosen_sfx = "sfx_pop_subtle_01"
             elif b.intent == "exclamation":
-                if profile_name.lower() != "reflexivo":
+                if prof_lower != "reflexivo":
                     chosen_sfx = "sfx_whoosh_clean_01"
+            elif is_significant_pause:
+                # Transición tras una pausa o cambio de sección
+                if prof_lower == "reflexivo":
+                    chosen_sfx = "sfx_bell_chime_01"
+                elif prof_lower in ("dinamico", "video_corto"):
+                    chosen_sfx = "sfx_whoosh_clean_01"
+                else:
+                    chosen_sfx = "sfx_pop_subtle_01"
             elif b.layer_count >= 2 and distance_from_last >= (min_cooldown * 1.5):
                 # Para frases multicapa con separación suficiente
                 chosen_sfx = "sfx_click_tech_01"
+
+            prev_block_end = b.end_frame
 
             if chosen_sfx:
                 last_sfx_end = b.start_frame

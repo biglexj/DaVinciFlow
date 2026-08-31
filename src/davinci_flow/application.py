@@ -28,6 +28,16 @@ from davinci_flow.subtitles import SubtitleCue
 from davinci_flow.subtitles.srt_parser import load_srt_file, parse_srt_content
 
 
+class _HeadlessTimeline:
+    """Timeline sintética que permite previsualizar un plan sin conexión a Resolve."""
+
+    def GetTrackCount(self, _track_type: str) -> int:
+        return 0
+
+    def GetTrackName(self, _track_type: str, _index: int) -> str:
+        return ""
+
+
 def _last_execution_record_path() -> Path:
     """Ruta local del último registro físico, fuera del repositorio y sin datos secretos."""
     app_data = os.environ.get("APPDATA")
@@ -299,26 +309,43 @@ def generate_from_active_timeline(
     is_cancelled: Callable[[], bool] | None = None,
 ) -> GenerationExecutionRecord:
     """Ejecuta el flujo completo de análisis, corrección IA, planificación y generación en Resolve."""
-    session = connect_to_resolve()
-    plan, correction_res = plan_active_subtitles(
-        track_index=track_index,
-        theme_name=theme_name,
-        profile_name=profile_name,
-        enable_sfx=enable_sfx,
-        original_script=original_script,
-        glossary=glossary,
-        api_key=api_key,
-        use_ai_correction=use_ai_correction,
-        srt_path=srt_path,
-        resolve_session=session,
-    )
+    # Un dry-run sobre un SRT puede previsualizarse sin una sesión activa de Resolve.
+    session = connect_to_resolve() if not (dry_run and srt_path) else None
+    if session is not None:
+        plan, correction_res = plan_active_subtitles(
+            track_index=track_index,
+            theme_name=theme_name,
+            profile_name=profile_name,
+            enable_sfx=enable_sfx,
+            original_script=original_script,
+            glossary=glossary,
+            api_key=api_key,
+            use_ai_correction=use_ai_correction,
+            srt_path=srt_path,
+            resolve_session=session,
+        )
+    else:
+        plan, correction_res = plan_active_subtitles(
+            track_index=track_index,
+            theme_name=theme_name,
+            profile_name=profile_name,
+            enable_sfx=enable_sfx,
+            original_script=original_script,
+            glossary=glossary,
+            api_key=api_key,
+            use_ai_correction=use_ai_correction,
+            srt_path=srt_path,
+        )
 
     if insert_markers and correction_res and correction_res.markers and not dry_run:
         marker_writer = ResolveMarkerWriter(session.timeline)
         marker_writer.apply_markers(correction_res.markers)
 
-    media_pool = session.project.GetMediaPool()
-    writer = ResolveTimelineWriter(session.timeline, media_pool=media_pool)
+    if session is None:
+        writer = ResolveTimelineWriter(_HeadlessTimeline())
+    else:
+        media_pool = session.project.GetMediaPool()
+        writer = ResolveTimelineWriter(session.timeline, media_pool=media_pool)
     record = writer.apply_plan(
         plan,
         dry_run=dry_run,

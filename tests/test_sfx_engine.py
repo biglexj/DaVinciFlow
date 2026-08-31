@@ -1,4 +1,4 @@
-"""Pruebas unitarias para el catálogo y motor de efectos de sonido (SFX)."""
+"""Pruebas unitarias para el catálogo y motor de efectos de sonido (SFX) con detección de pausas."""
 
 import unittest
 
@@ -9,7 +9,7 @@ from davinci_flow.subtitles.model import SubtitleCue
 
 
 class SFXEngineTests(unittest.TestCase):
-    """Verifica el cumplimiento de metadatos, licencias, densidad y exclusiones de SFX."""
+    """Verifica el cumplimiento de metadatos, licencias, densidad, pausas y exclusiones de SFX."""
 
     def setUp(self) -> None:
         self.catalog = SFXCatalog()
@@ -94,6 +94,34 @@ class SFXEngineTests(unittest.TestCase):
         # El primero debe tener SFX, el segundo debe omitirlo por cooldown
         self.assertIsNotNone(processed[0].sfx_proposal)
         self.assertIsNone(processed[1].sfx_proposal)
+
+    def test_gap_and_pause_detection_triggers_transition_sfx(self) -> None:
+        # Bloque 1 termina en frame 48.0, Bloque 2 inicia en frame 120.0 (gap de 72 frames > 24 frames)
+        cue1 = SubtitleCue(text="Primera sección terminada.", start_frame=0.0, end_frame=48.0, track_index=1)
+        cue2 = SubtitleCue(text="Siguiente tema importante.", start_frame=150.0, end_frame=198.0, track_index=1)
+        b1 = CaptionBlock(
+            id="b1",
+            source_cues=(cue1,),
+            start_frame=0.0,
+            end_frame=48.0,
+            original_text=cue1.text,
+            normalized_text=cue1.text,
+            main_text="Primera sección terminada.",
+            intent="statement",
+        )
+        b2 = CaptionBlock(
+            id="b2",
+            source_cues=(cue2,),
+            start_frame=150.0,
+            end_frame=198.0,
+            original_text=cue2.text,
+            normalized_text=cue2.text,
+            main_text="Siguiente tema importante.",
+            intent="statement",
+        )
+        processed = self.engine.process_blocks([b1, b2], profile_name="dinamico")
+        # El segundo bloque debe recibir un SFX de transición debido a la pausa significativa
+        self.assertIsNotNone(processed[1].sfx_proposal)
 
 
 if __name__ == "__main__":

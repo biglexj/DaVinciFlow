@@ -113,6 +113,9 @@ class ResolveTimelineWriter:
                     if not dry_run:
                         native_name = self._native_name(execution_id, item_id)
                         duration_frames = max(1, int(round(block.end_frame - block.start_frame)))
+                        anim_preset = block.style_preset or self._resolve_default_animation(
+                            plan.profile_name, role
+                        )
                         native_item = self._find_timeline_item("video", track_index, native_name)
                         if native_item is None:
                             native_item = self._insert_fusion_title(
@@ -124,6 +127,7 @@ class ResolveTimelineWriter:
                                 theme=theme,
                                 fps=plan.fps,
                                 native_name=native_name,
+                                animation_preset=anim_preset,
                             )
                             inserted_native_items.append(native_item)
                         else:
@@ -278,6 +282,28 @@ class ResolveTimelineWriter:
             self._delete_items(collected, require_success=True)
         return len(collected)
 
+    @staticmethod
+    def _resolve_default_animation(profile_name: str, role: str) -> str:
+        """Determina la animación por defecto según el perfil editorial y el rol de la capa."""
+        p = (profile_name or "natural").lower()
+        if p in ("dinamico", "video_corto"):
+            if role == "accent":
+                return "kinetic_pulse"
+            if role == "main":
+                return "pop_bounce"
+            return "slide_up"
+        if p in ("reflexivo", "educativo"):
+            if role == "accent":
+                return "pop_bounce"
+            if role == "main":
+                return "fade_smooth"
+            return "slide_up"
+        if role == "accent":
+            return "pop_bounce"
+        if role == "context":
+            return "slide_up"
+        return "pop_bounce"
+
     def _insert_fusion_title(
         self,
         track_index: int,
@@ -288,8 +314,9 @@ class ResolveTimelineWriter:
         theme: ThemeTokens,
         fps: float,
         native_name: str,
+        animation_preset: str = "none",
     ) -> Any:
-        """Añade un soporte transparente exacto e importa una composición Fusion propia."""
+        """Añade un soporte transparente exacto e importa una composición Fusion propia con animación."""
         duration_frames = max(1, int(round(end_frame - start_frame)))
         media_item = self._get_carrier_media_item(self._plan_carrier_frames, fps=fps)
         title_item = self._append_media_item(
@@ -304,7 +331,12 @@ class ResolveTimelineWriter:
 
         self.temp_root.mkdir(parents=True, exist_ok=True)
         comp_path = self.temp_root / f"{native_name.replace(':', '_')}.comp"
-        comp_text = generate_textplus_fusion_setting(text=text, tokens=theme, role=role)
+        comp_text = generate_textplus_fusion_setting(
+            text=text,
+            tokens=theme,
+            role=role,
+            animation_preset=animation_preset,
+        )
         comp_path.write_text(comp_text, encoding="utf-8")
         try:
             import_comp = getattr(title_item, "ImportFusionComp", None)

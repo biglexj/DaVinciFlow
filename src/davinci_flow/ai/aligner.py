@@ -201,8 +201,7 @@ class ScriptAligner:
             "1. Mantén intacto el índice (index), start_frame y end_frame de cada subtítulo.\n"
             "2. Corrige palabras mal transcritas, errores de homofonía, ortografía, jerga mal interpretada o palabras soeces mal captadas.\n"
             "3. Aplica estrictamente las marcas y términos del glosario con la ortografía y mayúsculas exactas.\n"
-            "4. Si detect_markers es verdadero, detecta puntos clave importantes en la narrativa (introducción, conceptos clave, hitos, conclusiones) "
-            "y propón marcadores para la línea de tiempo con colores de Resolve ('Cyan' para puntos clave, 'Yellow' para temas, 'Pink' para énfasis, 'Green' para acciones).\n"
+            "4. Si detect_markers es verdadero, detecta puntos clave importantes en la narrativa y propón marcadores para la línea de tiempo con colores de Resolve ('Blue' para capítulos/secciones, 'Yellow' para puntos clave/conclusiones, 'Green' para eventos de sonido/SFX, 'Cyan' para preguntas, 'Magenta' para correcciones/glosario, 'Pink' para llamadas a la acción).\n"
             "5. Tu respuesta DEBE ser estrictamente un JSON válido con la estructura solicitada."
         )
 

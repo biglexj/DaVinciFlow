@@ -4,7 +4,11 @@ DaVinci Flow es una automatización modular en Python para DaVinci Resolve 21. P
 
 ## 📸 Capturas de Pantalla
 
-![Editor de subtítulos](screenshots/editor.png)
+![Editor de subtítulos](docs/screenshots/editor.png)
+
+## Organización de recursos
+
+El icono canónico de identidad se conserva en [`assets/branding/icons/icon-transparent.png`](assets/branding/icons/icon-transparent.png). Los recursos derivados deben generarse desde esa fuente conforme al [Asset Organization Standard](../Core-Docs/global/architecture/asset-organization-standard.md); las capturas documentales viven en `docs/screenshots/`.
 
 ---
 
@@ -89,6 +93,11 @@ uv run --python 3.13 python -m davinci_flow --plan --export-plan "temp/plan_gene
 ### 4. Simulación de Generación (Dry-Run)
 ```powershell
 uv run --python 3.13 python -m davinci_flow --generate --dry-run --theme ely
+```
+
+También puedes previsualizar un plan directamente desde un archivo SRT **sin necesidad de tener DaVinci Resolve abierto**:
+```powershell
+uv run --python 3.13 python -m davinci_flow --generate --dry-run --srt "temp/demo.srt" --theme ely
 ```
 
 ### 5. Comparar y Reconciliar contra un Plan Previo
