@@ -18,6 +18,7 @@ from davinci_flow.installer import (
     install_resolve_launcher,
     uninstall_resolve_launcher,
 )
+from davinci_flow import __version__
 from davinci_flow.ai.aligner import parse_glossary_str
 from davinci_flow.ui import open_davinci_flow_ui
 
@@ -170,7 +171,7 @@ def print_about() -> None:
     print("╔═════════════════════════════════════════════════════════════╗")
     print("║                       DaVinci Flow                          ║")
     print("║   Subtítulos Dinámicos, Guion & Asistente IA (Gemini Engine)║")
-    print("║                     Versión 0.1.0 • MIT                     ║")
+    print(f"║                     Versión {__version__} • MIT                     ║")
     print("╚═════════════════════════════════════════════════════════════╝")
     print("👤 Autor: biglexj (2026)")
     print("🌐 Web Oficial & Donaciones: https://www.biglexj.com/donaciones")

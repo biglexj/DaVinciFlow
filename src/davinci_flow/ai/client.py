@@ -186,7 +186,7 @@ class GeminiClient:
                 headers={
                     "Content-Type": "application/json",
                     "x-goog-api-key": self._api_key,
-                    "User-Agent": "DaVinciFlow/0.1.0",
+                    "User-Agent": "DaVinciFlow/0.2.0",
                 },
                 method="POST",
             )

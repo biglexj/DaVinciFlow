@@ -27,11 +27,13 @@ Los procesos siguientes conservan su evidencia histórica y permanecen pausados 
 - [ ] **Integración de Gemini, guion y marcadores** — `process/active/2026-08-17_integracion-gemini-guion-y-marcadores/`
   - Pruebas automatizadas correctas.
   - Pendiente: prueba real con API y aprobación del resultado.
-- [ ] **v0.2.0 — Animaciones Fusion paramétricas, SFX en pausas y marcadores cromáticos** — `process/active/2026-08-31_animaciones-fusion-sfx-pausas-y-marcadores/`
-  - Motor de plantillas Fusion con keyframing Bezier (`pop_bounce`, `slide_up`, `fade_smooth`, `kinetic_pulse`).
-  - Detección de silencios y pausas temporales para disparo automático de SFX de transición.
-  - Estandarización de marcadores de Resolve por código cromático (Azul: Capítulos, Amarillo: Clave, Verde: SFX, Cian: Preguntas, Magenta: Corrección IA).
-  - Guía técnica y editorial redactada para publicación en Aurora Blog (`docs/es/guides/flujo-de-trabajo-y-marcadores.md`).
+- [x] **v0.2.0 — Animaciones Fusion paramétricas, SFX en pausas y marcadores cromáticos** — `process/active/2026-08-31_animaciones-fusion-sfx-pausas-y-marcadores/`
+  - Motor de plantillas Fusion con keyframing Bezier (`pop_bounce`, `slide_up`, `fade_smooth`, `kinetic_pulse`, `typewriter`).
+  - Detección de silencios y pausas temporales para disparo automático de SFX de transición en `DF_SFX` con 8 efectos procedurales.
+  - Estandarización de marcadores de Resolve por código cromático (Azul: Capítulos, Amarillo: Clave, Verde: SFX, Cian: Preguntas, Magenta: Corrección IA, Rosa: CTA).
+  - Asistente contextual de B-Rolls (`DF_BROLL`) y catálogo de recursos.
+  - Guías técnicas redactadas (`docs/es/guides/editorial-fase-1.md` y `docs/es/guides/flujo-de-trabajo-y-marcadores.md`).
+  - Validación técnica integral: 164/164 pruebas superadas en verde y prueba real con 27 clips en Resolve Studio 21.
 - [ ] **Previsualización offline (dry-run con SRT sin Resolve)** — `process/active/2026-08-24_dry-run-offline-srt/`
   - `--generate --dry-run --srt` produce el record de previsualización sin exigir una sesión activa de Resolve.
   - Verificado: 97/97 pruebas automatizadas en verde.
