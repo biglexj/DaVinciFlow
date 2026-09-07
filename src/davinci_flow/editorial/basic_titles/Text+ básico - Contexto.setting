@@ -1,0 +1,19 @@
+{
+ Tools = ordered() {
+  BasicText = TextPlus {
+   Inputs = {
+    StyledText = Input { Value = "Contexto" },
+    Font = Input { Value = "Open Sans" },
+    Style = Input { Value = "Regular" },
+    Size = Input { Value = 0.06 },
+    Center = Input { Value = { 0.5, 0.66 } },
+    Width = Input { Value = 1920 },
+    Height = Input { Value = 1080 },
+    UseFrameFormatSettings = Input { Value = 1 },
+    VerticalJustificationNew = Input { Value = 3 },
+    HorizontalJustificationNew = Input { Value = 3 }
+   }
+  },
+  MediaOut1 = MediaOut { Inputs = { Input = Input { SourceOp = "BasicText", Source = "Output" } } }
+ }
+}

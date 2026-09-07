@@ -1,6 +1,7 @@
 """Pruebas de contrato para escritura física, verificación y reversión en Resolve."""
 
 import tempfile
+import struct
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -94,6 +95,27 @@ class TimelineWriterTests(unittest.TestCase):
         self.assertTrue(all(item.native_item_id is None for item in record.items))
         self.mock_media_pool.AppendToTimeline.assert_not_called()
 
+    def test_carrier_has_requested_frames_and_is_not_a_still_image(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_root:
+            writer = self._writer(temp_root)
+            for frames in (48, 72):
+                writer._get_carrier_media_item(frames, fps=24)
+                path = Path(self.mock_media_pool.ImportMedia.call_args.args[0][0])
+                data = path.read_bytes()
+                self.assertEqual(path.suffix, ".avi")
+                self.assertEqual(data[:4], b"RIFF")
+                self.assertEqual(struct.unpack_from("<I", data, data.index(b"avih") + 24)[0], frames)
+            self.assertEqual(self.mock_media_pool.ImportMedia.call_count, 2)
+
+    def test_rejects_overlong_video_before_next_title_can_be_displaced(self) -> None:
+        item = MagicMock()
+        item.GetTrackTypeAndIndex.return_value = ["video", 3]
+        item.GetStart.return_value = 86411
+        item.GetDuration.return_value = 120
+        writer = self._writer("unused")
+        with self.assertRaises(TimelineWriteError):
+            writer._verify_native_item(item, "video", 3, 86411, 47)
+
     def test_real_generation_appends_exact_timeline_items_and_imports_fusion(self) -> None:
         with tempfile.TemporaryDirectory() as temp_root:
             writer = self._writer(temp_root)
@@ -177,6 +199,35 @@ class TimelineWriterTests(unittest.TestCase):
         deleted_items = self.mock_timeline.DeleteClips.call_args.args[0]
         self.assertNotIn(unrelated, deleted_items)
         self.assertEqual(len(deleted_items), record.item_count)
+
+    def test_apply_plan_with_broll_proposals(self) -> None:
+        from davinci_flow.assets.broll_catalog import BRollAsset, BRollProposal
+
+        asset = BRollAsset(
+            id="broll_01",
+            name="demo.mp4",
+            file_path="/media/demo.mp4",
+            asset_type="video",
+            tags=("demo",),
+        )
+        proposal = BRollProposal(
+            block_index=1,
+            asset=asset,
+            start_frame=0.0,
+            end_frame=48.0,
+            target_track="DF_BROLL",
+            reason="Prueba",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_root:
+            writer = self._writer(temp_root)
+            record = writer.apply_plan(self.plan, broll_proposals=[proposal])
+
+        broll_record = next((item for item in record.items if item.role == "broll"), None)
+        self.assertIsNotNone(broll_record)
+        assert broll_record is not None
+        self.assertEqual(broll_record.status, "applied")
+        self.assertEqual(broll_record.track_name, "DF_BROLL")
 
 
 if __name__ == "__main__":

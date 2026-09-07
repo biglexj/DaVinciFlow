@@ -25,7 +25,7 @@ class ResolveTrackManager:
         highest_user_video = 0
         for idx in range(1, video_tracks_count + 1):
             name = self._safe_get_track_name("video", idx)
-            if name in ("DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_VISUAL_FX"):
+            if name in ("DF_BROLL", "DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_VISUAL_FX"):
                 video_mapping[name] = idx
             else:
                 # Pista de usuario o vacía existente
@@ -42,6 +42,9 @@ class ResolveTrackManager:
 
         # 2. Si no existen pistas dedicadas, crearlas estrictamente por encima de todas las pistas de usuario
         base_v = max(highest_user_video, 0)
+        if "DF_BROLL" not in video_mapping:
+            base_v += 1
+            video_mapping["DF_BROLL"] = base_v
         if "DF_CONTEXT" not in video_mapping:
             base_v += 1
             video_mapping["DF_CONTEXT"] = base_v
@@ -74,6 +77,7 @@ class ResolveTrackManager:
         # 1. Asegurar la cantidad necesaria de pistas de vídeo
         curr_v_count = self._safe_get_track_count("video")
         max_v_needed = max(
+            track_map.get("DF_BROLL", 1),
             track_map.get("DF_CONTEXT", 1),
             track_map.get("DF_MAIN", 1),
             track_map.get("DF_ACCENT", 1),
@@ -92,7 +96,7 @@ class ResolveTrackManager:
             curr_v_count = new_count
 
         # Asignar nombres oficiales a las pistas de vídeo
-        for name in ("DF_CONTEXT", "DF_MAIN", "DF_ACCENT"):
+        for name in ("DF_BROLL", "DF_CONTEXT", "DF_MAIN", "DF_ACCENT"):
             idx = track_map.get(name)
             if idx:
                 try:

@@ -75,6 +75,48 @@ dinámicos y multicapa.
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
+    def test_export_cues_to_srt_and_file(self) -> None:
+        from davinci_flow.subtitles.model import SubtitleCue
+        from davinci_flow.subtitles.srt_parser import export_cues_to_srt_content, export_srt_file
+
+        cues = (
+            SubtitleCue(text="Primera línea", start_frame=24.0, end_frame=48.0, track_index=1),
+            SubtitleCue(text="Segunda línea", start_frame=72.0, end_frame=96.0, track_index=1),
+        )
+        content = export_cues_to_srt_content(cues, fps=24.0)
+        self.assertIn("1\n00:00:01,000 --> 00:00:02,000\nPrimera línea", content)
+        self.assertIn("2\n00:00:03,000 --> 00:00:04,000\nSegunda línea", content)
+
+        with tempfile.TemporaryDirectory() as td:
+            out_file = Path(td) / "test_out.srt"
+            res_path = export_srt_file(cues, out_file, fps=24.0)
+            self.assertTrue(res_path.exists())
+            self.assertEqual(res_path.read_text(encoding="utf-8"), content)
+
+    def test_export_blocks_to_srt_content(self) -> None:
+        from davinci_flow.subtitles.block import CaptionBlock
+        from davinci_flow.subtitles.model import SubtitleCue
+        from davinci_flow.subtitles.srt_parser import export_blocks_to_srt_content
+
+        cue = SubtitleCue(text="En resumen, DaVinci Flow es rápido.", start_frame=0.0, end_frame=48.0, track_index=1)
+        block = CaptionBlock(
+            id="blk_1",
+            source_cues=(cue,),
+            start_frame=0.0,
+            end_frame=48.0,
+            original_text=cue.text,
+            normalized_text=cue.text,
+            main_text="DaVinci Flow",
+            context_text="En resumen,",
+            accent_text="es rápido.",
+        )
+        content_combined = export_blocks_to_srt_content([block], fps=24.0, combine_layers=True)
+        self.assertIn("En resumen, DaVinci Flow es rápido.", content_combined)
+
+        content_main = export_blocks_to_srt_content([block], fps=24.0, combine_layers=False)
+        self.assertIn("DaVinci Flow", content_main)
+        self.assertNotIn("En resumen,", content_main)
+
 
 if __name__ == "__main__":
     unittest.main()

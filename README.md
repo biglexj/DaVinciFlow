@@ -8,7 +8,7 @@ DaVinci Flow es una automatización modular en Python para DaVinci Resolve 21. P
 
 ## Organización de recursos
 
-El icono canónico de identidad se conserva en [`assets/branding/icons/icon-transparent.png`](assets/branding/icons/icon-transparent.png). Los recursos derivados deben generarse desde esa fuente conforme al [Asset Organization Standard](../Core-Docs/global/architecture/asset-organization-standard.md); las capturas documentales viven en `docs/screenshots/`.
+El icono canónico de identidad se conserva en [`assets/branding/icons/icon-transparent.png`](assets/branding/icons/icon-transparent.png). Los recursos derivados deben generarse desde esa fuente conforme al [Asset Organization Standard](../Docs/global/architecture/asset-organization-standard.md); las capturas documentales viven en `docs/screenshots/`.
 
 ---
 

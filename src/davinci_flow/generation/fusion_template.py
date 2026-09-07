@@ -10,6 +10,7 @@ SUPPORTED_ANIMATION_PRESETS = (
     "slide_up",
     "fade_smooth",
     "kinetic_pulse",
+    "typewriter",
 )
 
 
@@ -284,6 +285,54 @@ def generate_textplus_fusion_setting(
 \t\t\t\t}},
 \t\t\t}},
 \t\t\tViewInfo = OperatorInfo {{ Pos = {{ 540, 82.5 }} }},
+\t\t}}
+\t}}
+}}
+"""
+
+    if preset_clean == "typewriter":
+        return f"""{{
+\tTools = ordered() {{
+\t\tDF_Text_{role} = TextPlus {{
+\t\t\tInputs = {{
+\t\t\t\tGlobalWidth = Input {{ Value = 1920, }},
+\t\t\t\tGlobalHeight = Input {{ Value = 1080, }},
+\t\t\t\tUseFrameFormatSettings = Input {{ Value = 1, }},
+\t\t\t\tCenter = Input {{ Value = {{ {pos_x:.4f}, {pos_y:.4f} }}, }},
+\t\t\t\tStyledText = Input {{ Value = "{safe_text}", }},
+\t\t\t\tFont = Input {{ Value = "{font}", }},
+\t\t\t\tStyle = Input {{ Value = "Bold", }},
+\t\t\t\tSize = Input {{ Value = {size:.4f}, }},
+\t\t\t\tRed1 = Input {{ Value = {r:.4f}, }},
+\t\t\t\tGreen1 = Input {{ Value = {g:.4f}, }},
+\t\t\t\tBlue1 = Input {{ Value = {b:.4f}, }},
+\t\t\t\tAlpha1 = Input {{ Value = 1.0, }},
+\t\t\t\tManualWriteOn = Input {{ Value = 1, }},
+\t\t\t\tWriteOnEnd = Input {{
+\t\t\t\t\tSourceOp = "DF_WriteOnSpline_{role}",
+\t\t\t\t\tSource = "Value",
+\t\t\t\t}},
+\t\t\t\tVerticalJustificationNew = Input {{ Value = 3, }},
+\t\t\t\tHorizontalJustificationNew = Input {{ Value = 3, }},
+\t\t\t}},
+\t\t\tViewInfo = OperatorInfo {{ Pos = {{ 280, 82.5 }} }},
+\t\t}},
+\t\tDF_WriteOnSpline_{role} = BezierSpline {{
+\t\t\tSplineColor = {{ R = 0, G = 255, B = 128 }},
+\t\t\tCtrlPts = {{
+\t\t\t\t{{ 0, 0.0, Flags = {{ Linear = true }} }},
+\t\t\t\t{{ 8, 1.0, Flags = {{ Linear = true }} }},
+\t\t\t}},
+\t\t}},
+\t\tMediaOut1 = MediaOut {{
+\t\t\tInputs = {{
+\t\t\t\tIndex = Input {{ Value = 0, }},
+\t\t\t\tInput = Input {{
+\t\t\t\t\tSourceOp = "DF_Text_{role}",
+\t\t\t\t\tSource = "Output",
+\t\t\t\t}},
+\t\t\t}},
+\t\t\tViewInfo = OperatorInfo {{ Pos = {{ 495, 82.5 }} }},
 \t\t}}
 \t}}
 }}

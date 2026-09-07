@@ -73,6 +73,18 @@ class FusionTemplateTests(unittest.TestCase):
         )
         self.assertIn("DF_BlendSpline_main = BezierSpline", fade)
 
+    def test_generate_typewriter_animation(self) -> None:
+        tw = generate_textplus_fusion_setting(
+            text="Escribiendo palabra a palabra",
+            tokens=ELY_THEME,
+            role="main",
+            animation_preset="typewriter",
+        )
+        self.assertIn("ManualWriteOn = Input { Value = 1, }", tw)
+        self.assertIn("WriteOnEnd = Input {", tw)
+        self.assertIn("DF_WriteOnSpline_main = BezierSpline", tw)
+        self.assertIn("MediaOut1", tw)
+
 
 if __name__ == "__main__":
     unittest.main()

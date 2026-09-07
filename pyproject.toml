@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "davinci-flow"
-version = "0.1.0"
+version = "0.2.0"
 description = "Automatización modular de subtítulos y edición para DaVinci Resolve."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -20,3 +20,6 @@ package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"davinci_flow.editorial" = ["basic_titles/*.setting"]

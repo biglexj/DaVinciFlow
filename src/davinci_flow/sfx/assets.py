@@ -90,11 +90,65 @@ def _click(duration: float) -> Callable[[int, float], float]:
     return sample
 
 
+def _riser(duration: float) -> Callable[[int, float], float]:
+    rng = random.Random(42)
+
+    def sample(_index: int, time_s: float) -> float:
+        phase = min(1.0, time_s / duration)
+        freq = 140.0 + 620.0 * (phase ** 2.2)
+        amp = (phase ** 1.6) * 0.52
+        noise = rng.uniform(-0.12, 0.12) * (phase ** 1.8)
+        tone = math.sin(2.0 * math.pi * freq * time_s)
+        return (tone + noise) * amp
+
+    return sample
+
+
+def _glitch(duration: float) -> Callable[[int, float], float]:
+    def sample(_index: int, time_s: float) -> float:
+        phase = min(1.0, time_s / duration)
+        envelope = math.exp(-14.0 * phase)
+        step = int(time_s * 50.0)
+        hop_freq = 1100.0 + ((step * 389) % 1700)
+        return math.sin(2.0 * math.pi * hop_freq * time_s) * envelope * 0.48
+
+    return sample
+
+
+def _thud(duration: float) -> Callable[[int, float], float]:
+    def sample(_index: int, time_s: float) -> float:
+        phase = min(1.0, time_s / duration)
+        envelope = math.exp(-8.5 * phase)
+        freq = 75.0 * math.exp(-6.0 * phase) + 36.0
+        return math.sin(2.0 * math.pi * freq * time_s) * envelope * 0.72
+
+    return sample
+
+
+def _chime_success(duration: float) -> Callable[[int, float], float]:
+    def sample(_index: int, time_s: float) -> float:
+        phase = min(1.0, time_s / duration)
+        envelope = math.exp(-3.6 * phase)
+        partials = (
+            math.sin(2.0 * math.pi * 1046.5 * time_s) * 0.30
+            + math.sin(2.0 * math.pi * 1318.5 * time_s) * 0.22
+            + math.sin(2.0 * math.pi * 1567.98 * time_s) * 0.18
+            + math.sin(2.0 * math.pi * 2093.0 * time_s) * 0.10
+        )
+        return partials * envelope
+
+    return sample
+
+
 _SAMPLERS = {
     "sfx_whoosh_clean_01": _whoosh,
     "sfx_pop_subtle_01": _pop,
     "sfx_bell_chime_01": _bell,
     "sfx_click_tech_01": _click,
+    "sfx_riser_tension_01": _riser,
+    "sfx_glitch_digital_01": _glitch,
+    "sfx_thud_subtle_01": _thud,
+    "sfx_chime_success_01": _chime_success,
 }
 
 

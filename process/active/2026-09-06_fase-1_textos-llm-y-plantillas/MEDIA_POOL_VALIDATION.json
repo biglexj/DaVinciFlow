@@ -1,0 +1,56 @@
+[
+  {
+    "name": "biglexpe-derecha",
+    "id": "pool_df53117c-3daa-4233-abac-517b94fb4829",
+    "original_text": "Biglex J\nProducciones",
+    "editable": true,
+    "nodes_preserved": true,
+    "duration": 18,
+    "original_preserved": true
+  },
+  {
+    "name": "biglexpe-superior",
+    "id": "pool_0802a31c-005b-480e-a9f8-54d1a1dadec7",
+    "original_text": "Biglex J",
+    "editable": true,
+    "nodes_preserved": true,
+    "duration": 18,
+    "original_preserved": true
+  },
+  {
+    "name": "biglexpe-inferior2",
+    "id": "pool_19290ea9-82e5-454c-81bc-d99dfc479b2b",
+    "original_text": "Biglex J\nProducciones",
+    "editable": true,
+    "nodes_preserved": true,
+    "duration": 18,
+    "original_preserved": true
+  },
+  {
+    "name": "biglexpe",
+    "id": "pool_3c5ee071-d8eb-455c-afb1-61d24c75fcf9",
+    "original_text": "Biglex J\nProducciones",
+    "editable": true,
+    "nodes_preserved": true,
+    "duration": 18,
+    "original_preserved": true
+  },
+  {
+    "name": "biglexpe-izquierda",
+    "id": "pool_ae97c722-3b1d-4ad6-9c00-907ced6cd903",
+    "original_text": "Biglex J\nProducciones",
+    "editable": true,
+    "nodes_preserved": true,
+    "duration": 18,
+    "original_preserved": true
+  },
+  {
+    "name": "biglexpe-inferior",
+    "id": "pool_d2fdbf9a-70a1-45aa-aa5a-f01ce9d6e08e",
+    "original_text": "Biglex J",
+    "editable": true,
+    "nodes_preserved": true,
+    "duration": 18,
+    "original_preserved": true
+  }
+]

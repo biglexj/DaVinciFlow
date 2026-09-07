@@ -16,6 +16,9 @@ from davinci_flow.subtitles.model import SubtitleCue
 from davinci_flow.subtitles.normalizer import normalize_subtitle_text
 from davinci_flow.subtitles.srt_parser import (
     SrtParseError,
+    export_blocks_to_srt_content,
+    export_cues_to_srt_content,
+    export_srt_file,
     frames_to_srt_timecode,
     load_srt_file,
     parse_srt_content,
@@ -32,6 +35,9 @@ __all__ = [
     "compute_cues_fingerprint",
     "create_caption_block_from_cue",
     "create_caption_blocks_from_cues",
+    "export_blocks_to_srt_content",
+    "export_cues_to_srt_content",
+    "export_srt_file",
     "frames_to_srt_timecode",
     "generate_stable_block_id",
     "load_srt_file",

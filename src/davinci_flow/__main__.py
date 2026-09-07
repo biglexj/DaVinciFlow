@@ -18,8 +18,8 @@ from davinci_flow.installer import (
     install_resolve_launcher,
     uninstall_resolve_launcher,
 )
+from davinci_flow.ai.aligner import parse_glossary_str
 from davinci_flow.ui import open_davinci_flow_ui
-from davinci_flow.ui.uimanager_window import parse_glossary_str
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -27,6 +27,7 @@ def _parser() -> argparse.ArgumentParser:
         prog="davinci-flow",
         description="DaVinci Flow — Automatización de subtítulos dinámicos multicapa, guion y SFX.",
     )
+    parser.add_argument("--editorial-ui", action="store_true", help="Abre el editor LLM sin conectar con Resolve.")
     parser.add_argument("--track", type=int, default=1, help="Índice de pista, comenzando en 1.")
     parser.add_argument(
         "--limit",
@@ -88,6 +89,13 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         metavar="KEY",
         help="Clave API de Google Gemini (o usar variable de entorno GEMINI_API_KEY).",
+    )
+    parser.add_argument(
+        "--gemini-model",
+        type=str,
+        default="gemini-3.6-flash",
+        metavar="MODEL",
+        help="Modelo de Google Gemini a utilizar (por defecto: gemini-3.6-flash).",
     )
     parser.add_argument(
         "--correct-ai",
@@ -172,6 +180,10 @@ def print_about() -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.editorial_ui:
+        from davinci_flow.ui.editorial_window import open_editorial_window
+        open_editorial_window()
+        return 0
 
     if args.about:
         print_about()
@@ -235,6 +247,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 original_script=script_text,
                 glossary=glossary,
                 api_key=args.gemini_key,
+                model_name=args.gemini_model,
                 use_ai_correction=use_ai,
                 insert_markers=args.add_markers,
                 srt_path=args.srt,
@@ -260,6 +273,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 original_script=script_text,
                 glossary=glossary,
                 api_key=args.gemini_key,
+                model_name=args.gemini_model,
                 use_ai_correction=use_ai,
                 srt_path=args.srt,
             )

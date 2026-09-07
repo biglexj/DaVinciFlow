@@ -15,10 +15,10 @@ trigger: always_on
 Antes de aplicar la Documentación Core, completar este perfil con el alcance real del proyecto y consultar únicamente:
 
 1. Las reglas globales pertinentes.
-2. El tipo principal en `Core-Docs/types`.
-3. Cada plataforma distribuida en `Core-Docs/platforms`.
-4. El stack utilizado en `Core-Docs/stacks`.
-5. Las funciones realmente adoptadas en `Core-Docs/features`.
+2. El tipo principal en `Docs/types`.
+3. Cada plataforma distribuida en `Docs/platforms`.
+4. El stack utilizado en `Docs/stacks`.
+5. Las funciones realmente adoptadas en `Docs/features`.
 
 No aplicar una capacidad por semejanza. Instancia única, bandeja, autoactualización, instalador, IA y otras funciones deben figurar expresamente como activas.
 

@@ -55,7 +55,7 @@ graph LR
 ## 3. Protocolo de Sincronización de Versiones y Release Notes
 
 Cuando se publica una nueva versión de DaVinci Flow:
-1. Se actualiza `RELEASE_NOTES.md` con el formato canónico de Core-Docs.
+1. Se actualiza `RELEASE_NOTES.md` con el formato canónico de Docs.
 2. Se actualiza `RELEASE_MESSAGE.md` con el anuncio público para la comunidad.
 3. La ficha en la web (`DeveloperPage.astro` y base de datos Supabase de aplicaciones) refleja la versión, estado (Experimental / Actualizada) y notas de cambios.
 4. El diálogo `ℹ️ Info` dentro de la interfaz gráfica de DaVinci Resolve enlaza a la web oficial y al canal de donaciones (`https://www.biglexj.com/donaciones`).

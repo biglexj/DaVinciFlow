@@ -1,14 +1,15 @@
 """Motor de alineación con guion original, corrección de subtítulos y detección de marcadores."""
 
+import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from davinci_flow.ai.credentials import has_gemini_api_key
 from davinci_flow.ai.client import GeminiClient
 from davinci_flow.errors import ScriptAlignmentError
 from davinci_flow.subtitles.model import SubtitleCue
-
 
 @dataclass(frozen=True, slots=True)
 class TimelineMarker:
@@ -90,16 +91,55 @@ def apply_glossary_to_text(text: str, glossary: dict[str, str]) -> tuple[str, li
     return modified_text, applied_changes
 
 
+def parse_glossary_str(text: str) -> dict[str, str]:
+    """Parsea una cadena de pares clave:valor o JSON a un diccionario de glosario."""
+    if not text or not text.strip():
+        return {}
+    stripped = text.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            data = json.loads(stripped)
+            if isinstance(data, dict):
+                return {str(k).strip(): str(v).strip() for k, v in data.items() if str(k).strip()}
+        except Exception:
+            pass
+
+    glossary: dict[str, str] = {}
+    items = re.split(r"[\n,]+", stripped)
+    for item in items:
+        if ":" in item:
+            parts = item.split(":", 1)
+            k, v = parts[0].strip(), parts[1].strip()
+            if k:
+                glossary[k] = v
+        elif "->" in item:
+            parts = item.split("->", 1)
+            k, v = parts[0].strip(), parts[1].strip()
+            if k:
+                glossary[k] = v
+    return glossary
+
+
+_CLIENT_DEFAULT = object()
+
 
 class ScriptAligner:
     """Orquesta la comparación del texto transcrito contra el guion original y glosarios con Gemini."""
 
     def __init__(
         self,
-        client: GeminiClient | None = None,
+        client: Any = _CLIENT_DEFAULT,
         api_key: str | None = None,
+        model_name: str | None = None,
     ) -> None:
-        self._client = client or (GeminiClient(api_key=api_key) if api_key else None)
+        if client is not _CLIENT_DEFAULT:
+            self._client = client
+        elif api_key:
+            self._client = GeminiClient(api_key=api_key, model_name=model_name or "gemini-3.6-flash")
+        elif has_gemini_api_key():
+            self._client = GeminiClient(model_name=model_name or "gemini-3.6-flash")
+        else:
+            self._client = None
 
     def align_and_correct(
         self,
@@ -107,8 +147,10 @@ class ScriptAligner:
         original_script: str = "",
         glossary: dict[str, str] | None = None,
         detect_markers: bool = True,
+        progress_callback: Any | None = None,
+        chunk_size: int = 50,
     ) -> CorrectionResult:
-        """Compara los subtítulos con el guion, corrige errores/jergas y genera marcadores."""
+        """Compara los subtítulos con el guion, corrige errores/jergas y genera marcadores en lotes con progreso."""
         if not cues:
             return CorrectionResult(
                 corrected_cues=(),
@@ -163,12 +205,60 @@ class ScriptAligner:
                 summary=f"Glosario aplicado localmente: {len(correction_items)} corrección(es).",
             )
 
-        # Ejecución con Gemini
-        return self._align_with_gemini(
-            cues=cues,
-            script_text=script_text,
-            glossary=active_glossary,
-            detect_markers=detect_markers,
+        # Procesamiento con Gemini: Si la cantidad de subtítulos es pequeña, procesar de una vez
+        total_cues = len(cues)
+        if total_cues <= chunk_size:
+            if progress_callback:
+                progress_callback(0, total_cues, f"Alineando {total_cues} subtítulos con IA...")
+            res = self._align_with_gemini(
+                cues=cues,
+                script_text=script_text,
+                glossary=active_glossary,
+                detect_markers=detect_markers,
+                start_index=1,
+            )
+            if progress_callback:
+                progress_callback(total_cues, total_cues, "Alineación con IA completada.")
+            return res
+
+        # Procesamiento por lotes (chunks) para transcripciones largas
+        import math
+        total_chunks = math.ceil(total_cues / chunk_size)
+        all_corrected_cues: list[SubtitleCue] = []
+        all_corrections: list[CorrectionItem] = []
+        all_markers: list[TimelineMarker] = []
+
+        for chunk_idx in range(total_chunks):
+            start_i = chunk_idx * chunk_size
+            end_i = min(start_i + chunk_size, total_cues)
+            chunk_cues = cues[start_i:end_i]
+
+            if progress_callback:
+                progress_callback(
+                    start_i,
+                    total_cues,
+                    f"Alineando con IA: lote {chunk_idx + 1}/{total_chunks} (subtítulos {start_i + 1} a {end_i} de {total_cues})...",
+                )
+
+            chunk_res = self._align_with_gemini(
+                cues=chunk_cues,
+                script_text=script_text,
+                glossary=active_glossary,
+                detect_markers=detect_markers,
+                start_index=start_i + 1,
+            )
+            all_corrected_cues.extend(chunk_res.corrected_cues)
+            all_corrections.extend(chunk_res.corrections)
+            all_markers.extend(chunk_res.markers)
+
+        if progress_callback:
+            progress_callback(total_cues, total_cues, f"Alineación con IA completada ({len(all_corrections)} correcciones).")
+
+        return CorrectionResult(
+            corrected_cues=tuple(all_corrected_cues),
+            corrections=tuple(all_corrections),
+            markers=tuple(all_markers),
+            summary=f"Alineación por lotes ({total_chunks} lotes): {len(all_corrections)} corrección(es) y {len(all_markers)} marcador(es).",
         )
 
     def _align_with_gemini(
@@ -177,6 +267,7 @@ class ScriptAligner:
         script_text: str,
         glossary: dict[str, str],
         detect_markers: bool,
+        start_index: int = 1,
     ) -> CorrectionResult:
         """Construye el prompt estructurado y procesa la respuesta JSON de Gemini."""
         if self._client is None:
@@ -184,12 +275,12 @@ class ScriptAligner:
 
         cues_payload = [
             {
-                "index": idx,
+                "index": start_index + idx,
                 "start_frame": cue.start_frame,
                 "end_frame": cue.end_frame,
                 "text": cue.text,
             }
-            for idx, cue in enumerate(cues, start=1)
+            for idx, cue in enumerate(cues)
         ]
 
         system_instruction = (
@@ -265,8 +356,9 @@ class ScriptAligner:
         corrected_cues_list: list[SubtitleCue] = []
         correction_items_list: list[CorrectionItem] = []
 
-        for idx, cue in enumerate(cues, start=1):
-            ai_item = aligned_map.get(idx)
+        for idx, cue in enumerate(cues):
+            current_index = start_index + idx
+            ai_item = aligned_map.get(current_index)
             corrected_text = cue.text
             reason = "Sin cambios"
             is_changed = False
@@ -298,7 +390,7 @@ class ScriptAligner:
             if is_changed or corrected_text != cue.text:
                 correction_items_list.append(
                     CorrectionItem(
-                        index=idx,
+                        index=current_index,
                         start_frame=cue.start_frame,
                         end_frame=cue.end_frame,
                         original_text=cue.text,

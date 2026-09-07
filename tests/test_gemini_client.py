@@ -120,5 +120,40 @@ class GeminiClientTests(unittest.TestCase):
             self.client.generate_json("Dame un JSON")
 
 
+class ListAvailableModelsTests(unittest.TestCase):
+    @patch("urllib.request.urlopen")
+    def test_list_available_models_filters_and_sorts(self, mock_urlopen: MagicMock) -> None:
+        from davinci_flow.ai.client import list_available_gemini_models
+
+        mock_payload = {
+            "models": [
+                {"name": "models/gemini-2.5-pro", "supportedGenerationMethods": ["generateContent"]},
+                {"name": "models/gemini-3.5-flash-lite", "supportedGenerationMethods": ["generateContent"]},
+                {"name": "models/text-embedding-004", "supportedGenerationMethods": ["embedContent"]},
+                {"name": "models/gemini-3.5-flash", "supportedGenerationMethods": ["generateContent"]},
+                {"name": "models/gemini-3.7-flash", "supportedGenerationMethods": ["generateContent"]},
+            ]
+        }
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_payload).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        models = list_available_gemini_models(api_key="AIzaSyDummy123456")
+        self.assertIn("gemini-3.5-flash-lite", models)
+        self.assertIn("gemini-3.5-flash", models)
+        self.assertIn("gemini-3.7-flash", models)
+        self.assertNotIn("gemini-2.5-pro", models)
+        self.assertNotIn("text-embedding-004", models)
+
+    def test_list_available_models_fallback_on_empty_or_error(self) -> None:
+        from davinci_flow.ai.client import FALLBACK_MODELS, list_available_gemini_models
+
+        with patch("davinci_flow.ai.client.get_gemini_api_key", side_effect=Exception("No key")):
+            models = list_available_gemini_models(api_key=None)
+            self.assertEqual(models, FALLBACK_MODELS)
+
+
 if __name__ == "__main__":
     unittest.main()
+

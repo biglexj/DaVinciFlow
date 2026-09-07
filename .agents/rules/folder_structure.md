@@ -30,7 +30,7 @@ DaVinci Flow/                   # Raíz del repositorio
 │   └── templates/                  # Moldes locales para crear procesos
 ├── scratch/                        # Scripts utilitarios de mantenimiento (solo raíz)
 ├── test/                           # Scripts de prueba temporales (ignorado en .gitignore)
-├── agent.md                        # Instrucciones principales del agente (raíz)
+├── .agents/rules/base.md                        # Instrucciones principales del agente (raíz)
 ├── ROADMAP.md                      # Pendientes, prioridades e historial del producto
 ├── RELEASE_NOTES.md                # Historial de cambios por versión
 ├── RELEASE_MESSAGE.md              # Mensaje de anuncio del último lanzamiento

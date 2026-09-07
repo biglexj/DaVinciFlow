@@ -16,12 +16,26 @@ from davinci_flow.ai.credentials import save_gemini_api_key
 from davinci_flow.generation.plan import GenerationPlan, build_generation_plan
 from davinci_flow.generation.reconciler import PlanDiff, reconcile_subtitles
 from davinci_flow.generation.record import GenerationExecutionRecord
+from davinci_flow.assets.broll_catalog import (
+    AssetCollection,
+    BRollProposal,
+    scan_assets_directory,
+)
+from davinci_flow.assets.broll_matcher import (
+    match_brolls_heuristic,
+    match_brolls_with_ai,
+)
 from davinci_flow.errors import TimelineWriteError
 from davinci_flow.resolve import (
     ResolveMarkerWriter,
     ResolveSubtitleReader,
     ResolveTimelineWriter,
     connect_to_resolve,
+)
+from davinci_flow.resolve.template_scanner import (
+    MediaPoolPreset,
+    ensure_davinciflow_bin,
+    scan_davinciflow_presets,
 )
 from davinci_flow.sfx.engine import SFXProposalEngine
 from davinci_flow.subtitles import SubtitleCue
@@ -147,11 +161,27 @@ def inspect_active_timeline() -> TimelineSummary:
     )
 
 
+def get_available_mediapool_presets(
+    resolve_session: Any | None = None,
+) -> tuple[MediaPoolPreset, ...]:
+    """Descubre y retorna los presets y plantillas Text+ de la bandeja DaVinciFlow en el Media Pool."""
+    try:
+        session = resolve_session or connect_to_resolve()
+        media_pool = getattr(session.project, "GetMediaPool", lambda: None)()
+        if media_pool is not None:
+            ensure_davinciflow_bin(media_pool)
+            return scan_davinciflow_presets(media_pool)
+    except Exception:
+        pass
+    return ()
+
+
 def scan_active_subtitles(
     track_index: int = 1,
+    track_type: str = "subtitle",
     srt_path: str | Path | None = None,
 ) -> SubtitleScan:
-    """Conecta con Resolve u obtiene subtítulos directamente desde un archivo SRT."""
+    """Conecta con Resolve u obtiene subtítulos directamente desde un archivo SRT o pista de Resolve."""
     if srt_path:
         try:
             session = connect_to_resolve()
@@ -172,7 +202,12 @@ def scan_active_subtitles(
         )
 
     session = connect_to_resolve()
-    cues = ResolveSubtitleReader(session.timeline).read_track(track_index)
+    reader = ResolveSubtitleReader(session.timeline)
+    if track_type == "auto":
+        cues = reader.read_auto()
+    else:
+        cues = reader.read_track(track_index, track_type=track_type)
+
     return SubtitleScan(
         project_name=str(session.project.GetName()),
         timeline_name=str(session.timeline.GetName()),
@@ -183,15 +218,17 @@ def scan_active_subtitles(
 
 def align_and_correct_subtitles(
     track_index: int = 1,
+    track_type: str = "subtitle",
     original_script: str = "",
     glossary: dict[str, str] | None = None,
     detect_markers: bool = True,
     api_key: str | None = None,
+    model_name: str | None = None,
     srt_path: str | Path | None = None,
 ) -> CorrectionResult:
     """Lee subtítulos de Resolve o archivo SRT, los compara contra el guion original y los corrige con Gemini."""
-    scan = scan_active_subtitles(track_index=track_index, srt_path=srt_path)
-    aligner = ScriptAligner(api_key=api_key)
+    scan = scan_active_subtitles(track_index=track_index, track_type=track_type, srt_path=srt_path)
+    aligner = ScriptAligner(api_key=api_key, model_name=model_name)
     return aligner.align_and_correct(
         cues=scan.cues,
         original_script=original_script,
@@ -212,15 +249,19 @@ def insert_ai_timeline_markers(
 
 def plan_active_subtitles(
     track_index: int = 1,
+    track_type: str = "subtitle",
     theme_name: str = "ely",
     profile_name: str = "natural",
     enable_sfx: bool = True,
     original_script: str = "",
     glossary: dict[str, str] | None = None,
     api_key: str | None = None,
+    model_name: str | None = None,
     use_ai_correction: bool = False,
+    animation_preset: str | None = None,
     srt_path: str | Path | None = None,
     resolve_session: Any | None = None,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> tuple[GenerationPlan, CorrectionResult | None]:
     """Lee la pista activa o archivo SRT y produce un GenerationPlan clasificado con soporte de corrección por IA."""
     if srt_path:
@@ -239,19 +280,38 @@ def plan_active_subtitles(
         proj_name = str(session.project.GetName())
         tl_name = str(session.timeline.GetName())
         timeline_id, fps, width, height, aspect_ratio = _timeline_metrics(session.timeline)
-        cues = ResolveSubtitleReader(session.timeline).read_track(track_index)
+        reader = ResolveSubtitleReader(session.timeline)
+        if track_type == "auto":
+            cues = reader.read_auto()
+        else:
+            cues = reader.read_track(track_index, track_type=track_type)
 
     correction_res: CorrectionResult | None = None
 
-    if use_ai_correction or original_script or glossary or api_key:
-        aligner = ScriptAligner(api_key=api_key)
+    if use_ai_correction:
+        aligner = ScriptAligner(api_key=api_key, model_name=model_name)
         correction_res = aligner.align_and_correct(
             cues=cues,
             original_script=original_script,
             glossary=glossary,
             detect_markers=True,
+            progress_callback=progress_callback,
         )
         cues = correction_res.corrected_cues
+    elif glossary:
+        from davinci_flow.ai.aligner import apply_glossary_to_text
+        updated_cues: list[SubtitleCue] = []
+        for cue in cues:
+            new_text, _ = apply_glossary_to_text(cue.text, glossary)
+            updated_cues.append(
+                SubtitleCue(
+                    text=new_text,
+                    start_frame=cue.start_frame,
+                    end_frame=cue.end_frame,
+                    track_index=cue.track_index,
+                )
+            )
+        cues = tuple(updated_cues)
 
     base_plan = build_generation_plan(
         project_name=proj_name,
@@ -266,6 +326,14 @@ def plan_active_subtitles(
         theme_name=theme_name,
         profile_name=profile_name,
     )
+
+    if animation_preset and animation_preset.strip().lower() not in ("auto", "ninguno"):
+        from dataclasses import replace
+        anim_clean = animation_preset.strip().lower()
+        applied_blocks = tuple(
+            replace(b, style_preset=anim_clean) for b in base_plan.blocks
+        )
+        base_plan = replace(base_plan, blocks=applied_blocks)
 
     if enable_sfx:
         sfx_engine = SFXProposalEngine()
@@ -295,6 +363,7 @@ def plan_active_subtitles(
 
 def generate_from_active_timeline(
     track_index: int = 1,
+    track_type: str = "subtitle",
     theme_name: str = "ely",
     profile_name: str = "natural",
     enable_sfx: bool = True,
@@ -302,9 +371,15 @@ def generate_from_active_timeline(
     original_script: str = "",
     glossary: dict[str, str] | None = None,
     api_key: str | None = None,
+    model_name: str | None = None,
     use_ai_correction: bool = False,
+    animation_preset: str | None = None,
     insert_markers: bool = False,
     srt_path: str | Path | None = None,
+    template_preset_name: str | None = None,
+    layer_presets: dict[str, str] | None = None,
+    assets_directory: str | Path | None = None,
+    enable_brolls: bool = False,
     progress_callback: Callable[[int, int, str], None] | None = None,
     is_cancelled: Callable[[], bool] | None = None,
 ) -> GenerationExecutionRecord:
@@ -314,47 +389,107 @@ def generate_from_active_timeline(
     if session is not None:
         plan, correction_res = plan_active_subtitles(
             track_index=track_index,
+            track_type=track_type,
             theme_name=theme_name,
             profile_name=profile_name,
             enable_sfx=enable_sfx,
             original_script=original_script,
             glossary=glossary,
             api_key=api_key,
+            model_name=model_name,
             use_ai_correction=use_ai_correction,
+            animation_preset=animation_preset,
             srt_path=srt_path,
             resolve_session=session,
         )
     else:
         plan, correction_res = plan_active_subtitles(
             track_index=track_index,
+            track_type=track_type,
             theme_name=theme_name,
             profile_name=profile_name,
             enable_sfx=enable_sfx,
             original_script=original_script,
             glossary=glossary,
             api_key=api_key,
+            model_name=model_name,
             use_ai_correction=use_ai_correction,
+            animation_preset=animation_preset,
             srt_path=srt_path,
         )
 
-    if insert_markers and correction_res and correction_res.markers and not dry_run:
+    if insert_markers and correction_res and correction_res.markers and not dry_run and session is not None:
         marker_writer = ResolveMarkerWriter(session.timeline)
         marker_writer.apply_markers(correction_res.markers)
 
+    broll_proposals: list[Any] = []
+    if enable_brolls and assets_directory:
+        broll_proposals = propose_brolls_for_plan(
+            plan=plan,
+            assets_directory=assets_directory,
+            api_key=api_key,
+            model_name=model_name,
+            use_ai=use_ai_correction,
+        )
+
+    matched_template_item: Any | None = None
+    matched_layer_templates: dict[str, Any] = {}
     if session is None:
         writer = ResolveTimelineWriter(_HeadlessTimeline())
     else:
         media_pool = session.project.GetMediaPool()
         writer = ResolveTimelineWriter(session.timeline, media_pool=media_pool)
+        if template_preset_name or layer_presets:
+            presets = scan_davinciflow_presets(media_pool)
+            preset_map: dict[str, Any] = {}
+            for p in presets:
+                preset_map[p.name] = p.media_item
+                preset_map[p.bin_path] = p.media_item
+                preset_map[p.display_label] = p.media_item
+
+            if template_preset_name and template_preset_name in preset_map:
+                matched_template_item = preset_map[template_preset_name]
+
+            if layer_presets:
+                for role_key, p_name in layer_presets.items():
+                    if p_name and p_name in preset_map:
+                        matched_layer_templates[role_key] = preset_map[p_name]
+
     record = writer.apply_plan(
         plan,
         dry_run=dry_run,
         progress_callback=progress_callback,
         is_cancelled=is_cancelled,
+        template_media_item=matched_template_item,
+        layer_templates=matched_layer_templates if matched_layer_templates else None,
+        broll_proposals=broll_proposals if broll_proposals else None,
     )
     if not dry_run:
         record.save_to_file(_last_execution_record_path())
     return record
+
+
+def scan_user_assets(directory_path: str | Path) -> AssetCollection:
+    """Escanea la carpeta de assets/B-rolls del usuario."""
+    return scan_assets_directory(directory_path)
+
+
+def propose_brolls_for_plan(
+    plan: GenerationPlan,
+    assets_directory: str | Path | None = None,
+    api_key: str | None = None,
+    model_name: str | None = None,
+    use_ai: bool = True,
+) -> list[BRollProposal]:
+    """Genera propuestas de B-Rolls y efectos de sonido contextuales para el plan."""
+    if not assets_directory:
+        return []
+    collection = scan_assets_directory(assets_directory)
+    if collection.total_count == 0:
+        return []
+    if use_ai:
+        return match_brolls_with_ai(plan.blocks, collection, api_key=api_key, model_name=model_name or "gemini-2.5-flash")
+    return match_brolls_heuristic(plan.blocks, collection)
 
 
 def reconcile_active_timeline(

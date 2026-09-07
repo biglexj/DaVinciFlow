@@ -17,6 +17,20 @@ Registro histórico de cambios y versiones de **DaVinci Flow**.
 
 ---
 
+## [0.2.0] - 2026-09-06
+
+### Resumen
+Lanzamiento de **DaVinci Flow v0.2.0**, una importante evolución que expande la suite hacia un entorno integral de ritmo audiovisual, subtítulos dinámicos y edición editorial para **DaVinci Resolve 21**. Esta versión introduce el nuevo **Editor Editorial con Inteligencia Artificial (Gemini)**, un motor avanzado de **Animaciones Fusion Paramétricas**, síntesis procedural de **Efectos de Sonido (SFX)** con detección de silencios, asistente contextual para inserción de **B-Rolls** y codificación cromática estandarizada de **Marcadores en la Línea de Tiempo**.
+
+### Detalles
+- **Editor Editorial Unificado y Énfasis Selectivo con Gemini**: Nueva interfaz gráfica modular (con soporte para sesión directa en DaVinci Resolve o trabajo sin conexión con archivos SRT) para la toma de decisiones tipográficas asistidas por IA. Utilizando modelos Google Gemini, el sistema analiza semánticamente el ritmo de la narración para distribuir los textos en tres capas complementarias (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`) o reservar silencios visuales estratégicos que potencian la retención de la audiencia.
+- **Motor de Plantillas Fusion y Animaciones Paramétricas**: Compatibilidad completa con composiciones `.setting`, `.comp` y paquetes `.drfx` del sistema o del Media Pool. Incorpora curvas de interpolación Bézier (`pop_bounce`, `slide_up`, `fade_smooth`, `kinetic_pulse`, `typewriter`) y mapeo granular de nodos y controles de texto, preservando la estética y los recursos originales de cada plantilla sin alterar la estructura nativa.
+- **Generación Procedural de SFX y Detección de Pausas**: Motor de audio procedural integrado con 8 efectos esenciales (*whoosh*, *pop*, *bell*, *click*, *riser*, *glitch*, *thud*, *chime*) sin dependencias externas pesadas. El sistema identifica automáticamente brechas temporales y silencios de voz en el montaje para insertar efectos de transición coordinados en la pista de audio `DF_SFX`.
+- **Asistente Contextual de B-Rolls y Assets Multimedia**: Subsistema de catalogación recursiva y emparejamiento semántico que escanea carpetas locales de recursos audiovisuales para proponer e insertar clips de soporte visual en la pista `DF_BROLL` del timeline, sincronizados contextualmente con las temáticas abordadas en el guion.
+- **Marcadores Cromáticos Estandarizados y Gestión Resiliente**: Organización visual de la línea de tiempo mediante códigos de color unificados para identificar capítulos, ideas clave, efectos de sonido, preguntas retóricas y notas editoriales. Se incorpora un sistema de registro de ejecuciones por secuencia que garantiza la reversión atómica de cambios y la prevención total de elementos duplicados.
+
+---
+
 ## [0.1.0] - 2026-08-21
 
 ### Resumen

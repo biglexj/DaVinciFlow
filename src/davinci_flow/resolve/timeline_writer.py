@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from davinci_flow.errors import TimelineWriteError
-from davinci_flow.generation.carrier_media import write_black_uncompressed_avi
 from davinci_flow.generation.fusion_template import generate_textplus_fusion_setting
+from davinci_flow.generation.carrier_media import write_black_uncompressed_avi
 from davinci_flow.generation.plan import GenerationPlan
 from davinci_flow.generation.record import GenerationExecutionRecord, GenerationItemRecord
 from davinci_flow.resolve.track_manager import ResolveTrackManager
@@ -19,7 +19,12 @@ from davinci_flow.sfx.assets import ensure_builtin_sfx_assets
 from davinci_flow.sfx.catalog import SFXCatalog
 from davinci_flow.themes.tokens import ThemeTokens, get_theme
 
-_CARRIER_MEDIA_PREFIX = "DF_FUSION_CARRIER_V2"
+_CARRIER_MEDIA_NAME = "DF_Fusion_Title.png"
+_TRANSPARENT_PNG_BYTES = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06"
+    b"\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\x00\x00\x03"
+    b"\x01\x01\x00\x18\xdd\x8d\xb0\x00\x00\x00\x00IEND\xaeB`\x82"
+)
 
 
 class ResolveTimelineWriter:
@@ -53,6 +58,9 @@ class ResolveTimelineWriter:
         dry_run: bool = False,
         progress_callback: Callable[[int, int, str], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        template_media_item: Any | None = None,
+        layer_templates: dict[str, Any] | None = None,
+        broll_proposals: Sequence[Any] | None = None,
     ) -> GenerationExecutionRecord:
         """Genera clips reales o una previsualización que nunca se marca como aplicada."""
         theme = get_theme(plan.theme_name)
@@ -116,6 +124,10 @@ class ResolveTimelineWriter:
                         anim_preset = block.style_preset or self._resolve_default_animation(
                             plan.profile_name, role
                         )
+                        role_template = (
+                            (layer_templates.get(role) if layer_templates else None)
+                            or template_media_item
+                        )
                         native_item = self._find_timeline_item("video", track_index, native_name)
                         if native_item is None:
                             native_item = self._insert_fusion_title(
@@ -128,6 +140,7 @@ class ResolveTimelineWriter:
                                 fps=plan.fps,
                                 native_name=native_name,
                                 animation_preset=anim_preset,
+                                template_media_item=role_template,
                             )
                             inserted_native_items.append(native_item)
                         else:
@@ -160,7 +173,7 @@ class ResolveTimelineWriter:
                     item_id = f"item_{plan.plan_id}_b{block_index}_sfx"
                     track_index = track_indices["DF_SFX"]
                     descriptor = self.sfx_catalog.get(block.sfx_proposal)
-                    duration_frames = max(1.0, descriptor.duration_seconds * plan.fps)
+                    duration_frames = max(1.0, float(round(descriptor.duration_seconds * plan.fps)))
                     native_item = None
                     if not dry_run:
                         native_name = self._native_name(execution_id, item_id)
@@ -199,6 +212,46 @@ class ResolveTimelineWriter:
                             created_at=now_str,
                         )
                     )
+
+            # Inserción de B-Rolls y recursos de apoyo
+            if broll_proposals:
+                for p_idx, proposal in enumerate(broll_proposals, start=1):
+                    item_id = f"item_{plan.plan_id}_broll_{p_idx}"
+                    track_name = getattr(proposal, "target_track", "DF_BROLL")
+                    track_type = "video" if track_name != "DF_SFX" else "audio"
+                    track_index = track_indices.get(track_name, 1)
+                    duration_frames = max(1, int(round(proposal.end_frame - proposal.start_frame)))
+                    native_item = None
+                    if not dry_run:
+                        native_name = self._native_name(execution_id, item_id)
+                        native_item = self._find_timeline_item(track_type, track_index, native_name)
+                        if native_item is None:
+                            native_item = self._insert_broll_clip(
+                                file_path=proposal.asset.file_path,
+                                track_index=track_index,
+                                start_frame=proposal.start_frame,
+                                end_frame=proposal.end_frame,
+                                native_name=native_name,
+                            )
+                            inserted_native_items.append(native_item)
+
+                    items.append(
+                        GenerationItemRecord(
+                            item_id=item_id,
+                            block_id=f"broll_{proposal.block_index}",
+                            role="broll",
+                            track_type=track_type,
+                            track_index=track_index,
+                            track_name=track_name,
+                            start_frame=proposal.start_frame,
+                            end_frame=proposal.end_frame,
+                            content_text=proposal.asset.name,
+                            status="planned" if dry_run else "applied",
+                            native_item_id=self._get_native_id(native_item),
+                            created_at=now_str,
+                        )
+                    )
+
         except Exception as error:
             if inserted_native_items:
                 self._delete_items(inserted_native_items)
@@ -270,7 +323,7 @@ class ResolveTimelineWriter:
         """Elimina todos los clips de pistas DF; se conserva como limpieza global explícita."""
         collected: list[Any] = []
         for track_type, allowed_names in (
-            ("video", {"DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_VISUAL_FX"}),
+            ("video", {"DF_BROLL", "DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_VISUAL_FX"}),
             ("audio", {"DF_SFX"}),
         ):
             for index in range(1, self.track_manager._safe_get_track_count(track_type) + 1):
@@ -281,6 +334,43 @@ class ResolveTimelineWriter:
         if collected:
             self._delete_items(collected, require_success=True)
         return len(collected)
+
+    def _insert_broll_clip(
+        self,
+        file_path: str,
+        track_index: int,
+        start_frame: float,
+        end_frame: float,
+        native_name: str,
+    ) -> Any:
+        """Inserta un clip de B-Roll en la pista DF_BROLL recortado a la duración del bloque."""
+        duration_frames = max(1, int(round(end_frame - start_frame)))
+        media_item = self._find_or_import_media(file_path)
+        broll_item = self._append_media_item(
+            media_item=media_item,
+            media_type=1,
+            track_type="video",
+            track_index=track_index,
+            record_frame=self._resolve_record_frame(start_frame),
+            duration_frames=duration_frames,
+        )
+        self._set_native_name(broll_item, native_name)
+        return broll_item
+
+    def _find_or_import_media(self, file_path: str) -> Any:
+        """Encuentra o importa el archivo multimedia en el Media Pool."""
+        if self.media_pool is None:
+            return self._get_carrier_media_item(self._plan_carrier_frames)
+
+        import_fn = getattr(self.media_pool, "ImportMedia", None)
+        if callable(import_fn):
+            try:
+                imported = import_fn([file_path])
+                if imported:
+                    return imported[0]
+            except Exception:
+                pass
+        return self._get_carrier_media_item(self._plan_carrier_frames)
 
     @staticmethod
     def _resolve_default_animation(profile_name: str, role: str) -> str:
@@ -315,10 +405,15 @@ class ResolveTimelineWriter:
         fps: float,
         native_name: str,
         animation_preset: str = "none",
+        template_media_item: Any | None = None,
     ) -> Any:
-        """Añade un soporte transparente exacto e importa una composición Fusion propia con animación."""
+        """Añade un soporte transparente o usa una plantilla Text+ del Media Pool e inyecta el texto."""
         duration_frames = max(1, int(round(end_frame - start_frame)))
-        media_item = self._get_carrier_media_item(self._plan_carrier_frames, fps=fps)
+        if template_media_item is not None:
+            media_item = template_media_item
+        else:
+            media_item = self._get_carrier_media_item(self._plan_carrier_frames, fps=fps)
+
         title_item = self._append_media_item(
             media_item=media_item,
             media_type=1,
@@ -328,6 +423,31 @@ class ResolveTimelineWriter:
             duration_frames=duration_frames,
         )
         self._set_native_name(title_item, native_name)
+
+        if template_media_item is not None:
+            # Actualizar el texto dentro de la composición Fusion de la plantilla existente
+            get_comp = getattr(title_item, "GetFusionCompByIndex", None)
+            if callable(get_comp):
+                try:
+                    comp = get_comp(1)
+                    if comp is not None:
+                        tool = getattr(comp, "FindTool", lambda _: None)("Text1") or getattr(comp, "FindTool", lambda _: None)("Template")
+                        if tool is None and hasattr(comp, "GetToolList"):
+                            for t in (comp.GetToolList() or {}).values():
+                                get_attrs = getattr(t, "GetAttrs", None)
+                                reg_id = get_attrs("TOOLS_RegID") if callable(get_attrs) else ""
+                                if reg_id in ("TextPlus", "Fuse.TextPlus"):
+                                    tool = t
+                                    break
+                        if tool is not None:
+                            set_inp = getattr(tool, "SetInput", None)
+                            if callable(set_inp):
+                                set_inp("StyledText", text)
+                            else:
+                                tool.StyledText = text
+                except Exception:
+                    pass
+            return title_item
 
         self.temp_root.mkdir(parents=True, exist_ok=True)
         comp_path = self.temp_root / f"{native_name.replace(':', '_')}.comp"
@@ -399,10 +519,11 @@ class ResolveTimelineWriter:
         if not callable(append):
             raise TimelineWriteError("El Media Pool no expone AppendToTimeline().")
 
+        target_duration = max(1, int(round(duration_frames)))
         clip_info = {
             "mediaPoolItem": media_item,
             "startFrame": 0,
-            "endFrame": float(duration_frames),
+            "endFrame": float(target_duration),
             "mediaType": media_type,
             "trackIndex": int(track_index),
             "recordFrame": int(record_frame),
@@ -420,7 +541,7 @@ class ResolveTimelineWriter:
                 track_type=track_type,
                 track_index=track_index,
                 record_frame=record_frame,
-                duration_frames=duration_frames,
+                duration_frames=target_duration,
             )
         except Exception:
             self._delete_items([item])
@@ -444,35 +565,50 @@ class ResolveTimelineWriter:
                 )
 
         actual_start = self._numeric_item_call(item, "GetStart")
-        if actual_start is not None and abs(actual_start - record_frame) > 0.01:
+        if actual_start is not None and abs(actual_start - record_frame) > 1.01:
             raise TimelineWriteError(
                 f"Resolve insertó el clip en el fotograma {actual_start:g}; se esperaba {record_frame}."
             )
 
+        expected_duration = max(1, int(round(duration_frames)))
         actual_duration = self._numeric_item_call(item, "GetDuration")
-        if actual_duration is not None and abs(actual_duration - duration_frames) > 0.11:
-            raise TimelineWriteError(
-                f"Resolve creó una duración de {actual_duration:g} fotogramas; se esperaban {duration_frames}."
-            )
+        if actual_duration is not None:
+            if track_type == "audio" and abs(actual_duration - expected_duration) > 1.01:
+                raise TimelineWriteError(
+                    f"Resolve creó una duración de audio de {actual_duration:g} fotogramas; se esperaban {expected_duration}."
+                )
+            elif track_type == "video" and abs(actual_duration - expected_duration) > 0.01:
+                raise TimelineWriteError(
+                    f"Resolve creó una duración de vídeo de {actual_duration:g} fotogramas; se esperaban {expected_duration}."
+                )
 
-    def _get_carrier_media_item(self, minimum_frames: int, fps: float) -> Any:
-        fps_label = str(fps).replace(".", "_")
-        media_name = f"{_CARRIER_MEDIA_PREFIX}_{fps_label}_{minimum_frames}.avi"
-        cached = self._carrier_media_items.get(media_name)
+    def _get_carrier_media_item(self, minimum_frames: int = 1, fps: float = 24.0) -> Any:
+        carrier_name = f"DF_Carrier_{minimum_frames}_{fps:g}.avi"
+        cached = self._carrier_media_items.get(carrier_name)
         if cached is not None:
             return cached
+
         media_pool = self._require_media_pool()
         root_folder = self._safe_call(media_pool, "GetRootFolder")
-        existing = self._find_media_pool_item(root_folder, media_name)
+        existing = self._find_media_pool_item(root_folder, carrier_name)
         if existing is not None:
-            self._carrier_media_items[media_name] = existing
+            self._carrier_media_items[carrier_name] = existing
             return existing
 
         self.temp_root.mkdir(parents=True, exist_ok=True)
-        carrier_path = self.temp_root / media_name
-        write_black_uncompressed_avi(carrier_path, frame_count=minimum_frames + 1, fps=fps)
+        carrier_path = self.temp_root / carrier_name
+        if not carrier_path.is_file():
+            write_black_uncompressed_avi(carrier_path, frame_count=max(1, minimum_frames), fps=fps)
+
         media_item = self._import_media(carrier_path)
-        self._carrier_media_items[media_name] = media_item
+        folder_name = "DaVinciFlow - Recursos generados"
+        folders = self._safe_call(root_folder, "GetSubFolderList") or []
+        folder = next((f for f in self._iter_values(folders) if self._safe_call(f, "GetName") == folder_name), None)
+        if folder is None:
+            folder = media_pool.AddSubFolder(root_folder, folder_name)
+        if folder is not None:
+            media_pool.MoveClips([media_item], folder)
+        self._carrier_media_items[carrier_name] = media_item
         return media_item
 
     def _import_media(self, path: Path) -> Any:

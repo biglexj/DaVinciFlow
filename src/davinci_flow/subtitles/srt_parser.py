@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 from davinci_flow.errors import DaVinciFlowError
 from davinci_flow.subtitles.model import SubtitleCue
@@ -118,3 +118,54 @@ def load_srt_file(filepath: str | Path, fps: float = 24.0, track_index: int = 1)
         content = p.read_text(encoding="latin-1")
 
     return parse_srt_content(content, fps=fps, track_index=track_index)
+
+
+def export_cues_to_srt_content(cues: Sequence[SubtitleCue], fps: float = 24.0) -> str:
+    """Convierte una tupla de SubtitleCue a una cadena en formato SRT estándar."""
+    lines: list[str] = []
+    for idx, cue in enumerate(cues, start=1):
+        start_tc = frames_to_srt_timecode(cue.start_frame, fps=fps)
+        end_tc = frames_to_srt_timecode(cue.end_frame, fps=fps)
+        lines.append(str(idx))
+        lines.append(f"{start_tc} --> {end_tc}")
+        lines.append(cue.text.strip())
+        lines.append("")
+    return "\n".join(lines)
+
+
+def export_blocks_to_srt_content(blocks: Sequence[Any], fps: float = 24.0, combine_layers: bool = True) -> str:
+    """Convierte una secuencia de CaptionBlock a una cadena en formato SRT estándar."""
+    lines: list[str] = []
+    for idx, block in enumerate(blocks, start=1):
+        if hasattr(block, "is_enabled") and not block.is_enabled:
+            continue
+        start_tc = frames_to_srt_timecode(block.start_frame, fps=fps)
+        end_tc = frames_to_srt_timecode(block.end_frame, fps=fps)
+        if combine_layers and hasattr(block, "reconstructed_text"):
+            text = block.reconstructed_text
+        elif hasattr(block, "main_text"):
+            text = block.main_text
+        else:
+            text = getattr(block, "text", "")
+        lines.append(str(idx))
+        lines.append(f"{start_tc} --> {end_tc}")
+        lines.append(str(text).strip())
+        lines.append("")
+    return "\n".join(lines)
+
+
+def export_srt_file(
+    items: Sequence[Any],
+    filepath: str | Path,
+    fps: float = 24.0,
+    combine_layers: bool = True,
+) -> Path:
+    """Exporta subtítulos o bloques clasificados a un archivo .SRT en disco."""
+    p = Path(filepath)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if items and hasattr(items[0], "main_text"):
+        content = export_blocks_to_srt_content(items, fps=fps, combine_layers=combine_layers)
+    else:
+        content = export_cues_to_srt_content(items, fps=fps)
+    p.write_text(content, encoding="utf-8")
+    return p

@@ -1,36 +1,15 @@
 # Modelos de IA de DaVinci Flow
 
-- Estado: operativo
-- Última actualización: 2026-08-17
-- Fuente de configuración: `src/davinci_flow/ai/client.py`
+Última actualización: 2026-09-06. Los identificadores de este registro describen el código local y las llamadas observadas; no garantizan disponibilidad futura del proveedor.
 
-Este archivo registra los modelos activos utilizados en DaVinci Flow para la alineación contextual contra guiones originales, corrección editorial de subtítulos y detección de marcadores en la línea de tiempo. No contiene claves, tokens ni valores privados.
+| Función | Modelo configurado | Evidencia |
+|---|---|---|
+| Propuesta editorial revisable | `gemini-3.5-flash`, editable en el campo Modelo exacto | Llamadas reales satisfactorias el 6 de septiembre: frase sintética, primeros dos subtítulos y muestra del proyecto Crear proyecto 1. Un intento inicial devolvió HTTP 503. |
+| Cliente común | `DEFAULT_MODEL` en `src/davinci_flow/ai/client.py` | Comparte el valor anterior; los modos históricos pueden intentar modelos alternativos. |
+| Alineador y CLI históricos | Consultar sus valores en `ai/aligner.py` y `__main__.py` | Sus valores propios no quedan validados por la prueba del editor. |
 
-## Registro activo
+El editor crea GeminiClient con `strict_model=True`: un error no cambia el modelo ni sustituye la LLM por análisis local. Aplicar una revisión guardada no hace otra llamada de IA.
 
-| Función | Proveedor | Identificador exacto | Estado | Verificado | Alternativa | Fuente de verdad |
-|---|---|---|---|---|---|---|
-| Alineación de guion, corrección de subtítulos y marcadores | Google DeepMind / Google AI | `gemini-2.5-flash` | `ACTIVE` | 2026-08-17 | `gemini-1.5-flash` | `src/davinci_flow/ai/client.py` |
-| Análisis semántico avanzado / Razonamiento profundo | Google DeepMind / Google AI | `gemini-2.5-pro` | `EVALUATION` | 2026-08-17 | `gemini-2.5-flash` | `src/davinci_flow/ai/client.py` |
+Las peticiones editoriales envían texto de subtítulos, tiempos, contexto vecino, cortes y nombres/IDs de las plantillas seleccionadas. No envían vídeo, audio, archivos Fusion, rutas del catálogo ni la clave dentro del JSON persistido. La credencial se transmite en la cabecera de autenticación. No se afirma gratuidad, una latencia garantizada ni ausencia de retención por el proveedor.
 
-## Requisitos por función
-
-### 1. Alineación de guion y corrección de subtítulos
-- **Calidad esperada**: Detección de discrepancias entre el audio transcrito por DaVinci Resolve y el texto de guion, corrección de erratas, homófonos, palabras mal reconocidas y marcas registradas.
-- **Latencia**: Baja (< 2.5 segundos para bloques de 100 subtítulos).
-- **Coste**: Nivel gratuito / Ultra bajo consumo de tokens.
-- **Modalidad y herramientas**: Salida JSON estructurada mediante `response_mime_type: "application/json"`.
-- **Privacidad**: Sin persistencia de datos privados en servidores externos de terceros; peticiones directas vía HTTPS cifrado.
-
-### 2. Detección de marcadores en línea de tiempo
-- **Calidad esperada**: Identificación de momentos de énfasis, inicio de capítulos, menciones de marcas y conclusiones.
-- **Salida**: Asignación de colores estándar de DaVinci Resolve (`Cyan`, `Yellow`, `Pink`, `Green`, `Purple`) con notas explicativas.
-
-## Comprobación
-
-- Validado mediante suite de pruebas unitarias simuladas en `tests/test_gemini_client.py` y `tests/test_script_aligner.py`.
-- Enlazado con el proceso activo `process/active/2026-08-17_integracion-gemini-guion-y-marcadores/`.
-
-## Historial de cambios
-
-- **2026-08-17**: Incorporación inicial de `gemini-2.5-flash` para alineación de guion, corrección de subtítulos y marcadores automáticos en DaVinci Resolve.
+La propuesta registra el modelo y las decisiones originales. Las revisiones manuales quedan persistidas. Evidencia y límites: `process/active/2026-09-06_fase-1_textos-llm-y-plantillas/VALIDATION.md`.

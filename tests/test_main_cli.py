@@ -71,6 +71,7 @@ class MainCliTests(unittest.TestCase):
             original_script="",
             glossary={},
             api_key=None,
+            model_name="gemini-3.6-flash",
             use_ai_correction=False,
             srt_path=None,
         )
@@ -98,6 +99,7 @@ class MainCliTests(unittest.TestCase):
             original_script="",
             glossary={},
             api_key=None,
+            model_name="gemini-3.6-flash",
             use_ai_correction=True,
             insert_markers=True,
             srt_path=None,
@@ -141,6 +143,7 @@ class MainCliTests(unittest.TestCase):
             original_script="Guion de prueba",
             glossary={"marca": "MiMarca"},
             api_key="clave123",
+            model_name="gemini-3.6-flash",
             use_ai_correction=True,
             srt_path=None,
         )
