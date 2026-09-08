@@ -17,6 +17,18 @@ Registro histórico de cambios y versiones de **DaVinci Flow**.
 
 ---
 
+## [0.3.0] - 2026-09-07
+
+### Resumen
+Lanzamiento de **DaVinci Flow v0.3.0**, una importante actualización arquitectónica que refactoriza y desacopla integralmente la aplicación bajo los principios de **Screaming Architecture** y el patrón de dos raíces inspirado en **Tauri**. Esta versión separa de forma limpia el motor de automatización de **DaVinci Resolve 21** de la interfaz gráfica moderna en **Flet**, consolidando la ejecución en un único entorno de alto rendimiento basado en **CPython 3.13** de 64 bits gestionado por **uv**.
+
+### Detalles
+- **Reestructuración Arquitectónica Desacoplada (Patrón Tauri & Screaming Architecture)**: Se divide el proyecto en dos raíces maestras complementarias: un backend puro y sin dependencias gráficas (`src/davinci_flow/`) que concentra toda la lógica de conexión con Resolve, generación Fusion, IA y audio; y un frontend autónomo (`src-flet/`) organizado por dominios claros de usuario (`features/editor`, `features/catalog`, `features/library`, `features/settings`), con componentes reutilizables en `shared/` y shell de ventana en `app/`.
+- **Consolidación del Entorno en CPython 3.13 con uv**: Unificación definitiva de todas las dependencias en un único entorno virtual oficial de 64 bits (`.venv`). Se elimina por completo la fragmentación de intérpretes paralelos y dependencias alternas de PyPy, permitiendo que la interfaz moderna de Flet y las llamadas nativas a la API de DaVinci Resolve 21 convivan de forma directa, rápida y estable sin penalizaciones de rendimiento.
+- **Lanzador No Bloqueante para DaVinci Resolve y Scripts de Inicio**: Optimización del puente de arranque (`desktop_launcher`) y del script de integración en el menú oficial de DaVinci Resolve (*Área de trabajo → Secuencias de comandos → DaVinci Flow*). La interfaz gráfica se ejecuta como un proceso independiente en segundo plano sin bloquear ni congelar el espacio de trabajo del editor en Resolve, complementado con scripts directos en PowerShell para ejecución rápida desde la terminal.
+
+---
+
 ## [0.2.0] - 2026-09-06
 
 ### Resumen

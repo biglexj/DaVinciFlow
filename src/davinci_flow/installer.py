@@ -53,12 +53,9 @@ try:
     current_fusion = globals().get("fusion") or globals().get("fu") or getattr(__builtins__, "fusion", None) or getattr(__builtins__, "fu", None)
     current_bmd = globals().get("bmd") or getattr(__builtins__, "bmd", None)
 
-    from davinci_flow.ui import open_davinci_flow_ui
-    open_davinci_flow_ui(
-        resolve_app=current_resolve,
-        fusion_app=current_fusion,
-        bmd_module=current_bmd,
-    )
+    # Importar la entrada externa directamente evita reutilizar una UI Tk en caché.
+    from davinci_flow.ui.desktop_launcher import launch_desktop as open_davinci_flow_ui
+    open_davinci_flow_ui()
 except Exception as err:
     log_file = Path.home() / ".davinci_flow_error.log"
     with open(log_file, "a", encoding="utf-8") as f:

@@ -4,7 +4,6 @@ from dataclasses import replace
 import json
 from pathlib import Path
 import tempfile
-import tkinter as tk
 import unittest
 from unittest.mock import Mock, patch
 
@@ -113,34 +112,12 @@ class LibraryTests(unittest.TestCase):
                 Preferences.load(path)
 
 
-class WorkbenchTests(unittest.TestCase):
-    def test_tabs_shared_model_and_catalog_do_not_spawn_windows(self):
-        from davinci_flow.ui.workbench_window import Workbench
-        with tempfile.TemporaryDirectory() as tmp, patch('davinci_flow.resolve.connect_to_resolve') as connect:
-            root = tk.Tk()
-            root.withdraw()
-            try:
-                path = Path(tmp) / 'preferences.json'
-                app = Workbench(root, path)
-                root._davinci_workbench = app
-                self.assertEqual(len(app.tabs.tabs()), 4)
-                app.model.set('gemini-3.8-flash')
-                self.assertEqual(app.editor.model.get(), 'gemini-3.8-flash')
-                app.editor.configure_catalog()
-                self.assertEqual(app.tabs.select(), str(app.pages['Plantillas']))
-                self.assertFalse(any(isinstance(child, tk.Toplevel) for child in root.winfo_children()))
-                app.library.paths['visuals'].set(tmp)
-                app.save_preferences()
-                self.assertEqual(Preferences.load(path).paths['visuals'], tmp)
-                self.assertEqual(Preferences.load(path).model, 'gemini-3.8-flash')
-                connect.assert_not_called()
-            finally:
-                root.destroy()
-
-    def test_native_entry_opens_workbench_without_connecting(self):
-        from davinci_flow.ui.uimanager_window import open_davinci_flow_ui
-        with patch('davinci_flow.ui.tkinter_window.create_tkinter_window') as open_ui, \
+class EntryPointTests(unittest.TestCase):
+    def test_native_entry_opens_desktop_without_connecting(self):
+        from davinci_flow.ui import open_davinci_flow_ui
+        with patch('davinci_flow.ui.desktop_launcher.launch_desktop') as open_ui, \
              patch('davinci_flow.resolve.connect_to_resolve') as connect:
             open_davinci_flow_ui()
             open_ui.assert_called_once_with()
             connect.assert_not_called()
+

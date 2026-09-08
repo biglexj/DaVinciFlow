@@ -4,13 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "davinci-flow"
-version = "0.2.0"
+version = "0.3.0"
 description = "Automatización modular de subtítulos y edición para DaVinci Resolve."
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.11,<3.14"
 license = { text = "MIT" }
 authors = [{ name = "biglexj" }]
-dependencies = []
+dependencies = [
+    "flet[desktop]==0.86.5",
+]
 
 [project.scripts]
 davinci-flow = "davinci_flow.__main__:main"

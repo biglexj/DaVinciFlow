@@ -29,6 +29,7 @@ def _parser() -> argparse.ArgumentParser:
         description="DaVinci Flow — Automatización de subtítulos dinámicos multicapa, guion y SFX.",
     )
     parser.add_argument("--editorial-ui", action="store_true", help="Abre el editor LLM sin conectar con Resolve.")
+    parser.add_argument("--flet-ui", action="store_true", help="Abre el espacio de trabajo Flet.")
     parser.add_argument("--track", type=int, default=1, help="Índice de pista, comenzando en 1.")
     parser.add_argument(
         "--limit",
@@ -181,9 +182,8 @@ def print_about() -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.editorial_ui:
-        from davinci_flow.ui.editorial_window import open_editorial_window
-        open_editorial_window()
+    if args.flet_ui or args.editorial_ui or args.ui:
+        open_davinci_flow_ui()
         return 0
 
     if args.about:
@@ -194,7 +194,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         launcher_path = install_resolve_launcher()
         print(f"✅ ¡DaVinci Flow instalado con éxito en DaVinci Resolve!")
         print(f"📁 Ubicación del lanzador: {launcher_path}")
-        print("💡 Para abrir la pestaña interna:")
+        print("💡 Para abrir la ventana Flet:")
         print("   1. Abre DaVinci Resolve.")
         print("   2. En la barra superior, ve a: Espacio de trabajo -> Scripts -> DaVinci Flow")
         return 0

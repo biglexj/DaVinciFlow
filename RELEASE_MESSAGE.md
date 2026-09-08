@@ -1,48 +1,44 @@
-# 🎬 ¡Lanzamiento de DaVinci Flow v0.2.0!
+# 🎬 ¡Lanzamiento de DaVinci Flow v0.3.0!
 
-Nos complace presentar **DaVinci Flow v0.2.0**, una importante evolución diseñada para transformar el ritmo audiovisual, la tipografía y la postproducción en **DaVinci Resolve 21** con flujos editoriales impulsados por IA y generación procedural.
+Nos complace presentar **DaVinci Flow v0.3.0**, una gran evolución arquitectónica que reestructura por completo la suite bajo los principios de **Screaming Architecture** y el patrón desacoplado tipo **Tauri**, optimizando la automatización audiovisual en **DaVinci Resolve 21**.
 
 ---
 
-### ✨ ¿Qué hay de nuevo en la v0.2.0?
-**DaVinci Flow v0.2.0** expande las capacidades del flujo de trabajo multicapa, integrando un editor de decisiones tipográficas asistido por Google Gemini, animaciones Fusion avanzadas, efectos sonoros automáticos en pausas y gestión inteligente de B-Rolls.
+### ✨ ¿Qué hay de nuevo en la v0.3.0?
+**DaVinci Flow v0.3.0** separa nítidamente el motor de automatización de la interfaz gráfica moderna en **Flet**, consolidando la ejecución en un único entorno de alto rendimiento basado en **CPython 3.13** de 64 bits gestionado por **uv**.
 
 ---
 
 ### 🚀 Novedades Destacadas
 
-1. **🧠 Editor Editorial con Gemini IA & Énfasis Selectivo**:
-   - Análisis contextual que distribuye textos en tres capas complementarias (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`) o deja silencios visuales estratégicos para potenciar el mensaje.
-   - Modo de trabajo híbrido: compatible tanto con sesiones directas en DaVinci Resolve como con previsualización sin conexión mediante archivos SRT.
+1. **🏛️ Reestructuración Desacoplada (Patrón Tauri & Screaming Architecture)**:
+   - Separación en dos raíces complementarias: un motor core headless (`src/davinci_flow/`) puro y comprobable, y una interfaz gráfica moderna (`src-flet/`) estructurada por dominios de usuario (`features/editor`, `features/catalog`, `features/library`, `features/settings`).
 
-2. **✨ Animaciones Fusion Paramétricas**:
-   - Soporte integral de composiciones `.setting`, `.comp` y paquetes `.drfx` del sistema o del Media Pool.
-   - Curvas de interpolación Bézier nativas: `pop_bounce`, `slide_up`, `fade_smooth`, `kinetic_pulse` y `typewriter`.
+2. **⚡ Consolidación de Entorno Único con uv en CPython 3.13**:
+   - Unificación de dependencias en un solo `.venv` oficial de 64 bits.
+   - Eliminación total de fragmentaciones de intérpretes, logrando que la interfaz Flet y la API de DaVinci Resolve convivan de forma directa, rápida y estable.
 
-3. **🔊 Efectos de Sonido (SFX) Procedurales en Silencios**:
-   - Detección automática de pausas temporales entre subtítulos para insertar acentos sonoros en la pista `DF_SFX`.
-   - 8 efectos procedurales generados en tiempo real sin dependencias pesadas (*whoosh*, *pop*, *bell*, *click*, *riser*, *glitch*, *thud*, *chime*).
+3. **🔄 Lanzador No Bloqueante en DaVinci Resolve**:
+   - Apertura fluida como proceso independiente desde **Área de trabajo → Secuencias de comandos → DaVinci Flow**, manteniendo el espacio de trabajo de DaVinci Resolve 100% responsivo sin congelamientos.
 
-4. **🎞️ Asistente Contextual de B-Rolls**:
-   - Catalogador recursivo de recursos multimedia con emparejamiento semántico para sugerir e insertar clips de apoyo en la pista `DF_BROLL`.
-
-5. **🎯 Marcadores Cromáticos Estandarizados**:
-   - Organización visual de la línea de tiempo con colores universales (Capítulos, Claves, SFX, Preguntas, Correcciones y CTA) y reversión atómica limpia.
+4. **🧪 Calidad y Robustez Verificada**:
+   - 180 pruebas unitarias automatizadas superadas con éxito y scripts de lanzamiento directo (`scripts/start-desktop.ps1`).
 
 ---
 
 ### 📦 Instalación y Uso Rápido
 
-1. Instala el lanzador en DaVinci Resolve desde tu terminal:
+1. Sincroniza e instala el lanzador en DaVinci Resolve:
    ```bash
+   uv sync
    uv run davinci-flow --install
    ```
-2. Abre el nuevo Editor Editorial sin conexión:
-   ```bash
-   uv run davinci-flow --editorial-ui
+2. Inicia la aplicación desde la raíz:
+   ```powershell
+   .\scripts\start-desktop.ps1
    ```
 3. O en **DaVinci Resolve**, accede desde el menú superior:
-   **Espacio de trabajo -> Scripts -> DaVinci Flow**.
+   **Área de trabajo -> Secuencias de comandos -> DaVinci Flow**.
 
 ---
 

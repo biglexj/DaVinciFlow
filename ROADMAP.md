@@ -1,68 +1,63 @@
 # 🎯 DaVinci Flow — Roadmap
 
-Plan de trabajo, objetivos de producto y estado verificable del proyecto.
+Plan de trabajo, objetivos de producto y hoja de ruta estratégica del proyecto.
 
-> Un build o una prueba simulada no equivalen a una función terminada. Un hito pasa a Completado únicamente después de la prueba real y la aprobación correspondiente.
+> **Regla del roadmap:** El Roadmap reúne los pendientes, prioridades, pausas y logros del producto. La ejecución detallada se registra dentro de `process/active/YYYY-MM-DD_objetivo/`. Cuando un proceso queda aprobado, el elemento correspondiente pasa a **Completado** (`- [x] **vX.X.X**`).
+
+---
 
 ## 🔴 Pendientes activos
 
-### Secuencia vigente acordada el 6 de septiembre de 2026
-
-Estos tres planes dirigen el trabajo nuevo, en este orden. La LLM es central para la propuesta editorial; las reglas locales pueden validar o servir como modo explícito de diagnóstico, pero no sustituyen silenciosamente ese análisis. El montaje y la limpieza de silencios se preparan antes en Resolve.
-
-1. [Fase 1 — Subtítulos, LLM y plantillas reales](process/active/2026-09-06_fase-1_textos-llm-y-plantillas/PLAN.md): leer subtítulos del montaje, revisar decisiones y aplicar hasta tres capas independientes utilizando títulos instalados y composiciones del Media Pool. Primera tarea: auditar el recorrido y comprobar ambas fuentes con una muestra real.
-2. [Fase 2 — Dos pistas de sonido y cierre funcional](process/active/2026-09-06_fase-2_sonido-y-cierre-funcional/PLAN.md): transiciones y énfasis, revisión sonora, regeneración por intervalo y deshacer. Depende de la aceptación de la muestra de fase 1.
-3. [Fase 3 — Visuals desde una carpeta](process/active/2026-09-06_fase-3_visuals-desde-carpeta/PLAN.md): selección revisable de imágenes y vídeos aportados por Biglex. Futura; depende del cierre funcional de fase 2.
-
-Cada carpeta contiene PLAN.md, TASKS.md, VALIDATION.md y APPROVAL.md. Fase 1: recorrido editorial y muestra real de 27 clips comprobados en Resolve; falta aceptación visual de Biglex. Consultar su HANDOFF.md para integrar fase 2. Biglex indicó que empieza fase 2 mientras prepara las pruebas; esto no cierra la validación de fase 1. La aprobación del rumbo no es aceptación del resultado.
-
-### Antecedentes técnicos por reconciliar
-
-Los procesos siguientes conservan su evidencia histórica y permanecen pausados como líneas independientes mientras se reconcilian sus tareas con las tres fases. No ejecutarlos en paralelo como hojas de ruta alternativas. No se archivan ni se declaran completados aquí.
-
-- [ ] **v0.1.0 — Cierre funcional de transcripción, Fusion y SFX** — `process/active/2026-08-15_subtitulos-dinamicos-y-sfx/`
-  - Lectura real aprobada técnicamente: 369 subtítulos de `Crear proyecto 1 / Timeline 1`.
-  - Prueba vertical real aprobada técnicamente: tres capas Fusion y un SFX insertados, verificados y revertidos.
-  - Pendiente: revisión visual y auditiva de Biglex antes de una generación completa.
-- [ ] **Integración de Gemini, guion y marcadores** — `process/active/2026-08-17_integracion-gemini-guion-y-marcadores/`
-  - Pruebas automatizadas correctas.
-  - Pendiente: prueba real con API y aprobación del resultado.
-- [x] **v0.2.0 — Animaciones Fusion paramétricas, SFX en pausas y marcadores cromáticos** — `process/active/2026-08-31_animaciones-fusion-sfx-pausas-y-marcadores/`
-  - Motor de plantillas Fusion con keyframing Bezier (`pop_bounce`, `slide_up`, `fade_smooth`, `kinetic_pulse`, `typewriter`).
-  - Detección de silencios y pausas temporales para disparo automático de SFX de transición en `DF_SFX` con 8 efectos procedurales.
-  - Estandarización de marcadores de Resolve por código cromático (Azul: Capítulos, Amarillo: Clave, Verde: SFX, Cian: Preguntas, Magenta: Corrección IA, Rosa: CTA).
-  - Asistente contextual de B-Rolls (`DF_BROLL`) y catálogo de recursos.
-  - Guías técnicas redactadas (`docs/es/guides/editorial-fase-1.md` y `docs/es/guides/flujo-de-trabajo-y-marcadores.md`).
-  - Validación técnica integral: 164/164 pruebas superadas en verde y prueba real con 27 clips en Resolve Studio 21.
+- [ ] **Fase 1 — Subtítulos, LLM y plantillas reales** — `process/active/2026-09-06_fase-1_textos-llm-y-plantillas/`
+  - Lectura de subtítulos desde montaje, toma de decisiones con LLM y asignación a 3 capas independientes (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`) mediante plantillas del sistema y Media Pool.
+  - Estado: Muestra real de 27 clips comprobada en Resolve Studio 21; pendiente aceptación visual y auditiva final de Biglex.
+- [ ] **Fase 2 — Dos pistas de sonido y cierre funcional** — `process/active/2026-09-06_fase-2_sonido-y-cierre-funcional/`
+  - Transiciones y énfasis auditivo coordinado, revisión sonora, regeneración selectiva por intervalo y deshecho atómico.
+  - Estado: En preparación técnica; depende de la aceptación de la muestra de Fase 1.
+- [ ] **Fase 3 — Visuals desde una carpeta** — `process/active/2026-09-06_fase-3_visuals-desde-carpeta/`
+  - Escaneo recursivo y selección revisable de imágenes y vídeos provistos localmente para inserción en la pista `DF_BROLL`.
+  - Estado: Futura; planificada para iniciar tras el cierre funcional de Fase 2.
+- [ ] **Diseño visual, biblioteca de plantillas y catálogo de medios** — `process/active/2026-09-07_relevo-diseno-y-biblioteca/`
+  - Refinamiento de la interfaz desacoplada Flet con navegación por pestañas (`editor`, `catalog`, `library`, `settings`), previsualización de composiciones y selección granular.
 - [ ] **Previsualización offline (dry-run con SRT sin Resolve)** — `process/active/2026-08-24_dry-run-offline-srt/`
-  - `--generate --dry-run --srt` produce el record de previsualización sin exigir una sesión activa de Resolve.
-  - Verificado: 97/97 pruebas automatizadas en verde.
-  - Pendiente: validación funcional y aprobación de Biglex.
+  - Generación de registros y previsualizaciones (`--generate --dry-run --srt`) sin requerir una sesión activa de DaVinci Resolve.
+  - Verificado: 97/97 pruebas automatizadas en verde; pendiente validación funcional con usuario.
 
-## 🟡 Intermedio
+---
 
-Las casillas históricas siguientes describen implementaciones registradas, no aceptación funcional. Plantillas y controles se verifican en fase 1; SFX y regeneración en fase 2; el catálogo B-roll en fase 3. Artículo e integración con el ecosistema quedan después del cierre funcional.
+## 🟡 Intermedio (Prioridad Media/Baja)
 
-- [x] **Rediseño visual y espaciado de controles en la UI (distribución espaciosa en filas)**:
-  - Reorganizada la cabecera, selectores y opciones en filas claramente separadas con márgenes holgados en UIManager y Tkinter.
-- [x] **Escaneo dinámico de modelos de IA (Gemini)**:
-  - Implementado `list_available_gemini_models` para consultar dinámicamente mediante la API de Google los modelos disponibles con fallback a `gemini-2.5-flash`.
-- [x] **Soporte de plantillas y presets Text+ por capa en Media Pool**:
-  - Implementado mapeo de `template_media_item` y `layer_templates` en `timeline_writer.py` y `application.py`.
-- [x] **Asistente contextual de B-Rolls y Assets de Sonido (`B-Roll & Asset Context Injector`)**:
-  - Implementado escáner recursivo de carpetas de assets (`broll_catalog.py`), emparejador semántico y contextual heurístico/IA (`broll_matcher.py`), pista `DF_BROLL` en Resolve (`track_manager.py` / `timeline_writer.py`) y controles en la interfaz gráfica.
-- [ ] Permitir editar, aprobar o desactivar cada bloque directamente en la tabla con selector de animación y SFX.
-- [ ] Añadir preescucha, sustitución, ganancia y fundidos de SFX desde la interfaz nativa.
-- [ ] Completar regeneración selectiva por intervalo sobre la línea de tiempo.
-- [ ] Publicar artículo de divulgación y tutorial en Aurora Blog (`Aurora---Blog`).
-- [ ] Evaluar la integración con el ecosistema Biglex cuando el MVP esté aprobado.
+- [ ] Permitir editar, aprobar o desactivar cada bloque directamente en la tabla de la interfaz con selector de animación y SFX.
+- [ ] Añadir preescucha, sustitución rápida, ajuste de ganancia y curvas de fundido de SFX desde la interfaz gráfica.
+- [ ] Completar regeneración selectiva por intervalo temporal sobre la línea de tiempo activa.
+- [ ] Redactar y publicar artículo de divulgación técnica y tutorial en Aurora Blog (`Aurora---Blog`).
+- [ ] Evaluar e implementar la integración profunda con el ecosistema de aplicaciones Biglex tras la aprobación del MVP.
+
+---
 
 ## ⚪ Descartado / En Pausa
 
-- ⏸️ Transcripción local pesada con Whisper. El MVP aprovecha la transcripción nativa de Resolve o archivos SRT.
-- ⏸️ Proveedores LLM adicionales. Se conserva el adaptador existente como punto de partida; el análisis LLM sí es parte central del objetivo vigente.
-- ⏸️ Automatización de cortes y eliminación de silencios desde DaVinciFlow; el montaje se prepara en Resolve antes de generar.
+- ⏸️ **Transcripción local pesada con Whisper**: El MVP aprovecha la transcripción nativa de DaVinci Resolve Studio o archivos SRT generados previamente.
+- ⏸️ **Proveedores LLM adicionales**: Se conserva el cliente unificado de Google Gemini con adaptador desacoplado; el análisis editorial por LLM es el núcleo vigente.
+- ⏸️ **Automatización de cortes y limpieza de silencios desde DaVinci Flow**: El montaje base y el corte de pausas se realizan en la línea de tiempo de Resolve antes de iniciar la generación editorial.
+
+---
 
 ## 🟢 Completado
 
-- Ningún hito de producto está cerrado todavía. La base técnica está implementada, pero la aprobación visual y auditiva sigue pendiente.
+- [x] **v0.3.0** (2026-09-07) — Reestructuración desacoplada (Patrón Tauri & Screaming Architecture) y entorno único con uv
+  - Desacoplamiento estructural en dos raíces maestras: backend puro sin dependencias gráficas (`src/davinci_flow/`) y frontend modular Flet (`src-flet/` estructurado en `app/`, `features/` [`editor`, `catalog`, `library`, `settings`] y `shared/`).
+  - Consolidación del entorno en un único `.venv` oficial en CPython 3.13 de 64 bits gestionado por `uv`, erradicando la fragmentación y dependencias alternas de PyPy.
+  - Lanzador de Resolve asíncrono no bloqueante (`desktop_launcher.py`) para evitar congelamientos en el hilo de edición de Resolve y scripts PowerShell de inicio rápido (`scripts/start-desktop.ps1`).
+  - Validación técnica integral con 180/180 pruebas unitarias automatizadas superadas en verde.
+- [x] **v0.2.0** (2026-09-06) — Editor editorial unificado, animaciones Fusion paramétricas, SFX procedural y marcadores cromáticos
+  - Editor editorial unificado y toma de decisiones tipográficas asistidas por IA (Google Gemini) con distribución semántica multicapa (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`).
+  - Motor de plantillas Fusion con curvas de interpolación Bézier (`pop_bounce`, `slide_up`, `fade_smooth`, `kinetic_pulse`, `typewriter`) y compatibilidad con `.setting`, `.comp` y `.drfx`.
+  - Generador procedural de SFX (8 efectos esenciales: *whoosh*, *pop*, *bell*, *click*, *riser*, *glitch*, *thud*, *chime*) con detección automática de silencios en la pista `DF_SFX`.
+  - Asistente contextual de B-Rolls (`DF_BROLL`) y catálogo de recursos audiovisuales locales con emparejamiento heurístico y semántico.
+  - Estandarización de marcadores de Resolve por código cromático y redacción de guías técnicas oficiales (`docs/es/guides/editorial-fase-1.md` y `docs/es/guides/flujo-de-trabajo-y-marcadores.md`).
+- [x] **v0.1.0** (2026-08-21) — Cierre inaugural de subtítulos dinámicos multicapa y alineación con guion original
+  - Generación de subtítulos dinámicos multicapa en pistas no destructivas (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`, `DF_SFX`).
+  - Lector híbrido resiliente para clips de subtítulos nativos en Resolve 21 y parser integrado de archivos SubRip (`.srt`).
+  - Alineación semántica con guion original mediante la API de Google Gemini, corrección ortográfica fonética y glosario de términos.
+  - Inserción automatizada de marcadores en línea de tiempo clasificados por relevancia temática y CLI completa con simulación (`--dry-run`) e idempotencia atómica (`--revert`).

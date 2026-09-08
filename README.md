@@ -62,8 +62,24 @@ src/davinci_flow/
 
 - **Sistema Operativo**: Windows 11 (64 bits).
 - **Entorno Host**: DaVinci Resolve 21 (Studio o Free con scripting habilitado).
-- **Stack externo verificado**: Python 3.13 de 64 bits. En esta instalación, `fusionscript.dll` de Resolve 21 no es compatible con Python 3.11/3.12.
-- **Dependencias externas**: Ninguna (librería estándar de Python y API de Resolve).
+- **Interfaz de escritorio**: Flet 0.86.5 sobre PyPy 7.3.23 (Python 3.11.15), gestionado con uv.
+- **Puente de Resolve**: CPython 3.13 de 64 bits, en un entorno independiente. En esta instalación, `fusionscript.dll` de Resolve 21 no es compatible con Python 3.11/3.12.
+- **Dependencias**: el extra `desktop` instala Flet y su cliente Flutter; el puente usa la biblioteca estándar y la API de Resolve.
+
+### Preparar y abrir la interfaz
+
+```powershell
+./scripts/setup-desktop.ps1
+./scripts/start-desktop.ps1
+```
+
+La preparación crea `.venv-pypy` y `.venv-resolve` mediante `uv sync --locked`, y actualiza el acceso **Área de trabajo → Secuencias de comandos → DaVinci Flow**. El entorno `.venv` anterior se conserva. El menú de Resolve, `--ui` y `--editorial-ui` abren la misma ventana Flet; una segunda apertura trae la primera al frente. El auxiliar de CPython se inicia únicamente para capturar, leer plantillas del proyecto, aplicar o deshacer.
+
+El editor, las plantillas, la biblioteca por categorías y los ajustes comparten ventana. La propuesta sigue requiriendo revisión antes de aplicar. PyPy no carga `fusionscript.dll`: intercambia datos JSON con el auxiliar por sus tuberías de proceso. No hay un servidor RPC abierto ni reintentos automáticos de escrituras.
+
+La compatibilidad Flet/PyPy usa un selector de archivos y carpetas hecho con controles Flet, centrado y sin servicios basados en conteo de referencias. El cliente Flutter se espera mediante un hilo para evitar un error de cierre de `asyncio.subprocess` en PyPy para Windows. No se han modificado instalaciones de Flet ni de PyPy. Esta integración no demuestra por sí sola una mejora de FPS o menor consumo de RAM.
+
+La biblioteca comparte únicamente nombres de los recursos elegidos con la IA. La inserción editorial de visuals, música y las dos capas de SFX sigue en las fases siguientes. Consulta la [validación de la migración](process/active/2026-09-07_interfaz-flet/VALIDATION.md).
 
 ---
 

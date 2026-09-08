@@ -14,6 +14,8 @@ htmlcov/
 build/
 dist/
 .venv/
+.venv-pypy/
+.venv-resolve/
 venv/
 
 # Configuración local y secretos
