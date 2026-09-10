@@ -33,6 +33,15 @@ class EditorView:
             text('Las ideas empiezan con tu montaje', size=17, weight=ft.FontWeight.W_500),
             text('Lee una pista de Resolve o importa un SRT. Después decide qué merece aparecer en pantalla.', color=MUTED)],
             spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER), padding=36)
+        self.initial_loading = ft.Container(
+            ft.Column([
+                ft.ProgressRing(width=25, height=25, stroke_width=2.2, color=ACCENT),
+                text('Cargando subtítulos…', color=MUTED),
+            ], spacing=12, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            alignment=ft.Alignment.CENTER,
+            expand=True,
+            visible=False,
+        )
         self.table_view = scroll_table(self.table, width=1120, height=None, expand=True)
         self.table_view.visible = False
         self.original = text('', size=13, selectable=True)
@@ -47,12 +56,20 @@ class EditorView:
         self.enabled = ft.Checkbox(label='Mostrar texto', value=True, active_color=ACCENT)
         self.note = field('Nota si reescribes el original', expand=True)
         self.review_card = card(ft.Column([
-            ft.Row([text('Revisar composición', 15, weight=ft.FontWeight.W_600), self.enabled],
-                   alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Row([
+                text('Revisar composición', 15, weight=ft.FontWeight.W_600),
+                ft.Row([
+                    self.enabled,
+                    ft.IconButton(ft.Icons.CLOSE, tooltip='Cerrar revisión', on_click=app.bind(self.close_review), icon_size=20),
+                ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             self.original, self.reason, self.visual, *rows,
             self.note,
-            ft.Row([button('Guardar revisión', app.bind(self.review), ft.Icons.CHECK, primary=True),
-                    button('Siguiente bloque', app.bind(self.next_block), ft.Icons.ARROW_FORWARD)], wrap=True)
+            ft.Row([
+                button('Guardar revisión', app.bind(self.review), ft.Icons.CHECK, primary=True),
+                button('Siguiente bloque', app.bind(self.next_block), ft.Icons.ARROW_FORWARD),
+                button('Cerrar', app.bind(self.close_review), ft.Icons.CLOSE_ROUNDED),
+            ], wrap=True, spacing=8),
         ], spacing=10), visible=False)
         self.content = ft.Column([
             card(ft.Column([
@@ -68,15 +85,18 @@ class EditorView:
                     button('Proponer con IA', app.bind(self.generate), ft.Icons.AUTO_AWESOME, primary=True),
                     button('Abrir propuesta', app.bind(self.load), ft.Icons.FOLDER_OPEN),
                     button('Guardar', app.bind(self.save), ft.Icons.SAVE_OUTLINED),
+                    button('Aprobar todo', app.bind(self.approve_all), ft.Icons.DONE_ALL,
+                           tooltip='Aprobar todos los bloques de la propuesta actual'),
                     self.count,
                 ], wrap=True, spacing=8, run_spacing=8),
                 ft.Row([
                     button('Aplicar revisión', app.bind(self.apply), ft.Icons.PLAY_ARROW_ROUNDED, primary=True,
                            tooltip='Se aplica la revisión guardada, sin volver a llamar a la IA.'),
-                    button('Deshacer muestra', app.bind(self.undo), ft.Icons.UNDO_ROUNDED),
+                    button('Deshacer', app.bind(self.undo), ft.Icons.UNDO_ROUNDED,
+                           tooltip='Deshacer la muestra aplicada en esta secuencia'),
                 ], wrap=True, spacing=8, run_spacing=8),
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            self.empty, self.table_view, self.review_card,
+            self.empty, self.initial_loading, self.table_view, self.review_card,
         ], spacing=10, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
 
     def sync_preferences(self):
@@ -159,6 +179,9 @@ class EditorView:
         if self.controller.proposal is None:
             self.app.notify('Estos son los subtítulos originales. Genera o abre una propuesta para revisarlos.')
             return
+        if self.selected == index:
+            await self.close_review()
+            return
         if self.form_changed():
             raise EditorialError('Guarda la revisión del bloque antes de cambiar de fila.')
         self.selected = index
@@ -185,6 +208,14 @@ class EditorView:
                                enabled=bool(self.enabled.value), edit_note=self.note.value.strip())
         self.refresh()
         self.app.notify('Revisión del bloque guardada en la propuesta.')
+
+    async def close_review(self):
+        if self.form_changed():
+            if not await self.app.confirm('Cambios sin guardar', 'Has modificado este bloque. ¿Deseas salir sin guardar los cambios?'):
+                return
+        self.selected = None
+        self.review_card.visible = False
+        self.refresh()
 
     async def next_block(self):
         if self.selected is not None and self.selected + 1 < len(self.controller.snapshot.cues):
@@ -216,9 +247,30 @@ class EditorView:
             self.controller.save_proposal(path)
             self.app.notify('Propuesta guardada.')
 
+    async def approve_all(self):
+        if self.controller.proposal is None:
+            raise EditorialError('Todavía no hay propuesta para aprobar.')
+        if self.form_changed():
+            raise EditorialError('Guarda primero la revisión del bloque que estás editando.')
+        self.controller.approve_all()
+        self.refresh()
+        self.app.notify('Todos los bloques han sido aprobados como revisados.')
+
     async def apply(self):
         if self.form_changed():
             raise EditorialError('Guarda primero la revisión del bloque.')
+        if self.controller.proposal is None:
+            raise EditorialError('No hay una propuesta para aplicar.')
+        unreviewed = [d for d in self.controller.proposal.decisions if not d.reviewed]
+        if unreviewed:
+            confirmed = await self.app.confirm(
+                'Aprobar y aplicar',
+                f'Hay {len(unreviewed)} bloque{"s" if len(unreviewed) > 1 else ""} pendiente{"s" if len(unreviewed) > 1 else ""} de revisión manual. ¿Deseas aprobar todos los bloques restantes y aplicar la propuesta a Resolve?'
+            )
+            if not confirmed:
+                return
+            self.controller.approve_all()
+            self.refresh()
         result = await self.app.run('Aplicando la revisión exacta en Resolve…', self.controller.apply)
         if result:
             self.app.notify(f'Aplicados {result.item_count} elementos. Comprueba la reproducción en Resolve.')
@@ -232,6 +284,10 @@ class EditorView:
         """Intenta capturar automáticamente los subtítulos generados en Resolve al iniciar."""
         if self.controller.snapshot is not None:
             return
+        self.empty.visible = False
+        self.initial_loading.visible = True
+        self.app.notify('Detectando subtítulos de Resolve…')
+        self.app.page.update()
         try:
             track = int(self.track.value)
             first = int(self.first.value)
@@ -247,3 +303,9 @@ class EditorView:
                 self.app.notify(f'Subtítulos de Resolve detectados ({len(result.cues)} en {result.timeline}).')
         except Exception:
             pass
+        finally:
+            self.initial_loading.visible = False
+            if self.controller.snapshot is None:
+                self.empty.visible = True
+                self.app.notify('Listo para abrir tu montaje.')
+            self.app.page.update()

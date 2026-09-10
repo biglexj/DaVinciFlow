@@ -295,7 +295,7 @@ class ResolveTimelineWriter:
                         and record_item.item_id not in found_by_record_id
                         and (
                             (record_item.native_item_id and native_id == record_item.native_item_id)
-                            or native_name == expected_name
+                            or native_name in self._name_candidates(expected_name)
                         )
                     ):
                         found_by_record_id[record_item.item_id] = native_item
@@ -647,7 +647,7 @@ class ResolveTimelineWriter:
         except Exception:
             return None
         for item in self._iter_values(items):
-            if self._safe_call(item, "GetName") == expected_name:
+            if self._safe_call(item, "GetName") in self._name_candidates(expected_name):
                 return item
         return None
 
@@ -680,7 +680,13 @@ class ResolveTimelineWriter:
 
     @staticmethod
     def _native_name(execution_id: str, item_id: str) -> str:
-        return f"DF::{execution_id}::{item_id}"
+        # Resolve 21.1 rechaza ':' en SetName. Los identificadores no cambian.
+        return f"DF__{execution_id}__{item_id}"
+
+    @staticmethod
+    def _name_candidates(name: str) -> set[str]:
+        """Reconoce ejecuciones anteriores sin renombrarlas ni duplicarlas."""
+        return {name, name.replace("::", "__"), name.replace("__", "::")}
 
     @staticmethod
     def _set_native_name(item: Any, name: str) -> None:

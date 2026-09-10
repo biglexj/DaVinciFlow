@@ -8,6 +8,14 @@ Plan de trabajo, objetivos de producto y hoja de ruta estratégica del proyecto.
 
 ## 🔴 Pendientes activos
 
+- [ ] **Puente MCP oficial de Resolve Studio 21.1** — `process/active/2026-09-10_puente-mcp-oficial/`
+  - Captura, catálogo, aplicación revisada y reversión del editor integrados con el MCP nativo. Lectura real y muestra Fusion reversible verificadas; conserva compatibilidad con el auxiliar anterior. Pendiente aceptación de uso y validación de generaciones extensas frente al límite de 60 segundos por script.
+- [x] **Modal e Insignia oficial «Acerca de la Aplicación»** — `process/active/2026-09-08_acerca-de-modal-insignia/`
+  - Reemplazo del pie estático en la barra lateral por un botón interactivo con microinteracción de hover y tooltip. Diálogo modal centrado con branding, versión dinámica, autoría, licencia MIT y los cuatro canales canónicos de apoyo oficial (Donaciones Oficiales, Buy Me a Coffee, Feedback y GitHub).
+- [x] **Auto-Updater oficial y panel en Ajustes** — `process/active/2026-09-08_auto-updater-ajustes/`
+  - Alineación con el estándar oficial de autoactualización de la Documentación Core (`features/auto-updater/`). Módulo desacoplado `UpdateChecker` con sanitización limpia de Markdown y comparación semántica con Regla del .9. Panel interactivo en la columna derecha de Ajustes aprovechando el espacio horizontal, Toast flotante centrado superior de 4 segundos para comprobación manual y acceso directo desde el modal «Acerca de». Pipeline de publicación con `scripts/release/ReleaseTools.ps1` y `build-release.ps1`.
+- [ ] **Estilo tipográfico multicapa y adaptación de encuadre** — `process/active/2026-09-10_estilo-tipografico-multicapa/`
+  - Rediseño de plantillas Fusion nativas (`Contexto`, `Principal`, `Énfasis`) con tipografía Montserrat, Shading multicapa de alto contraste (borde negro + sombra de caída suave), amarillo cálido `#FFBC00` en Énfasis y apilamiento central armónico. Actualización de `planner.py` con criterio de director tipográfico (1 a 3 capas) y adaptación de encuadre vertical (9:16) y horizontal (16:9). 225/225 pruebas en verde.
 - [ ] **Fase 1 — Subtítulos, LLM y plantillas reales** — `process/active/2026-09-06_fase-1_textos-llm-y-plantillas/`
   - Lectura de subtítulos desde montaje, toma de decisiones con LLM y asignación a 3 capas independientes (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`) mediante plantillas del sistema y Media Pool.
   - Estado: Muestra real de 27 clips comprobada en Resolve Studio 21; pendiente aceptación visual y auditiva final de Biglex.

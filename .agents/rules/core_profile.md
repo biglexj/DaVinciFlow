@@ -4,11 +4,11 @@ trigger: always_on
 
 # Perfil de Documentación Core — DaVinci Flow
 
-- Última revisión: 2026-08-17
+- Última revisión: 2026-09-08
 - Tipo principal: `Automatización para aplicación de escritorio`
 - Plataformas: `Windows 11 y DaVinci Resolve 21`
 - Stack: `Python 3.13 de 64 bits, API de scripting de DaVinci Resolve 21 y unittest`
-- Funciones activas: `Conexión local con Resolve, generación de subtítulos dinámicos multicapa, marcadores en línea de tiempo e integración opcional con Gemini para alineación de guion`
+- Funciones activas: `Conexión local con Resolve, generación de subtítulos dinámicos multicapa, marcadores en línea de tiempo, integración opcional con Gemini para alineación de guion y auto-actualización desde GitHub Releases (UpdateChecker, sanitización y flujo desktop)`
 
 ## Regla de selección
 
@@ -30,9 +30,11 @@ No aplicar una capacidad por semejanza. Instancia única, bandeja, autoactualiza
 - `global/quality/quality-baseline.md`
 - `global/security/security-baseline.md`
 - `features/ai-models/README.md`
+- `features/auto-updater/auto_updater.md`
+- `features/auto-updater/desktop-update-flow.md`
 - `types/multiplatform/README.md`, únicamente para encapsular dependencias de plataforma.
 
 ## Excepciones locales
 
-- La autoactualización y la bandeja del sistema todavía no son funciones activas.
+- La bandeja del sistema todavía no es una función activa.
 - La compatibilidad con macOS se conserva como objetivo futuro, pero no se declara validada.

@@ -1,11 +1,34 @@
 """Selector local centrado, sin servicios dependientes de CPython."""
 
 import asyncio
+import os
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 import flet as ft
 
 from shared.components import ACCENT, MUTED, button, field, text
+
+
+def get_system_drives():
+    drives = []
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            bitmask = ctypes.windll.kernel32.GetLogicalDrives()
+            for i in range(26):
+                if (bitmask >> i) & 1:
+                    drive = f"{chr(65 + i)}:\\"
+                    if os.path.exists(drive):
+                        drives.append(drive)
+        except Exception:
+            for letter in 'CDEFGHIJKLMNOPQRSTUVWXYZ':
+                drive = f"{letter}:\\"
+                if os.path.exists(drive):
+                    drives.append(drive)
+    else:
+        drives.append('/')
+    return drives
 
 
 def list_entries(directory, extensions=(), directories_only=False):
@@ -45,6 +68,7 @@ class WorkspaceFilePicker:
         filename = field('Nombre del archivo', file_name, visible=mode != 'directory')
         entries = ft.ListView(height=225, spacing=2)
         message = text('', color=MUTED)
+        drives = get_system_drives()
 
         async def finish(value):
             self.app.page.pop_dialog()
@@ -55,6 +79,67 @@ class WorkspaceFilePicker:
         async def cancel(event=None):
             await finish(None)
 
+        def make_drive_button(drv):
+            label = drv.rstrip('\\')
+            async def click_drive(event, target=drv):
+                await load(Path(target))
+            return ft.TextButton(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.STORAGE, size=14, color=ACCENT if str(current).upper().startswith(drv.upper()) else MUTED),
+                    text(label, size=12, color=ACCENT if str(current).upper().startswith(drv.upper()) else MUTED),
+                ], spacing=4, tight=True),
+                tooltip=f'Disco {drv}',
+                on_click=click_drive,
+            )
+
+        drives_controls = [make_drive_button(d) for d in drives]
+        drives_row = ft.Row([
+            text('Unidades:', size=12, color=MUTED),
+            *drives_controls,
+        ], spacing=4, scroll=ft.ScrollMode.ADAPTIVE) if len(drives) > 1 else ft.Container()
+
+        new_folder_field = field('Nombre de la nueva carpeta', '', expand=True)
+
+        async def cancel_new_folder(event=None):
+            new_folder_box.visible = False
+            new_folder_field.value = ''
+            self.app.page.update()
+
+        async def create_new_folder(event=None):
+            folder_name = new_folder_field.value.strip()
+            if not folder_name:
+                message.value = 'Escribe el nombre de la carpeta.'
+                self.app.page.update()
+                return
+            target_dir = current / folder_name
+            try:
+                target_dir.mkdir(parents=True, exist_ok=False)
+                new_folder_box.visible = False
+                new_folder_field.value = ''
+                await load(target_dir)
+            except FileExistsError:
+                message.value = f'La carpeta "{folder_name}" ya existe.'
+            except OSError as error:
+                message.value = f'No se pudo crear la carpeta: {error}'
+            self.app.page.update()
+
+        new_folder_field.on_submit = create_new_folder
+        new_folder_box = ft.Container(
+            content=ft.Row([
+                new_folder_field,
+                button('Crear', create_new_folder, ft.Icons.CHECK, primary=True),
+                button('Cancelar', cancel_new_folder),
+            ], spacing=8),
+            visible=False,
+            padding=ft.Padding.only(top=2, bottom=2),
+        )
+
+        async def toggle_new_folder(event=None):
+            new_folder_box.visible = not new_folder_box.visible
+            if new_folder_box.visible:
+                new_folder_field.value = ''
+            self.app.page.update()
+
         async def load(directory):
             nonlocal current
             try:
@@ -62,6 +147,11 @@ class WorkspaceFilePicker:
                 files = await asyncio.to_thread(list_entries, directory, extensions, mode == 'directory')
                 current = directory
                 path_field.value = str(directory)
+                if len(drives) > 1:
+                    for btn, drv in zip(drives_controls, drives):
+                        is_active = str(directory).upper().startswith(drv.upper())
+                        btn.content.controls[0].color = ACCENT if is_active else MUTED
+                        btn.content.controls[1].color = ACCENT if is_active else MUTED
                 entries.controls = []
                 for item in files:
                     async def select_item(event, target=item):
@@ -78,12 +168,26 @@ class WorkspaceFilePicker:
                 message.value = 'Carpeta vacía.' if not files else f'{len(files)} elementos' + (' · Usa una carpeta más concreta para ver más.' if len(files) == 500 else '')
             except (OSError, ValueError) as error:
                 message.value = f'No se pudo abrir la carpeta: {error}'
+            self.app.page.update()
 
         async def navigate(event=None):
             await load(Path(path_field.value))
             self.app.page.update()
 
         async def up(event=None):
+            if current.parent == current:
+                path_field.value = 'Este equipo'
+                entries.controls = []
+                for drv in drives:
+                    async def select_drive(event, target=drv):
+                        await load(Path(target))
+                    entries.controls.append(ft.TextButton(content=ft.Row([
+                        ft.Icon(ft.Icons.STORAGE, color=ACCENT, size=18),
+                        text(f'Disco local ({drv})', size=13, expand=True),
+                    ]), on_click=select_drive))
+                message.value = f'{len(drives)} unidades disponibles.'
+                self.app.page.update()
+                return
             await load(current.parent)
             self.app.page.update()
 
@@ -113,9 +217,16 @@ class WorkspaceFilePicker:
         filename.on_submit = accept
         dialog = ft.AlertDialog(modal=True, alignment=ft.Alignment.CENTER,
             title=text(title, 18), content=ft.Container(ft.Column([
-                ft.Row([path_field, ft.IconButton(ft.Icons.ARROW_UPWARD, tooltip='Carpeta superior', on_click=up), button('Ir', navigate)]),
+                ft.Row([
+                    path_field,
+                    ft.IconButton(ft.Icons.ARROW_UPWARD, tooltip='Carpeta superior', on_click=up),
+                    ft.IconButton(ft.Icons.CREATE_NEW_FOLDER_OUTLINED, tooltip='Nueva carpeta', on_click=toggle_new_folder),
+                    button('Ir', navigate),
+                ], spacing=6),
+                new_folder_box,
+                drives_row,
                 entries, filename, message,
-            ], tight=True, spacing=10), width=660), actions=[button('Cancelar', cancel),
+            ], tight=True, spacing=8), width=680), actions=[button('Cancelar', cancel),
                 button('Guardar' if mode == 'save' else 'Elegir carpeta' if mode == 'directory' else 'Abrir', accept, primary=True)])
         await load(current)
         self.app.page.show_dialog(dialog)

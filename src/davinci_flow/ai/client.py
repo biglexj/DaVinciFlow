@@ -1,6 +1,11 @@
 """Cliente HTTP ligero para la API de Google Gemini utilizando la biblioteca estándar."""
 
 import json
+import random
+import re
+import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -18,6 +23,35 @@ FALLBACK_MODELS = (
     "gemini-3.0-flash",
 )
 API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+
+
+def _retry_delay(headers: Any, attempt: int) -> float:
+    """Respeta Retry-After hasta 30 segundos; en su ausencia usa espera progresiva."""
+    value = headers.get("Retry-After") if headers else None
+    if value:
+        try:
+            return max(0.0, min(30.0, float(value)))
+        except (TypeError, ValueError):
+            try:
+                when = parsedate_to_datetime(value)
+                return max(0.0, min(30.0, (when - datetime.now(timezone.utc)).total_seconds()))
+            except (TypeError, ValueError, OverflowError):
+                pass
+    return 2.0 ** (attempt + 1) + random.uniform(0.0, 1.0)
+
+
+def _error_detail(body: str, api_key: str) -> str:
+    """Extrae el diagnóstico JSON y elimina credenciales antes de mostrarlo."""
+    try:
+        error = json.loads(body).get("error", {})
+        if not isinstance(error, dict):
+            return ""
+        detail = " — ".join(str(error[k]) for k in ("status", "message") if error.get(k))
+    except (ValueError, AttributeError):
+        return ""
+    detail = detail.replace(api_key, "[clave oculta]") if api_key else detail
+    detail = re.sub(r"AIza[\w-]+", "[clave oculta]", detail)
+    return " ".join(detail.split())[:800]
 
 
 def list_available_gemini_models(
@@ -92,7 +126,7 @@ class GeminiClient:
         self,
         api_key: str | None = None,
         model_name: str = DEFAULT_MODEL,
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float = 60.0,
         strict_model: bool = False,
     ) -> None:
         self._api_key = get_gemini_api_key(api_key)
@@ -192,34 +226,54 @@ class GeminiClient:
             )
 
             try:
-                with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                    response_data = json.loads(response.read().decode("utf-8"))
-                    self.model_name = model
-                    break
+                for attempt in range(3):
+                    try:
+                        with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                            response_data = json.loads(response.read().decode("utf-8"))
+                        break
+                    except urllib.error.HTTPError as err:
+                        if err.code not in (500, 502, 503, 504) or attempt == 2:
+                            raise
+                        delay = _retry_delay(err.headers, attempt)
+                        err.close()
+                        time.sleep(delay)
+                    except TimeoutError:
+                        if attempt >= 1:
+                            raise
+                        time.sleep(_retry_delay(None, attempt))
+                self.model_name = model
+                break
             except urllib.error.HTTPError as err:
                 err_body = ""
                 try:
                     err_body = err.read().decode("utf-8")
                 except Exception:
                     pass
+                finally:
+                    err.close()
+                detail = _error_detail(err_body, self._api_key)
+                diagnostic = f" Modelo: {model}." + (f" Detalle: {detail}" if detail else "")
 
                 if err.code in (401, 403):
                     raise GeminiCredentialsError(
                         "Clave API de Gemini rechazada o permisos insuficientes (HTTP "
-                        f"{err.code}). Comprueba tu clave."
+                        f"{err.code}). Comprueba tu clave." + diagnostic
                     ) from err
                 if err.code == 429:
                     raise GeminiError(
                         "Límite de cuota o tasa de peticiones excedida en Gemini (HTTP 429). "
-                        "Espera unos segundos antes de reintentar."
+                        "Comprueba la cuota y los límites del proyecto." + diagnostic
                     ) from err
                 if err.code == 404 and idx < len(models_to_try) - 1:
                     last_error = err
                     continue
                 if err.code >= 500:
-                    raise GeminiError(f"Gemini no está disponible temporalmente (HTTP {err.code}). Reintenta con el mismo modelo.") from err
+                    raise GeminiError(
+                        f"La API de Gemini devolvió HTTP {err.code} tras {attempt + 1} intento(s) con el mismo modelo."
+                        + diagnostic
+                    ) from err
                 raise GeminiError(
-                    f"Error en la API de Gemini (HTTP {err.code}). Comprueba el modelo seleccionado."
+                    f"Error en la API de Gemini (HTTP {err.code}). Comprueba el modelo seleccionado." + diagnostic
                 ) from err
             except urllib.error.URLError as err:
                 raise GeminiError(
@@ -229,7 +283,10 @@ class GeminiClient:
                 if idx < len(models_to_try) - 1:
                     last_error = err
                     continue
-                raise GeminiError("La solicitud a Google Gemini excedió el tiempo límite de espera.") from err
+                raise GeminiError(
+                    f"La solicitud a Google Gemini excedió el tiempo límite tras {attempt + 1} intento(s). "
+                    f"Modelo: {model}."
+                ) from err
             except Exception as err:
                 raise GeminiError("Error inesperado al consultar Gemini.") from err
         else:

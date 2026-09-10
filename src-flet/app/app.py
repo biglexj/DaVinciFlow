@@ -50,6 +50,7 @@ class DesktopApp:
         page.window.prevent_close = True
         page.window.icon = str(BRANDING / 'icon-windows.ico')
         page.window.on_event = self.window_event
+        self.branding_path = BRANDING
         self.picker = WorkspaceFilePicker(self)
         self.identity = text('Sin secuencia capturada', color=MUTED, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS)
         self.model = text(self.controller.preferences.model, color=ACCENT, no_wrap=True)
@@ -68,12 +69,31 @@ class DesktopApp:
             self.nav[key] = ft.Container(ft.Row([ft.Icon(icon, size=19, color=ACCENT if key == 'editor' else MUTED),
                 text(label, 13, weight=ft.FontWeight.W_500)], spacing=10), padding=12, border_radius=9,
                 bgcolor='#173A35' if key == 'editor' else None, on_click=self.bind(self.navigate, key))
+
+        def on_about_hover(e):
+            self.about_btn.bgcolor = '#173A35' if e.data == 'true' else None
+            self.about_btn.content.controls[0].color = ACCENT if e.data == 'true' else MUTED
+            self.about_btn.content.controls[1].color = TEXT if e.data == 'true' else MUTED
+            self.page.update()
+
+        self.about_btn = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, size=18, color=MUTED),
+                text('Acerca de', 13, weight=ft.FontWeight.W_500, color=MUTED),
+            ], spacing=10),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+            border_radius=9,
+            ink=True,
+            tooltip='Acerca de DaVinci Flow',
+            on_click=self.bind(self.show_about),
+            on_hover=on_about_hover,
+        )
         sidebar = ft.Container(width=168, bgcolor=SIDE, padding=ft.Padding.symmetric(horizontal=12, vertical=18),
             content=ft.Column([ft.Row([ft.Image(src=str(BRANDING / 'icon-transparent.png'), width=28, height=28),
                 text('DaVinci Flow', 14, weight=ft.FontWeight.W_700)], spacing=5),
                 text('Tu espacio creativo', 11, color=MUTED), ft.Container(height=5), self.identity,
                 ft.Divider(color=LINE, height=22), *self.nav.values(),
-                ft.Container(expand=True), text(f'{platform.python_implementation()} · Flet', 10, color=MUTED)], spacing=6))
+                ft.Container(expand=True), self.about_btn], spacing=6))
         self.workspace = ft.Container(content=self.editor.content, expand=True, padding=ft.Padding.only(right=10))
         header = ft.Row([self.heading, ft.Container(expand=True),
             ft.Container(self.model, bgcolor='#153630', padding=ft.Padding.symmetric(horizontal=10, vertical=6), border_radius=7),
@@ -83,10 +103,37 @@ class DesktopApp:
             vertical_alignment=ft.CrossAxisAlignment.STRETCH)
         self.footer = ft.Container(ft.Row([self.progress, self.status], spacing=10), padding=ft.Padding.symmetric(horizontal=18, vertical=9),
                                    border=ft.Border(top=ft.BorderSide(1, LINE)))
+        self.latest_release = None
+        self.checking_updates = False
+        self.has_checked_updates = False
+        self.toast_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE_ROUNDED, color=ACCENT, size=18)
+        self.toast_text = text('✅ Estás en la última versión', 13, weight=ft.FontWeight.W_500, color=TEXT)
+        self.toast_card = ft.Container(
+            content=ft.Row([self.toast_icon, self.toast_text], spacing=8, alignment=ft.MainAxisAlignment.CENTER, tight=True),
+            bgcolor='#182622',
+            border=ft.Border.all(1, ACCENT),
+            border_radius=20,
+            padding=ft.Padding.symmetric(horizontal=20, vertical=10),
+            shadow=ft.BoxShadow(blur_radius=16, color='#80000000', offset=ft.Offset(0, 4)),
+        )
+        self.toast_overlay = ft.Container(
+            content=self.toast_card,
+            top=18,
+            left=0,
+            right=0,
+            alignment=ft.Alignment.TOP_CENTER,
+            visible=False,
+            opacity=0.0,
+            animate_opacity=300,
+        )
+        if hasattr(page, 'overlay'):
+            page.overlay.append(self.toast_overlay)
+
         self.root = ft.Column([self.body, self.footer], spacing=0, expand=True)
         page.add(self.root)
         if hasattr(page, 'run_task'):
             page.run_task(self.editor.auto_capture_default)
+            page.run_task(self.silent_update_check)
 
     def bind(self, callback, *arguments):
         async def handler(event=None):
@@ -177,6 +224,80 @@ class DesktopApp:
     async def pin(self):
         self.page.window.always_on_top = not self.page.window.always_on_top
         self.notify('Ventana fijada al frente.' if self.page.window.always_on_top else 'Ventana sin fijar.')
+
+    def show_about(self):
+        from features.about.about_dialog import show_about_dialog
+        return show_about_dialog(self)
+
+    async def silent_update_check(self):
+        await asyncio.sleep(1.2)
+        await self.check_updates(manual=False)
+
+    async def show_toast(self, message, icon=ft.Icons.CHECK_CIRCLE_OUTLINE_ROUNDED, duration=4.0):
+        self.toast_text.value = message
+        self.toast_icon.name = icon
+        self.toast_overlay.visible = True
+        self.toast_overlay.opacity = 1.0
+        try:
+            self.toast_overlay.update()
+        except Exception:
+            pass
+        self.page.update()
+
+        async def fade():
+            await asyncio.sleep(duration)
+            self.toast_overlay.opacity = 0.0
+            try:
+                self.toast_overlay.update()
+            except Exception:
+                pass
+            self.page.update()
+            await asyncio.sleep(0.35)
+            self.toast_overlay.visible = False
+            try:
+                self.toast_overlay.update()
+            except Exception:
+                pass
+            self.page.update()
+
+        if hasattr(self.page, 'run_task'):
+            self.page.run_task(fade)
+        else:
+            asyncio.create_task(fade())
+
+    async def check_updates(self, manual=False):
+        if self.checking_updates:
+            return self.latest_release
+        self.checking_updates = True
+        if manual:
+            self.notify('Consultando GitHub Releases…')
+        if hasattr(self, 'settings') and hasattr(self.settings, 'refresh_updates_ui'):
+            self.settings.refresh_updates_ui()
+        self.page.update()
+
+        try:
+            from davinci_flow.updater.checker import check_github_release
+            release = await asyncio.get_running_loop().run_in_executor(self.executor, check_github_release)
+            self.latest_release = release
+            if release and release.is_newer:
+                self.notify(f'🚀 Nueva versión v{release.version} disponible.')
+                if manual and self.current != 'settings':
+                    await self.navigate('settings')
+            elif manual:
+                from davinci_flow import __version__
+                self.notify('Estás en la última versión.')
+                await self.show_toast(f'✅ ¡Estás en la última versión! (v{__version__})')
+            return release
+        except Exception as error:
+            if manual:
+                self.notify(f'No se pudo comprobar actualizaciones: {error}')
+            return None
+        finally:
+            self.checking_updates = False
+            self.has_checked_updates = True
+            if hasattr(self, 'settings') and hasattr(self.settings, 'refresh_updates_ui'):
+                self.settings.refresh_updates_ui()
+            self.page.update()
 
     async def window_event(self, event):
         if event.type != ft.WindowEventType.CLOSE or self.closing:

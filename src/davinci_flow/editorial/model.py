@@ -199,6 +199,13 @@ class Proposal:
         result.validate()
         return result
 
+    def approve_all(self) -> "Proposal":
+        """Marca todas las decisiones como revisadas si cumplen las restricciones editoriales."""
+        decisions = tuple(replace(d, reviewed=True) for d in self.decisions)
+        result = replace(self, decisions=decisions)
+        result.validate(require_review=True)
+        return result
+
     def save(self, path: str | Path) -> None:
         self.validate()
         target = Path(path)

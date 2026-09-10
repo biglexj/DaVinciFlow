@@ -1,0 +1,115 @@
+{
+  "name": "DF_MCP_VALIDATION_791208a14e",
+  "steps": [
+    {
+      "apply": {
+        "execution_id": "exec_editorial_abf0d5c480e5707a5eb86d17",
+        "plan_id": "editorial_abf0d5c480e5707a5eb86d17",
+        "source_hash": "6ca063e43f0088ea6f86bd31b2946413961347666f8b3fd67ab56e58633a53f1",
+        "project_name": "Campaña",
+        "timeline_name": "DF_MCP_VALIDATION_791208a14e",
+        "theme_name": "ely",
+        "profile_name": "natural",
+        "status": "completed",
+        "created_at": "2026-09-10T13:24:00.907704+00:00",
+        "items": [
+          {
+            "item_id": "item_editorial_abf0d5c480e5707a5eb86d17_b1_mai",
+            "block_id": "df_t1_b0001_5_26_8e66b3cf",
+            "role": "main",
+            "track_type": "video",
+            "track_index": 6,
+            "track_name": "DF_MAIN",
+            "start_frame": 5.0,
+            "end_frame": 26.0,
+            "content_text": "Honoria tiene",
+            "status": "applied",
+            "native_item_id": "9bc7337c-4d4d-43fd-9437-66621cd51852",
+            "created_at": "2026-09-10T13:24:00.907704+00:00"
+          }
+        ]
+      },
+      "seconds": 2.768
+    },
+    {
+      "readback": [
+        {
+          "name": "DF__exec_editorial_abf0d5c480e5707a5eb86d17__item_editorial_abf0d5c480e5707a5eb86d17_b1_mai",
+          "start": 5,
+          "duration": 21,
+          "text": [
+            "Honoria tiene"
+          ]
+        }
+      ]
+    },
+    {
+      "reapply": "completed",
+      "items": 1
+    },
+    {
+      "undo": {
+        "execution_id": "exec_editorial_abf0d5c480e5707a5eb86d17",
+        "plan_id": "editorial_abf0d5c480e5707a5eb86d17",
+        "source_hash": "6ca063e43f0088ea6f86bd31b2946413961347666f8b3fd67ab56e58633a53f1",
+        "project_name": "Campaña",
+        "timeline_name": "DF_MCP_VALIDATION_791208a14e",
+        "theme_name": "ely",
+        "profile_name": "natural",
+        "status": "reverted",
+        "created_at": "2026-09-10T13:24:05.892461+00:00",
+        "items": [
+          {
+            "item_id": "item_editorial_abf0d5c480e5707a5eb86d17_b1_mai",
+            "block_id": "df_t1_b0001_5_26_8e66b3cf",
+            "role": "main",
+            "track_type": "video",
+            "track_index": 6,
+            "track_name": "DF_MAIN",
+            "start_frame": 5.0,
+            "end_frame": 26.0,
+            "content_text": "Honoria tiene",
+            "status": "reverted",
+            "native_item_id": "9bc7337c-4d4d-43fd-9437-66621cd51852",
+            "created_at": "2026-09-10T13:24:05.892461+00:00"
+          }
+        ]
+      }
+    },
+    {
+      "remaining_generated_clips": 0
+    }
+  ],
+  "original": {
+    "project": "Campaña",
+    "timeline": "Timeline 1",
+    "project_id": "17257c8b-4c8a-4c27-9839-254f2b901035",
+    "timeline_id": "729ef2ed-f5b3-4544-a95c-31b10bd82ae1",
+    "fingerprint": "392633a3d14b02d68f31a8e9bf104452935726fe1e8756b68bd9a4e9c71f70fe",
+    "cues": 72,
+    "cuts": 65
+  },
+  "capture_seconds": 2.455,
+  "connection": {
+    "transport": "mcp",
+    "executable": "C:\\Program Files\\Blackmagic Design\\DaVinci Resolve\\ResolveMCP.exe",
+    "server": {
+      "name": "davinci_resolve",
+      "version": "21.1"
+    },
+    "running": true,
+    "version": "21.1"
+  },
+  "setup": {
+    "timeline_id": "44af36bc-9fb6-44a2-bcb0-04c6d30cf61d",
+    "bin_id": "5686f5bc-7eec-4c5f-b6ce-cc12bf741a6c",
+    "folder_id": "6178ad76-d940-4b00-bf1f-fe87c5b5a048",
+    "page": "edit"
+  },
+  "cleanup": {
+    "original_restored": "729ef2ed-f5b3-4544-a95c-31b10bd82ae1",
+    "temporary_timeline_removed": true,
+    "temporary_bin_removed": true
+  },
+  "original_unchanged": true
+}

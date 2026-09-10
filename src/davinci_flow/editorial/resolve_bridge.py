@@ -1,4 +1,4 @@
-"""Operaciones editoriales cerradas por stdin/stdout; la ABI de Resolve vive en CPython."""
+"""Operaciones editoriales por MCP oficial o auxiliar CPython de compatibilidad."""
 
 from dataclasses import asdict
 from functools import lru_cache
@@ -13,6 +13,7 @@ from tempfile import TemporaryDirectory
 from davinci_flow.editorial.model import EditorialError, Proposal, Snapshot, Template
 from davinci_flow.generation.record import GenerationExecutionRecord
 from davinci_flow.subtitles.model import SubtitleCue
+from davinci_flow.resolve.mcp_client import MCPError, ResolveMCP, find_mcp_executable
 
 OPERATIONS = {'capture', 'titles', 'apply', 'undo'}
 RESULT_PREFIX = 'DAVINCI_FLOW_RESULT='
@@ -46,6 +47,47 @@ def resolve_python():
 
 
 def request(operation, **parameters):
+    if operation not in OPERATIONS:
+        raise EditorialError('Operación de Resolve no admitida.')
+    transport, executable = selected_transport()
+    if transport == 'mcp':
+        from davinci_flow.editorial.mcp_bridge import request as mcp_request
+        return mcp_request(executable, operation, parameters)
+    return legacy_request(operation, **parameters)
+
+
+def selected_transport():
+    mode = os.environ.get('DAVINCIFLOW_RESOLVE_TRANSPORT', 'auto').strip().lower()
+    if mode not in {'auto', 'mcp', 'legacy'}:
+        raise EditorialError('DAVINCIFLOW_RESOLVE_TRANSPORT debe ser auto, mcp o legacy.')
+    if mode == 'legacy':
+        return 'legacy', None
+    try:
+        executable = find_mcp_executable()
+    except MCPError as error:
+        raise EditorialError(str(error)) from error
+    if executable is not None:
+        return 'mcp', executable
+    if mode == 'mcp':
+        raise EditorialError('No se encontró el MCP oficial. Instala Resolve Studio 21.1 '
+                             'o configura DAVINCIFLOW_RESOLVE_MCP.')
+    return 'legacy', None
+
+
+def connection_status():
+    """Diagnóstico explícito del transporte y disponibilidad; no escribe ni abre Resolve."""
+    transport, executable = selected_transport()
+    if transport == 'legacy':
+        return {'transport': 'legacy', 'python': resolve_python()}
+    try:
+        with ResolveMCP(executable) as client:
+            return {'transport': 'mcp', 'executable': str(executable),
+                    'server': client.server_info, **client.status()}
+    except MCPError as error:
+        raise EditorialError(str(error)) from error
+
+
+def legacy_request(operation, **parameters):
     if operation not in OPERATIONS:
         raise EditorialError('Operación de Resolve no admitida.')
     # Las escrituras no se interrumpen por un timeout ni se reintentan automáticamente.
@@ -96,7 +138,7 @@ def undo():
     return GenerationExecutionRecord.from_dict(request('undo'))
 
 
-def dispatch(operation, parameters):
+def dispatch(operation, parameters, *, session=None):
     """Solo se ejecuta en el auxiliar; ningún objeto nativo cruza el proceso."""
     if operation not in OPERATIONS:
         raise EditorialError('Operación de Resolve no admitida.')
@@ -107,7 +149,7 @@ def dispatch(operation, parameters):
     proposal = Proposal.load(parameters['proposal_path']) if operation == 'apply' else None
     if proposal:
         proposal.validate(require_review=True)
-    session = connect_to_resolve()
+    session = session if session is not None else connect_to_resolve()
     if operation in {'capture', 'titles'}:
         templates, _ = media_pool_catalog(session.project.GetMediaPool())
         catalog = [asdict(t) for t in templates]

@@ -61,10 +61,11 @@ src/davinci_flow/
 ## 🛠️ Requisitos del Entorno
 
 - **Sistema Operativo**: Windows 11 (64 bits).
-- **Entorno Host**: DaVinci Resolve 21 (Studio o Free con scripting habilitado).
-- **Interfaz de escritorio**: Flet 0.86.5 sobre PyPy 7.3.23 (Python 3.11.15), gestionado con uv.
-- **Puente de Resolve**: CPython 3.13 de 64 bits, en un entorno independiente. En esta instalación, `fusionscript.dll` de Resolve 21 no es compatible con Python 3.11/3.12.
-- **Dependencias**: el extra `desktop` instala Flet y su cliente Flutter; el puente usa la biblioteca estándar y la API de Resolve.
+- **Entorno Host recomendado**: DaVinci Resolve Studio 21.1, con su MCP oficial instalado.
+- **Interfaz de escritorio**: Flet 0.86.5 sobre CPython 3.13 de 64 bits, gestionado con uv.
+- **Puente editorial**: MCP oficial de Blackmagic por stdin/stdout. Las operaciones se ejecutan en el Python integrado de Resolve y devuelven datos JSON; DaVinci Flow no carga su DLL en este recorrido.
+- **Compatibilidad**: el auxiliar CPython 3.13 anterior sigue disponible para instalaciones compatibles con scripting externo. Los comandos clásicos de planificación/generación de la CLI conservan ese adaptador.
+- **Dependencias**: Flet y su cliente Flutter para la interfaz; el cliente MCP utiliza únicamente la biblioteca estándar.
 
 ### Preparar y abrir la interfaz
 
@@ -73,11 +74,11 @@ src/davinci_flow/
 ./scripts/start-desktop.ps1
 ```
 
-La preparación crea `.venv-pypy` y `.venv-resolve` mediante `uv sync --locked`, y actualiza el acceso **Área de trabajo → Secuencias de comandos → DaVinci Flow**. El entorno `.venv` anterior se conserva. El menú de Resolve, `--ui` y `--editorial-ui` abren la misma ventana Flet; una segunda apertura trae la primera al frente. El auxiliar de CPython se inicia únicamente para capturar, leer plantillas del proyecto, aplicar o deshacer.
+La preparación utiliza `.venv` y actualiza el acceso **Área de trabajo → Secuencias de comandos → DaVinci Flow**. El menú de Resolve, `--ui` y `--editorial-ui` abren la misma ventana Flet; una segunda apertura trae la primera al frente.
 
-El editor, las plantillas, la biblioteca por categorías y los ajustes comparten ventana. La propuesta sigue requiriendo revisión antes de aplicar. PyPy no carga `fusionscript.dll`: intercambia datos JSON con el auxiliar por sus tuberías de proceso. No hay un servidor RPC abierto ni reintentos automáticos de escrituras.
+El editor, las plantillas, la biblioteca por categorías y los ajustes comparten ventana. La captura, el catálogo del Media Pool, la aplicación revisada y Deshacer detectan automáticamente el MCP oficial. La propuesta sigue requiriendo revisión antes de aplicar. No hay un servidor de red ni reintentos automáticos de escrituras.
 
-La compatibilidad Flet/PyPy usa un selector de archivos y carpetas hecho con controles Flet, centrado y sin servicios basados en conteo de referencias. El cliente Flutter se espera mediante un hilo para evitar un error de cierre de `asyncio.subprocess` en PyPy para Windows. No se han modificado instalaciones de Flet ni de PyPy. Esta integración no demuestra por sí sola una mejora de FPS o menor consumo de RAM.
+Consulta la [guía del puente MCP](docs/es/guides/puente-mcp-resolve.md) para elegir transporte, diagnosticar la conexión y conocer el límite de 60 segundos por script. El puente no cambia el proveedor de IA ni elimina la revisión editorial. La integración no demuestra por sí sola una mejora de FPS o consumo de memoria.
 
 La biblioteca comparte únicamente nombres de los recursos elegidos con la IA. La inserción editorial de visuals, música y las dos capas de SFX sigue en las fases siguientes. Consulta la [validación de la migración](process/active/2026-09-07_interfaz-flet/VALIDATION.md).
 

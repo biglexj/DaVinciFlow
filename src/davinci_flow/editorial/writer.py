@@ -125,12 +125,12 @@ class EditorialWriter(ResolveTimelineWriter):
             for item in self._iter_values(self.timeline.GetItemListInTrack("video", track)):
                 for cue, decision in zip(self.proposal.snapshot.cues, self.proposal.decisions):
                     if decision.enabled and role in decision.templates and item.GetStart() < cue.end_frame and item.GetEnd() > cue.start_frame:
-                        if item.GetName() not in self.assignments:
+                        if not self._name_candidates(item.GetName()).intersection(self.assignments):
                             raise EditorialError("Hay un clip ajeno en el intervalo de una pista de texto. Desplázalo o usa otra secuencia.")
 
     def _find_timeline_item(self, track_type: str, track_index: int, expected_name: str) -> Any:
         matches = [item for item in self._iter_values(self.timeline.GetItemListInTrack(track_type, track_index))
-                   if item.GetName() == expected_name]
+                   if item.GetName() in self._name_candidates(expected_name)]
         if len(matches) > 1:
             raise EditorialError("Hay clips generados duplicados; revisa la muestra antes de reaplicar.")
         if not matches:
@@ -194,8 +194,8 @@ class EditorialWriter(ResolveTimelineWriter):
             if comp.SetAttrs({"COMPN_GlobalStart": 0, "COMPN_GlobalEnd": duration - 1,
                               "COMPN_RenderStart": 0, "COMPN_RenderEnd": duration - 1}) is False:
                 raise EditorialError("La composición rechazó el rango de animación.")
-            self._set_native_name(item, kwargs["native_name"])
-            if item.GetName() != kwargs["native_name"]:
+            named = item.SetName(kwargs["native_name"])
+            if named is False or item.GetName() != kwargs["native_name"]:
                 raise EditorialError("Resolve no confirmó la identidad del clip generado.")
             return item
         except Exception:

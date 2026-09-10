@@ -8,9 +8,9 @@ import unittest
 from unittest.mock import Mock, patch
 from zipfile import ZipFile
 
-from davinci_flow.editorial.model import Decision, EditorialError, Proposal, Snapshot, Template
+from davinci_flow.editorial.model import Decision, EditorialError, EditorialOptions, Proposal, Snapshot, Template
 from davinci_flow.editorial.planner import propose
-from davinci_flow.editorial.sources import capture, from_srt, scan_installed
+from davinci_flow.editorial.sources import basic_titles, capture, from_srt, scan_installed
 from davinci_flow.editorial.template_files import descriptor, prepare_comp, scan_archive
 from davinci_flow.editorial.service import apply_reviewed, undo_reviewed
 from davinci_flow.editorial.writer import EditorialWriter, connect_template_output, set_template_text
@@ -62,6 +62,16 @@ class EditorialContractTests(unittest.TestCase):
             proposal.generation_plan()
         self.assertEqual(proposal.edit(0, reviewed=True).generation_plan().active_block_count, 0)
 
+    def test_approve_all_marks_all_decisions_reviewed_and_validates(self):
+        proposal = sample()
+        self.assertFalse(proposal.decisions[0].reviewed)
+        with self.assertRaises(EditorialError):
+            proposal.generation_plan()
+        approved = proposal.approve_all()
+        self.assertTrue(approved.decisions[0].reviewed)
+        plan = approved.generation_plan()
+        self.assertEqual(plan.active_block_count, 1)
+
     def test_unknown_template_and_extra_role_are_rejected(self):
         for value in ({"main": "missing"}, {"main": "pool_p1", "accent": "pool_p1"}, {"main": []}):
             with self.subTest(value=value), self.assertRaises(EditorialError):
@@ -95,6 +105,66 @@ class EditorialContractTests(unittest.TestCase):
         self.assertEqual(len(result.decisions[0].templates), 3)
         self.assertFalse(result.decisions[0].reviewed)
         self.assertIn("No pierdas la ilusión.", client.generate_json.call_args.args[0])
+
+    def test_orientation_and_director_prompt_adaptation(self):
+        proposal = sample()
+        vertical_snap = replace(proposal.snapshot, width=1080, height=1920)
+        client = Mock(model_name="selected")
+        client.generate_json.return_value = {"decisions": [{
+            "cue_index": 0, "context": "No", "main": "pierdas la ilusión.", "accent": "",
+            "templates": {"context": "pool_p1", "main": "pool_p1"},
+            "reason": "Dos capas verticales.",
+        }]}
+        propose(vertical_snap, proposal.templates, client)
+        prompt_vert = client.generate_json.call_args.args[0]
+        self.assertIn("VERTICAL (9:16)", prompt_vert)
+        self.assertIn('"orientation": "vertical"', prompt_vert)
+
+        client.reset_mock()
+        client.generate_json.return_value = {"decisions": [{
+            "cue_index": 0, "enabled": True, "context": "", "main": "No pierdas la ilusión.", "accent": "",
+            "templates": {"main": "pool_p1"}, "reason": "Horizontal.",
+            "visual_note": "Centro.", "resource_id": "",
+        }]}
+        propose(proposal.snapshot, proposal.templates, client, options=EditorialOptions(format="horizontal"))
+        prompt_horiz = client.generate_json.call_args.args[0]
+        self.assertIn("HORIZONTAL (16:9)", prompt_horiz)
+        self.assertIn('"orientation": "horizontal"', prompt_horiz)
+
+    def test_invalid_llm_text_repairs_only_the_rejected_batch(self):
+        common = {
+            "cue_index": 0, "enabled": True, "context": "", "accent": "",
+            "templates": {"main": "pool_p1"}, "reason": "Idea principal.",
+            "visual_note": "Texto central.", "resource_id": "",
+        }
+        client = Mock(model_name="selected")
+        client.generate_json.side_effect = [
+            {"decisions": [common | {"main": "No pierdas tus sueños."}]},
+            {"decisions": [common | {"main": "No pierdas la ilusión."}]},
+        ]
+        result = propose(sample().snapshot, sample().templates, client, options=EditorialOptions())
+        self.assertEqual(result.decisions[0].main, "No pierdas la ilusión.")
+        self.assertEqual(client.generate_json.call_count, 2)
+        repair_prompt = client.generate_json.call_args_list[1].args[0]
+        self.assertIn("CORRECCIÓN OBLIGATORIA", repair_prompt)
+        self.assertIn("se alteró el texto", repair_prompt)
+        self.assertIn("No pierdas tus sueños.", repair_prompt)
+
+    def test_repeated_text_alteration_preserves_original_for_review(self):
+        invalid = {"decisions": [{
+            "cue_index": 0, "enabled": True, "context": "", "main": "No pierdas tus sueños.", "accent": "",
+            "templates": {"main": "pool_p1"}, "reason": "Idea principal.",
+            "visual_note": "Texto central.", "resource_id": "",
+        }]}
+        client = Mock(model_name="selected")
+        client.generate_json.side_effect = [invalid, invalid]
+        result = propose(sample().snapshot, sample().templates, client, options=EditorialOptions())
+        decision = result.decisions[0]
+        self.assertEqual(decision.main, "No pierdas la ilusión.")
+        self.assertEqual(decision.templates, {"main": "pool_p1"})
+        self.assertIn("Se conservó el subtítulo original", decision.reason)
+        self.assertFalse(decision.reviewed)
+        self.assertEqual(client.generate_json.call_count, 2)
 
     def test_llm_failure_has_no_local_fallback(self):
         client = Mock(model_name="selected")
@@ -196,6 +266,16 @@ class TemplateFileTests(unittest.TestCase):
             with self.assertRaises(EditorialError):
                 prepare_comp(template, Path(tmp) / "prepared")
 
+    def test_basic_titles_inventory(self):
+        titles = basic_titles()
+        self.assertEqual(len(titles), 3)
+        names = {t.name for t in titles}
+        self.assertEqual(names, {
+            "Text+ básico - Contexto",
+            "Text+ básico - Principal",
+            "Text+ básico - Énfasis",
+        })
+
 
 class FusionTextTests(unittest.TestCase):
     def test_connects_image_output_instead_of_auxiliary_number_output(self):
@@ -257,7 +337,7 @@ class StrictModelTests(unittest.TestCase):
             with patch("urllib.request.urlopen", side_effect=error) as request:
                 with self.assertRaises(GeminiError):
                     client.generate_json("Prueba")
-                self.assertEqual(request.call_count, 1)
+                self.assertEqual(request.call_count, 2 if isinstance(error, TimeoutError) else 1)
                 self.assertNotIn("test-key", request.call_args.args[0].full_url)
                 self.assertEqual(client.model_name, "explicit-model")
 

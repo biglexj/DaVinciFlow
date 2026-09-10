@@ -114,6 +114,12 @@ class EditorialController:
         self.proposal = self.proposal.edit(index, **changes, reviewed=True)
         self.dirty = True
 
+    def approve_all(self):
+        if self.proposal is None:
+            raise EditorialError('Genera o abre una propuesta antes de aprobar.')
+        self.proposal = self.proposal.approve_all()
+        self.dirty = True
+
     def apply(self):
         if self.proposal is None:
             raise EditorialError('No hay una propuesta revisada.')
