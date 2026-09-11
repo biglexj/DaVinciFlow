@@ -16,7 +16,7 @@ from davinci_flow.generation.plan import GenerationPlan
 from davinci_flow.generation.record import GenerationExecutionRecord, GenerationItemRecord
 from davinci_flow.resolve.track_manager import ResolveTrackManager
 from davinci_flow.sfx.assets import ensure_builtin_sfx_assets
-from davinci_flow.sfx.catalog import SFXCatalog
+from davinci_flow.sfx.catalog import SFXCatalog, SFXCatalogError
 from davinci_flow.themes.tokens import ThemeTokens, get_theme
 
 _CARRIER_MEDIA_NAME = "DF_Fusion_Title.png"
@@ -172,15 +172,20 @@ class ResolveTimelineWriter:
                 if block.sfx_proposal:
                     item_id = f"item_{plan.plan_id}_b{block_index}_sfx"
                     track_index = track_indices["DF_SFX"]
-                    descriptor = self.sfx_catalog.get(block.sfx_proposal)
-                    duration_frames = max(1.0, float(round(descriptor.duration_seconds * plan.fps)))
+                    try:
+                        descriptor = self.sfx_catalog.get(block.sfx_proposal)
+                        duration_frames = max(1.0, float(round(descriptor.duration_seconds * plan.fps)))
+                        asset_id = descriptor.id
+                    except SFXCatalogError:
+                        duration_frames = max(1.0, float(round(0.5 * plan.fps)))
+                        asset_id = block.sfx_proposal
                     native_item = None
                     if not dry_run:
                         native_name = self._native_name(execution_id, item_id)
                         native_item = self._find_timeline_item("audio", track_index, native_name)
                         if native_item is None:
                             native_item = self._insert_sfx(
-                                asset_id=descriptor.id,
+                                asset_id=asset_id,
                                 track_index=track_index,
                                 start_frame=block.start_frame,
                                 duration_frames=duration_frames,
@@ -487,11 +492,26 @@ class ResolveTimelineWriter:
         media_item = self._imported_sfx.get(asset_id)
         if media_item is None:
             paths = ensure_builtin_sfx_assets(self.asset_root)
-            path = paths[asset_id]
+            path = paths.get(asset_id)
             root_folder = self._safe_call(self._require_media_pool(), "GetRootFolder")
-            media_item = self._find_media_pool_item(root_folder, path.name)
+            if path is None:
+                try:
+                    desc = self.sfx_catalog.get(asset_id)
+                    cand = Path(desc.relative_path)
+                    if cand.is_file():
+                        path = cand
+                    elif self.asset_root:
+                        path = Path(self.asset_root) / desc.relative_path
+                except SFXCatalogError:
+                    pass
+            if path and Path(path).is_file():
+                media_item = self._find_media_pool_item(root_folder, Path(path).name)
+                if media_item is None:
+                    media_item = self._import_media(Path(path))
+            else:
+                media_item = self._find_media_pool_item(root_folder, asset_id)
             if media_item is None:
-                media_item = self._import_media(path)
+                raise TimelineWriteError(f"No se pudo resolver el archivo de audio para '{asset_id}'.")
             self._imported_sfx[asset_id] = media_item
 
         sfx_item = self._append_media_item(

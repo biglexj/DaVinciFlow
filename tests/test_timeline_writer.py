@@ -229,6 +229,32 @@ class TimelineWriterTests(unittest.TestCase):
         self.assertEqual(broll_record.status, "applied")
         self.assertEqual(broll_record.track_name, "DF_BROLL")
 
+    def test_apply_plan_with_sfx_proposal_and_revert(self) -> None:
+        block_with_sfx = replace(self.plan.blocks[0], sfx_proposal="sfx_whoosh_clean_01")
+        plan_with_sfx = replace(self.plan, blocks=(block_with_sfx,))
+
+        with tempfile.TemporaryDirectory() as temp_root:
+            writer = self._writer(temp_root)
+            record = writer.apply_plan(plan_with_sfx)
+
+        sfx_items = [item for item in record.items if item.role == "sfx"]
+        self.assertEqual(len(sfx_items), 1)
+        self.assertEqual(sfx_items[0].track_name, "DF_SFX")
+        self.assertEqual(sfx_items[0].track_type, "audio")
+        self.assertEqual(sfx_items[0].status, "applied")
+
+        items_by_track: dict[tuple[str, int], list] = {}
+        for item, record_item in zip(self.created_items, record.items):
+            item.GetName.return_value = writer._native_name(record.execution_id, record_item.item_id)
+            items_by_track.setdefault((record_item.track_type, record_item.track_index), []).append(item)
+
+        self.mock_timeline.GetItemListInTrack.side_effect = (
+            lambda track_type, track_index: items_by_track.get((track_type, track_index), [])
+        )
+        reverted = writer.revert_execution(record)
+        self.assertEqual(reverted.status, "reverted")
+        self.assertTrue(all(it.status == "reverted" for it in reverted.items))
+
 
 if __name__ == "__main__":
     unittest.main()

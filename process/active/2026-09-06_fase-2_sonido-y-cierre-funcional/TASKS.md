@@ -9,7 +9,7 @@
 - [x] T02 — Catalogar SFX y extender el contrato para transiciones y énfasis con ganancia, fundidos y referencia al bloque (`DEFAULT_SFX_ASSETS` en `model.py`, `BUILTIN_SFX_IDS`).
 - [x] T03 — Implementar decisiones sonoras LLM y validadores de densidad, repetición y tiempos (`EditorialPlanner` rítmico + auto-inyección en `resource_context`).
 - [x] T04 — Implementar revisión y selección en la interfaz (`EditorView` con columna 'Sonido', selector de efectos, persistencia de `resource_id` e indicador de 3 etapas).
-- [ ] T05 — Completar regeneración selectiva, manejo de fallos parciales y reversión por ejecución; conservar compatibilidad de registros.
+- [x] T05 — Completar regeneración selectiva, manejo de fallos parciales y reversión por ejecución; conservar compatibilidad de registros.
 - [ ] T06 — Corregir fallos encontrados en la muestra y posteriormente en un vídeo completo.
 - [ ] T07 — Entregar evidencia audiovisual y límites conocidos; habilitar fase 3 solo después del cierre funcional.
 

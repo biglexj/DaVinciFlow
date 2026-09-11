@@ -12,14 +12,15 @@
   - Evidencia: `tests/test_desktop.py` y `src/davinci_flow/editorial/writer.py` comprobados. Bypass de Fusion comps para items de audio.
 - [x] V04 — Interfaz de usuario Flet (`EditorView`):
   - Evidencia: Indicador visual de 3 etapas (`1. Ingesta del Crudo` -> `2. Mesa de Revisión` -> `3. Aplicación en Resolve`). Columna de tabla `Sonido`, selector de efectos en la tarjeta de revisión, persistencia en `review()` y detección en `form_changed()`.
+- [x] V06 — Verificación de idempotencia y reversión atómica (`undo`) en secuencia con elementos de audio y video:
+  - Evidencia: `tests/test_timeline_writer.py::test_apply_plan_with_sfx_proposal_and_revert` superada.
 - [ ] V05 — Comprobación en vivo con DaVinci Resolve en ejecución: inserción de clips de audio y video en timeline activo.
-- [ ] V06 — Verificación de idempotencia y reversión atómica (`undo`) en secuencia con elementos de audio y video.
 
 ## Evidencia automatizada (2026-09-10)
 
 ```
 $env:PYTHONPATH="src;src-flet"; python -m unittest discover -s tests
-Ran 227 tests in 4.236s
+Ran 228 tests in 4.608s
 OK (skipped=18)
 ```
 
