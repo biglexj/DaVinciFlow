@@ -6,6 +6,7 @@ from typing import Any
 
 from davinci_flow.editorial.model import EditorialError, Proposal
 from davinci_flow.resolve.timeline_writer import ResolveTimelineWriter
+from davinci_flow.themes.tokens import ThemeTokens
 from davinci_flow.editorial.template_files import ROOT_TOOL, prepare_comp, template_bytes
 
 
@@ -168,12 +169,13 @@ class EditorialWriter(ResolveTimelineWriter):
 
     def _resolve_record_frame(self, frame: float) -> int:
         # Los subtítulos nativos tienen tiempos absolutos; no inferir el origen por magnitud.
-        return int(round(frame))
+        return round(frame)
 
     def _append_media_item(self, media_item: Any, media_type: int, track_type: str,
                            track_index: int, record_frame: int, duration_frames: float) -> Any:
-        duration = int(round(duration_frames))
-        result = self.media_pool.AppendToTimeline([{
+        duration = round(duration_frames)
+        media_pool = self._require_media_pool()
+        result = media_pool.AppendToTimeline([{
             "mediaPoolItem": media_item, "mediaType": media_type, "trackIndex": track_index,
             # Resolve 21.0.0b.33 comprobado: endFrame=46 produce duración 46, no 47.
             "recordFrame": record_frame, "startFrame": 0, "endFrame": duration,
@@ -199,13 +201,26 @@ class EditorialWriter(ResolveTimelineWriter):
             if not isinstance(value, (int, float)) or abs(value - expected) > 0.01:
                 raise EditorialError("Resolve no confirmó posición y duración exactas.")
 
-    def _insert_fusion_title(self, **kwargs: Any) -> Any:
-        template = self.assignments[kwargs["native_name"]]
-        duration = int(round(kwargs["end_frame"] - kwargs["start_frame"]))
+    def _insert_fusion_title(
+        self,
+        track_index: int,
+        start_frame: float,
+        end_frame: float,
+        text: str,
+        role: str,
+        theme: ThemeTokens,
+        fps: float,
+        native_name: str,
+        animation_preset: str = "none",
+        template_media_item: Any | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        template = self.assignments[native_name]
+        duration = round(end_frame - start_frame)
         media = (self.handles[template.id] if template.source == "media_pool"
-                 else self._get_carrier_media_item(self._plan_carrier_frames, fps=kwargs["fps"]))
-        item = self._append_media_item(media, 1, "video", kwargs["track_index"],
-                                       int(round(kwargs["start_frame"])), duration)
+                 else self._get_carrier_media_item(self._plan_carrier_frames, fps=fps))
+        item = self._append_media_item(media, 1, "video", track_index,
+                                       round(start_frame), duration)
         try:
             if template.source != "media_pool":
                 comp_path = prepare_comp(template, self.temp_root / "editorial_templates")
@@ -214,12 +229,12 @@ class EditorialWriter(ResolveTimelineWriter):
             comp = item.GetFusionCompByIndex(1)
             if template.source != "media_pool":
                 connect_template_output(comp, template)
-            set_template_text(comp, kwargs["text"], template.text_tool, template.text_input)
+            set_template_text(comp, text, template.text_tool, template.text_input)
             if comp.SetAttrs({"COMPN_GlobalStart": 0, "COMPN_GlobalEnd": duration - 1,
                               "COMPN_RenderStart": 0, "COMPN_RenderEnd": duration - 1}) is False:
                 raise EditorialError("La composición rechazó el rango de animación.")
-            named = item.SetName(kwargs["native_name"])
-            if named is False or item.GetName() != kwargs["native_name"]:
+            named = item.SetName(native_name)
+            if named is False or item.GetName() != native_name:
                 raise EditorialError("Resolve no confirmó la identidad del clip generado.")
             return item
         except Exception:

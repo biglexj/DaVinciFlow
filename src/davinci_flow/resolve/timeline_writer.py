@@ -77,7 +77,7 @@ class ResolveTimelineWriter:
         status_result = "dry_run" if dry_run else "completed"
         self._plan_carrier_frames = max(
             (
-                max(1, int(round(block.end_frame - block.start_frame)))
+                max(1, round(block.end_frame - block.start_frame))
                 for block in plan.blocks
                 if block.is_enabled
             ),
@@ -120,7 +120,7 @@ class ResolveTimelineWriter:
                     native_item = None
                     if not dry_run:
                         native_name = self._native_name(execution_id, item_id)
-                        duration_frames = max(1, int(round(block.end_frame - block.start_frame)))
+                        duration_frames = max(1, round(block.end_frame - block.start_frame))
                         anim_preset = block.style_preset or self._resolve_default_animation(
                             plan.profile_name, role
                         )
@@ -211,7 +211,7 @@ class ResolveTimelineWriter:
                             track_name="DF_SFX",
                             start_frame=block.start_frame,
                             end_frame=block.start_frame + duration_frames,
-                            content_text=descriptor.id,
+                            content_text=asset_id,
                             status="planned" if dry_run else "applied",
                             native_item_id=self._get_native_id(native_item),
                             created_at=now_str,
@@ -349,7 +349,7 @@ class ResolveTimelineWriter:
         native_name: str,
     ) -> Any:
         """Inserta un clip de B-Roll en la pista DF_BROLL recortado a la duración del bloque."""
-        duration_frames = max(1, int(round(end_frame - start_frame)))
+        duration_frames = max(1, round(end_frame - start_frame))
         media_item = self._find_or_import_media(file_path)
         broll_item = self._append_media_item(
             media_item=media_item,
@@ -413,7 +413,7 @@ class ResolveTimelineWriter:
         template_media_item: Any | None = None,
     ) -> Any:
         """Añade un soporte transparente o usa una plantilla Text+ del Media Pool e inyecta el texto."""
-        duration_frames = max(1, int(round(end_frame - start_frame)))
+        duration_frames = max(1, round(end_frame - start_frame))
         if template_media_item is not None:
             media_item = template_media_item
         else:
@@ -539,14 +539,14 @@ class ResolveTimelineWriter:
         if not callable(append):
             raise TimelineWriteError("El Media Pool no expone AppendToTimeline().")
 
-        target_duration = max(1, int(round(duration_frames)))
+        target_duration = max(1, round(duration_frames))
         clip_info = {
             "mediaPoolItem": media_item,
             "startFrame": 0,
             "endFrame": float(target_duration),
             "mediaType": media_type,
-            "trackIndex": int(track_index),
-            "recordFrame": int(record_frame),
+            "trackIndex": track_index,
+            "recordFrame": record_frame,
         }
         result = append([clip_info])
         native_items = list(self._iter_values(result))
@@ -590,7 +590,7 @@ class ResolveTimelineWriter:
                 f"Resolve insertó el clip en el fotograma {actual_start:g}; se esperaba {record_frame}."
             )
 
-        expected_duration = max(1, int(round(duration_frames)))
+        expected_duration = max(1, round(duration_frames))
         actual_duration = self._numeric_item_call(item, "GetDuration")
         if actual_duration is not None:
             if track_type == "audio" and abs(actual_duration - expected_duration) > 1.01:
@@ -672,10 +672,10 @@ class ResolveTimelineWriter:
         return None
 
     def _resolve_record_frame(self, frame: float) -> int:
-        target = int(round(frame))
+        target = round(frame)
         start = self._numeric_call(self.timeline, "GetStartFrame")
         if start is not None and start > 0 and target < start:
-            target += int(round(start))
+            target += round(start)
         return target
 
     def _delete_items(self, items: Iterable[Any], require_success: bool = False) -> None:

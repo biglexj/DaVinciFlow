@@ -39,8 +39,8 @@ def write_black_uncompressed_avi(
     frame_size = row_stride * height
     frame_data = b"\x00" * frame_size
 
-    microseconds_per_frame = int(round(1_000_000 * scale / rate))
-    max_bytes_per_second = int(round(frame_size * rate / scale))
+    microseconds_per_frame = round(1_000_000 * scale / rate)
+    max_bytes_per_second = round(frame_size * rate / scale)
     avih = struct.pack(
         "<IIIIIIIIII4I",
         microseconds_per_frame,
