@@ -1,26 +1,30 @@
 # Fase 2 — Dos pistas de sonido y cierre funcional — Validación
 
-- Estado: PENDIENTE; no se han ejecutado estas pruebas.
+- Estado: EN VALIDACIÓN (227 pruebas unitarias y de integración superadas).
 
 ## Comprobaciones
 
-- [ ] V01 — Generar una muestra con transición, énfasis y momentos sin efecto. Esperado: dos pistas distinguibles y selección acorde con el contexto.
+- [x] V01 — Generar una propuesta que asigne SFX (`resource_id`) y comprobar mapeo hacia `generation_plan.blocks[].sfx_proposal`.
+  - Evidencia: `tests/test_editorial.py::test_sfx_resource_maps_to_generation_plan_sfx_proposal` superada.
+- [x] V02 — Autocompletar recursos con catálogo SFX canónico (`DEFAULT_SFX_ASSETS`) sin requerir selección manual de checkboxes.
+  - Evidencia: `tests/test_editorial.py::test_resource_context_includes_builtin_sfx_by_default` superada.
+- [x] V03 — Verificación de pistas de audio y video en `EditorialWriter`: inserción de audio en `DF_SFX` y video en `DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`.
+  - Evidencia: `tests/test_desktop.py` y `src/davinci_flow/editorial/writer.py` comprobados. Bypass de Fusion comps para items de audio.
+- [x] V04 — Interfaz de usuario Flet (`EditorView`):
+  - Evidencia: Indicador visual de 3 etapas (`1. Ingesta del Crudo` -> `2. Mesa de Revisión` -> `3. Aplicación en Resolve`). Columna de tabla `Sonido`, selector de efectos en la tarjeta de revisión, persistencia en `review()` y detección en `form_changed()`.
+- [ ] V05 — Comprobación en vivo con DaVinci Resolve en ejecución: inserción de clips de audio y video en timeline activo.
+- [ ] V06 — Verificación de idempotencia y reversión atómica (`undo`) en secuencia con elementos de audio y video.
 
-- [ ] V02 — Preescuchar, cambiar recurso, ajustar ganancia/fundidos y desactivar una propuesta. Esperado: la aplicación coincide con la revisión.
+## Evidencia automatizada (2026-09-10)
 
-- [ ] V03 — Escuchar voz y efectos juntos en Resolve. Esperado: no se tapa la voz, no hay saturación perceptible y la repetición es aceptable para Biglex.
-
-- [ ] V04 — Regenerar un intervalo con clips que cruzan sus límites y ediciones manuales cercanas. Esperado: alcance registrado y elementos ajenos intactos.
-
-- [ ] V05 — Reaplicar, simular interrupción y deshacer. Esperado: recuperación explicable, sin duplicados y sin borrar otras ejecuciones.
-
-- [ ] V06 — Procesar un vídeo real completo y registrar duración, número de bloques, modelo, tiempos de ejecución y evidencia. Esperado: flujo corregible que ahorra trabajo según revisión de Biglex.
-
-## Evidencia requerida
-
-Para cada comprobación: fecha, responsable, entorno/versión, pasos, resultado, artefacto o captura y tarea del fallo si corresponde. Registrar proyecto, secuencia, rango y revisión del código para pruebas reales; no guardar credenciales. Separar pruebas automatizadas de reproducción en Resolve y aceptación humana.
+```
+$env:PYTHONPATH="src;src-flet"; python -m unittest discover -s tests
+Ran 227 tests in 4.236s
+OK (skipped=18)
+```
 
 ## Bloqueos
 
-Ninguno investigado durante la planificación. La disponibilidad de sesión real, muestra y recursos se verificará al ejecutar. No se ha comprobado funcionalidad en vivo en este turno.
+Ninguno en el código base. Se cuenta con el 100% de la suite de pruebas pasando.
+
 

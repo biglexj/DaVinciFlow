@@ -72,7 +72,29 @@ class EditorialWriter(ResolveTimelineWriter):
             for i, d in enumerate(proposal.decisions, 1) if d.enabled
             for role in d.templates
         }
-        self.track_manager.ensure_dedicated_tracks = self.ensure_text_tracks
+        self.track_manager.ensure_dedicated_tracks = self.ensure_tracks
+
+    def ensure_tracks(self) -> dict[str, int]:
+        mapping = self.ensure_text_tracks()
+        plan = self.proposal.generation_plan()
+        has_sfx = any(bool(b.sfx_proposal) for b in plan.blocks if b.is_enabled)
+        if has_sfx:
+            count = int(self.timeline.GetTrackCount("audio"))
+            sfx_index = None
+            for index in range(1, count + 1):
+                name = str(self.timeline.GetTrackName("audio", index))
+                if name == "DF_SFX":
+                    sfx_index = index
+                    break
+            if sfx_index is None:
+                if self.timeline.AddTrack("audio") is True:
+                    count += 1
+                    self.timeline.SetTrackName("audio", count, "DF_SFX")
+                    sfx_index = count
+                else:
+                    sfx_index = 1
+            mapping["DF_SFX"] = sfx_index
+        return mapping
 
     def ensure_text_tracks(self) -> dict[str, int]:
         """Crea solo tres pistas de texto; nunca renombra una pista existente ajena."""
@@ -136,6 +158,8 @@ class EditorialWriter(ResolveTimelineWriter):
         if not matches:
             return None
         item = matches[0]
+        if track_type == "audio":
+            return item
         template = self.assignments[expected_name]
         tool = text_tool(item.GetFusionCompByIndex(1), template.text_tool)
         if tool.GetInput(template.text_input) != self.expected_text[expected_name]:

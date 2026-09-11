@@ -10,6 +10,7 @@ from davinci_flow.editorial.planner import propose
 from davinci_flow.editorial.preferences import Preferences, PREFERENCES_PATH
 from davinci_flow.editorial.sources import basic_titles, from_srt, scan_installed
 from davinci_flow.editorial import resolve_bridge
+from davinci_flow.sfx.catalog import DEFAULT_SFX_ASSETS
 
 
 class EditorialController:
@@ -70,7 +71,17 @@ class EditorialController:
         missing = chosen - {r.id for r in self.resources}
         if missing:
             raise EditorialError(f'{len(missing)} recursos seleccionados no están disponibles. Revisa la biblioteca.')
-        return tuple(r.context() for r in self.resources if r.id in chosen)
+        user_resources = tuple(r.context() for r in self.resources if r.id in chosen)
+        builtin_sfx = tuple(
+            {"id": a.id, "category": "sfx", "name": f"{a.name} ({a.category})"}
+            for a in DEFAULT_SFX_ASSETS
+        )
+        combined = list(user_resources)
+        user_ids = {r["id"] for r in user_resources}
+        for sfx in builtin_sfx:
+            if sfx["id"] not in user_ids and len(combined) < 80:
+                combined.append(sfx)
+        return tuple(combined)
 
     def options(self):
         p = self.preferences

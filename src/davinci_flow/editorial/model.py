@@ -10,7 +10,10 @@ from typing import Any
 
 from davinci_flow.errors import DaVinciFlowError
 from davinci_flow.generation.plan import GenerationPlan, build_generation_plan
+from davinci_flow.sfx.catalog import DEFAULT_SFX_ASSETS
 from davinci_flow.subtitles.model import SubtitleCue
+
+BUILTIN_SFX_IDS = frozenset(a.id for a in DEFAULT_SFX_ASSETS)
 
 
 class EditorialError(DaVinciFlowError):
@@ -166,7 +169,7 @@ class Proposal:
             if self.options is not None:
                 if not decision.reason.strip() or not isinstance(decision.visual_note, str) or not isinstance(decision.resource_id, str):
                     raise EditorialError("Falta el motivo editorial o la intención visual es inválida.")
-                if decision.resource_id and decision.resource_id not in {r["id"] for r in self.options.resources}:
+                if decision.resource_id and decision.resource_id not in ({r["id"] for r in self.options.resources} | BUILTIN_SFX_IDS):
                     raise EditorialError("La LLM recomendó un recurso que no está en la biblioteca compartida.")
             if not isinstance(decision.templates, dict):
                 raise EditorialError("Las plantillas deben asignarse por capa.")
@@ -244,11 +247,14 @@ class Proposal:
         s = self.snapshot
         base = build_generation_plan(s.project, s.timeline, s.cues, track_index=s.track,
                                      timeline_id=s.timeline_id, fps=s.fps, width=s.width, height=s.height)
+        sfx_ids = ({r["id"] for r in (self.options.resources if self.options else ()) if r.get("category") == "sfx"}
+                   | BUILTIN_SFX_IDS)
         blocks = []
         for original, decision in zip(base.blocks, self.decisions):
+            sfx_choice = decision.resource_id if (decision.enabled and decision.resource_id in sfx_ids) else None
             blocks.append(replace(original, context_text=decision.context or None,
                                   # El contrato antiguo exige texto aun en bloques desactivados.
                                   main_text=decision.main or original.main_text, accent_text=decision.accent or None,
                                   reason=decision.reason, is_enabled=decision.enabled,
-                                  sfx_proposal=None))
+                                  sfx_proposal=sfx_choice))
         return replace(base, plan_id="editorial_" + self.revision[:24], blocks=tuple(blocks))

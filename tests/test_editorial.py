@@ -46,6 +46,20 @@ class EditorialContractTests(unittest.TestCase):
         self.assertEqual(loaded.revision, proposal.revision)
         self.assertIsNone(loaded.generation_plan().blocks[0].sfx_proposal)
 
+    def test_sfx_resource_maps_to_generation_plan_sfx_proposal(self):
+        proposal = sample().edit(0, reviewed=True)
+        self.assertIsNone(proposal.generation_plan().blocks[0].sfx_proposal)
+
+        options = EditorialOptions(mode="highlights")
+        proposal_with_sfx = replace(
+            proposal,
+            version="1.1.0",
+            options=options,
+            decisions=(replace(proposal.decisions[0], resource_id="sfx_whoosh_clean_01", reviewed=True),),
+        )
+        plan = proposal_with_sfx.generation_plan()
+        self.assertEqual(plan.blocks[0].sfx_proposal, "sfx_whoosh_clean_01")
+
     def test_rejects_lost_negation_and_duplicate_words(self):
         for text in ("Pierdas la ilusión.", "No No pierdas la ilusión."):
             with self.subTest(text=text), self.assertRaises(EditorialError):

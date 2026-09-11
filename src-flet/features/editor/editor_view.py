@@ -2,6 +2,7 @@ import asyncio
 import flet as ft
 
 from davinci_flow.editorial.model import EditorialError
+from davinci_flow.sfx.catalog import DEFAULT_SFX_ASSETS
 from shared.components import (
     ACCENT, CARD, LINE, MUTED, TEXT, MODES, FORMATS, DENSITIES, button, card, field, scroll_table, select, text,
 )
@@ -24,8 +25,9 @@ class EditorView:
                                multiline=True, min_lines=1, max_lines=3)
         self.source_summary = text('Captura los subtítulos de tu montaje o abre un SRT.', color=MUTED)
         self.count = text('Sin fuente', color=MUTED)
+        self.stage_container = ft.Container(padding=ft.Padding.only(bottom=4))
         self.table = ft.DataTable(columns=[ft.DataColumn(text(t, color=MUTED)) for t in
-            ('Tiempo', 'Contexto', 'Principal', 'Énfasis', 'Plantilla', 'Revisión')],
+            ('Tiempo', 'Contexto', 'Principal', 'Énfasis', 'Sonido', 'Plantilla', 'Revisión')],
             rows=[], heading_row_height=38, data_row_min_height=40, data_row_max_height=44,
             column_spacing=18, horizontal_margin=14, show_checkbox_column=False,
             heading_row_color='#242C30', divider_thickness=0.4)
@@ -42,7 +44,7 @@ class EditorView:
             expand=True,
             visible=False,
         )
-        self.table_view = scroll_table(self.table, width=1120, height=None, expand=True)
+        self.table_view = scroll_table(self.table, width=1180, height=None, expand=True)
         self.table_view.visible = False
         self.original = text('', size=13, selectable=True)
         self.reason = text('', color=MUTED, selectable=True)
@@ -53,6 +55,8 @@ class EditorView:
             self.texts[role] = field(label, col={'xs':12, 'md':8})
             self.templates[role] = select('Plantilla', {}, width=None, col={'xs':12, 'md':4})
             rows.append(ft.ResponsiveRow([self.texts[role], self.templates[role]], spacing=10, run_spacing=8))
+        self.sfx = select('Efecto de sonido (SFX)', {}, width=None, col={'xs':12, 'md':12})
+        rows.append(ft.ResponsiveRow([self.sfx], spacing=10, run_spacing=8))
         self.enabled = ft.Checkbox(label='Mostrar texto', value=True, active_color=ACCENT)
         self.note = field('Nota si reescribes el original', expand=True)
         self.review_card = card(ft.Column([
@@ -71,7 +75,9 @@ class EditorView:
                 button('Cerrar', app.bind(self.close_review), ft.Icons.CLOSE_ROUNDED),
             ], wrap=True, spacing=8),
         ], spacing=10), visible=False)
+        self.stage_container.content = self._stage_indicator(1)
         self.content = ft.Column([
+            self.stage_container,
             card(ft.Column([
                 ft.Row([self.track, self.fps, self.first, self.last,
                     button('Capturar Resolve', app.bind(self.capture), ft.Icons.VIDEO_LIBRARY_OUTLINED),
@@ -99,6 +105,34 @@ class EditorView:
             self.empty, self.initial_loading, self.table_view, self.review_card,
         ], spacing=10, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
 
+    def _stage_indicator(self, stage: int):
+        stages = [
+            (1, "1. Ingesta del Crudo", ft.Icons.DOWNLOAD_ROUNDED),
+            (2, "2. Mesa de Revisión", ft.Icons.RATE_REVIEW_ROUNDED),
+            (3, "3. Aplicación en Resolve", ft.Icons.MOVIE_CREATION_ROUNDED),
+        ]
+        chips = []
+        for num, label, icon in stages:
+            is_current = (num == stage)
+            is_past = (num < stage)
+            bg = '#1F4037' if is_current else ('#162320' if is_past else '#1A2126')
+            border_c = ACCENT if is_current else ('#2A4A43' if is_past else '#2B353B')
+            txt_c = '#FFFFFF' if is_current else (TEXT if is_past else MUTED)
+            ic_c = ACCENT if (is_current or is_past) else MUTED
+            chips.append(
+                ft.Container(
+                    content=ft.Row([
+                        ft.Icon(icon, size=14, color=ic_c),
+                        text(label, size=12, weight=ft.FontWeight.W_600 if is_current else ft.FontWeight.NORMAL, color=txt_c),
+                    ], spacing=6, alignment=ft.MainAxisAlignment.CENTER),
+                    padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+                    border_radius=16,
+                    bgcolor=bg,
+                    border=ft.Border.all(0.8, border_c),
+                )
+            )
+        return ft.Row(chips, spacing=10, alignment=ft.MainAxisAlignment.START)
+
     def sync_preferences(self):
         p = self.controller.preferences
         p.mode, p.format, p.density, p.direction = self.mode.value, self.format.value, self.density.value, self.direction.value.strip()
@@ -108,20 +142,41 @@ class EditorView:
         self.table.rows.clear()
         self.empty.visible = snapshot is None
         self.table_view.visible = snapshot is not None
+
+        stage = 1
+        if snapshot is not None:
+            if proposal is not None:
+                reviewed = sum(d.reviewed for d in proposal.decisions)
+                if reviewed == len(proposal.decisions) and len(proposal.decisions) > 0:
+                    stage = 3
+                else:
+                    stage = 2
+            else:
+                stage = 1
+        self.stage_container.content = self._stage_indicator(stage)
+
         if snapshot is None:
             return
         self.source_summary.value = f'{snapshot.timeline} · {len(snapshot.cues)} subtítulos · {snapshot.width} × {snapshot.height} · {snapshot.fps:g} fps'
         catalog = {t.id: t.name for t in proposal.templates} if proposal else {}
+        sfx_names = {a.id: a.name for a in DEFAULT_SFX_ASSETS}
+        if proposal and proposal.options and proposal.options.resources:
+            for r in proposal.options.resources:
+                if r.get('category') == 'sfx':
+                    sfx_names[r['id']] = r['name']
+
         for i, cue in enumerate(snapshot.cues):
             decision = proposal.decisions[i] if proposal else None
+            sfx_label = sfx_names.get(decision.resource_id, decision.resource_id) if (decision and decision.resource_id) else ''
             values = (f'{cue.start_frame:g}–{cue.end_frame:g}', decision.context if decision else '',
                       (decision.main if decision.enabled else 'Sin rótulo') if decision else cue.text,
                       decision.accent if decision else '',
+                      sfx_label,
                       ', '.join(dict.fromkeys(catalog.get(t, '') for t in decision.templates.values())) if decision else 'Por elegir',
                       ('Revisado' if decision.reviewed else 'Pendiente') if decision else 'Fuente')
             cells = [ft.DataCell(ft.Container(content=text(value or '—', color=MUTED if decision and not decision.enabled else TEXT,
                 no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS, tooltip=value), width=width))
-                for value, width in zip(values, (115, 140, 260, 140, 200, 90))]
+                for value, width in zip(values, (110, 130, 230, 130, 120, 170, 90))]
             self.table.rows.append(ft.DataRow(cells=cells, selected=i == self.selected,
                 color='#173A35' if i == self.selected else None, on_select_change=self.app.bind(self.choose, i)))
         reviewed = sum(d.reviewed for d in proposal.decisions) if proposal else 0
@@ -136,7 +191,8 @@ class EditorView:
         d = p.decisions[self.selected]
         return (any(f.value.strip() != getattr(d, role).strip() for role, f in self.texts.items())
                 or self.enabled.value != d.enabled or self.note.value.strip() != d.edit_note
-                or any(self.templates[r].value != tid for r, tid in d.templates.items()))
+                or any(self.templates[r].value != tid for r, tid in d.templates.items())
+                or (self.sfx.value or '') != (d.resource_id or ''))
 
     async def replacement_allowed(self):
         if self.form_changed() or self.controller.dirty:
@@ -191,6 +247,15 @@ class EditorView:
             self.texts[role].value = getattr(d, role)
             self.templates[role].options = [ft.DropdownOption(key=t.id, text=t.name) for t in p.templates]
             self.templates[role].value = d.templates.get(role)
+        sfx_options = [ft.DropdownOption(key='', text='(Sin sonido)')]
+        sfx_options.extend([ft.DropdownOption(key=a.id, text=f'{a.name} ({a.category})') for a in DEFAULT_SFX_ASSETS])
+        if p.options and p.options.resources:
+            seen_keys = {opt.key for opt in sfx_options}
+            for r in p.options.resources:
+                if r.get('category') == 'sfx' and r['id'] not in seen_keys:
+                    sfx_options.append(ft.DropdownOption(key=r['id'], text=r['name']))
+        self.sfx.options = sfx_options
+        self.sfx.value = d.resource_id or ''
         self.enabled.value, self.note.value = d.enabled, d.edit_note
         self.original.value = f'Original: {p.snapshot.cues[index].text}'
         self.reason.value = d.reason
@@ -204,7 +269,9 @@ class EditorView:
             return
         texts = {r: f.value.strip() for r, f in self.texts.items()}
         assigned = {r: self.templates[r].value or '' for r, v in texts.items() if v}
+        sfx_val = (self.sfx.value or '').strip()
         self.controller.review(self.selected, **texts, templates=assigned,
+                               resource_id=sfx_val,
                                enabled=bool(self.enabled.value), edit_note=self.note.value.strip())
         self.refresh()
         self.app.notify('Revisión del bloque guardada en la propuesta.')

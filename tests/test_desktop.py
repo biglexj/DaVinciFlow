@@ -69,6 +69,14 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(EditorialError, 'no están disponibles'):
             self.controller.resource_context()
 
+    def test_resource_context_includes_builtin_sfx_by_default(self):
+        resources = self.controller.resource_context()
+        categories = {r["category"] for r in resources}
+        self.assertIn("sfx", categories)
+        ids = {r["id"] for r in resources}
+        self.assertIn("sfx_whoosh_clean_01", ids)
+        self.assertIn("sfx_pop_subtle_01", ids)
+
     def test_legacy_load_save_keeps_revision_and_full_caption_mode(self):
         path = Path(self.temp.name) / 'legacy.json'
         sample().save(path)
