@@ -25,3 +25,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "davinci_flow.editorial" = ["basic_titles/*.setting"]
+
+[tool.pyright]
+include = ["src", "src-flet", "tests"]
+extraPaths = ["src", "src-flet", "."]

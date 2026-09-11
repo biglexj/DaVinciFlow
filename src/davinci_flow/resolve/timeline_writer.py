@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tempfile
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
