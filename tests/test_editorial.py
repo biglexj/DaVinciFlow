@@ -13,7 +13,7 @@ from davinci_flow.editorial.planner import propose
 from davinci_flow.editorial.sources import basic_titles, capture, from_srt, scan_installed
 from davinci_flow.editorial.template_files import descriptor, prepare_comp, scan_archive
 from davinci_flow.editorial.service import apply_reviewed, undo_reviewed
-from davinci_flow.editorial.writer import EditorialWriter, connect_template_output, set_template_text
+from davinci_flow.editorial.writer import EditorialWriter, calculate_layer_y, connect_template_output, set_template_text, text_tool
 from davinci_flow.subtitles.model import SubtitleCue
 
 
@@ -180,6 +180,60 @@ class EditorialContractTests(unittest.TestCase):
         self.assertFalse(decision.reviewed)
         self.assertEqual(client.generate_json.call_count, 2)
 
+    def test_batch_omission_reconciles_on_second_attempt_highlights(self):
+        cues = (
+            SubtitleCue("Primera frase destacada.", 86400, 86448, 1),
+            SubtitleCue("X", 86450, 86460, 1),
+            SubtitleCue("Tercera frase final.", 86470, 86520, 1),
+        )
+        snapshot = Snapshot("Proyecto", "Secuencia", "timeline-1", 24, 1080, 1920, 86400, 1, cues)
+        templates = (Template("pool_p1", "Texto", "media_pool", "p1"),)
+
+        omitted_batch = {"decisions": [
+            {"cue_index": 0, "enabled": True, "context": "", "main": "Primera frase destacada.",
+             "accent": "", "templates": {"main": "pool_p1"}, "reason": "Destacar primera frase.",
+             "visual_note": "", "resource_id": ""},
+            {"cue_index": 2, "enabled": True, "context": "", "main": "Tercera frase final.",
+             "accent": "", "templates": {"main": "pool_p1"}, "reason": "Destacar tercera frase.",
+             "visual_note": "", "resource_id": ""},
+        ]}
+        client = Mock(model_name="selected")
+        client.generate_json.side_effect = [omitted_batch, omitted_batch]
+        options = EditorialOptions(mode="highlights")
+        result = propose(snapshot, templates, client, options=options)
+
+        self.assertEqual(len(result.decisions), 3)
+        self.assertEqual(client.generate_json.call_count, 2)
+        self.assertEqual(result.decisions[0].main, "Primera frase destacada.")
+        self.assertTrue(result.decisions[0].enabled)
+        self.assertFalse(result.decisions[1].enabled)
+        self.assertEqual(result.decisions[1].cue_index, 1)
+        self.assertIn("Sin rótulo", result.decisions[1].reason)
+        self.assertEqual(result.decisions[2].main, "Tercera frase final.")
+        self.assertTrue(result.decisions[2].enabled)
+
+    def test_batch_omission_reconciles_on_second_attempt_captions(self):
+        cues = (
+            SubtitleCue("Primera frase.", 86400, 86448, 1),
+            SubtitleCue("Segunda frase.", 86450, 86490, 1),
+        )
+        snapshot = Snapshot("Proyecto", "Secuencia", "timeline-1", 24, 1920, 1080, 86400, 1, cues)
+        templates = (Template("pool_p1", "Texto", "media_pool", "p1"),)
+
+        omitted_batch = {"decisions": [
+            {"cue_index": 0, "context": "", "main": "Primera frase.",
+             "accent": "", "templates": {"main": "pool_p1"}, "reason": "Primera frase."},
+        ]}
+        client = Mock(model_name="selected")
+        client.generate_json.side_effect = [omitted_batch, omitted_batch]
+        result = propose(snapshot, templates, client)
+
+        self.assertEqual(len(result.decisions), 2)
+        self.assertEqual(result.decisions[0].main, "Primera frase.")
+        self.assertEqual(result.decisions[1].main, "Segunda frase.")
+        self.assertEqual(result.decisions[1].cue_index, 1)
+        self.assertIn("Subtítulo conservado automáticamente", result.decisions[1].reason)
+
     def test_llm_failure_has_no_local_fallback(self):
         client = Mock(model_name="selected")
         client.generate_json.side_effect = TimeoutError("tiempo límite")
@@ -339,6 +393,38 @@ class FusionTextTests(unittest.TestCase):
         comp.FindTool.return_value.SetInput.return_value = False
         with self.assertRaises(EditorialError):
             set_template_text(comp, "Texto", "MyTitle")
+
+    def test_text_tool_prefers_named_template_when_multiple(self):
+        comp = Mock()
+        bg_tool = Mock()
+        bg_tool.Name = "BackgroundText"
+        bg_tool.GetAttrs.return_value = {"TOOLS_RegID": "TextPlus"}
+
+        template_tool = Mock()
+        template_tool.Name = "Template"
+        template_tool.GetAttrs.return_value = {"TOOLS_RegID": "TextPlus"}
+
+        comp.GetToolList.return_value = {"1": bg_tool, "2": template_tool}
+        chosen = text_tool(comp)
+        self.assertEqual(chosen, template_tool)
+
+    def test_calculate_layer_y_vertical_and_horizontal(self):
+        # Vertical (Shorts 9:16)
+        # 3 layers
+        self.assertAlmostEqual(calculate_layer_y("context", ("context", "main", "accent"), is_vertical=True), 0.355)
+        self.assertAlmostEqual(calculate_layer_y("main", ("context", "main", "accent"), is_vertical=True), 0.320)
+        self.assertAlmostEqual(calculate_layer_y("accent", ("context", "main", "accent"), is_vertical=True), 0.285)
+
+        # 2 layers (main + accent)
+        self.assertAlmostEqual(calculate_layer_y("main", ("main", "accent"), is_vertical=True), 0.325)
+        self.assertAlmostEqual(calculate_layer_y("accent", ("main", "accent"), is_vertical=True), 0.290)
+
+        # 1 layer
+        self.assertAlmostEqual(calculate_layer_y("main", ("main",), is_vertical=True), 0.315)
+
+        # Horizontal (16:9)
+        self.assertAlmostEqual(calculate_layer_y("main", ("main",), is_vertical=False), 0.180)
+        self.assertAlmostEqual(calculate_layer_y("context", ("context", "main", "accent"), is_vertical=False), 0.240)
 
 
 class StrictModelTests(unittest.TestCase):

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
+import re
 
 from davinci_flow.assets.broll_catalog import SUPPORTED_VIDEO_EXTENSIONS, SUPPORTED_AUDIO_EXTENSIONS
 
@@ -36,30 +37,45 @@ class Resource:
 
 def scan_library(paths: dict[str, str], limit: int = 2000) -> tuple[tuple[Resource, ...], tuple[str, ...]]:
     resources, diagnostics = [], []
+    seen_identities: set[str] = set()
     for category in CATEGORIES:
         value = paths.get(category, "").strip()
         if not value:
             continue
-        root = Path(value).expanduser()
-        if not root.is_dir():
-            diagnostics.append(f"{CATEGORIES[category]}: la carpeta no existe.")
+        raw_entries = [p.strip() for p in re.split(r"[;\n\r]+", value) if p.strip()]
+        if not raw_entries:
             continue
         count = 0
-        def onerror(error):
-            diagnostics.append(f"{CATEGORIES[category]}: no se pudo leer una subcarpeta ({error.strerror}).")
-        for directory, folders, files in os.walk(root, followlinks=False, onerror=onerror):
-            folders[:] = sorted(f for f in folders if not f.startswith('.') and not Path(directory, f).is_symlink())
-            for name in sorted(files):
-                path = Path(directory, name)
-                if path.suffix.lower() not in EXTENSIONS[category] or path.is_symlink():
-                    continue
-                count += 1
+        for entry in raw_entries:
+            root = Path(entry).expanduser()
+            if not root.is_dir():
+                diagnostics.append(f"{CATEGORIES[category]}: la carpeta no existe.")
+                continue
+            def onerror(error):
+                diagnostics.append(f"{CATEGORIES[category]}: no se pudo leer una subcarpeta ({error.strerror}).")
+            for directory, folders, files in os.walk(root, followlinks=False, onerror=onerror):
+                folders[:] = sorted(f for f in folders if not f.startswith('.') and not Path(directory, f).is_symlink())
+                for name in sorted(files):
+                    path = Path(directory, name)
+                    if path.suffix.lower() not in EXTENSIONS[category] or path.is_symlink():
+                        continue
+                    identity = category + ':' + str(path.resolve()).casefold()
+                    if identity in seen_identities:
+                        continue
+                    count += 1
+                    if count > limit:
+                        break
+                    seen_identities.add(identity)
+                    try:
+                        rel_name = path.relative_to(root).as_posix()
+                    except ValueError:
+                        rel_name = path.name
+                    resources.append(Resource(hashlib.sha256(identity.encode()).hexdigest()[:24], category,
+                                              rel_name, str(path.resolve())))
                 if count > limit:
+                    diagnostics.append(f"{CATEGORIES[category]}: inventario limitado a {limit} archivos; elige una carpeta más concreta.")
                     break
-                identity = category + ':' + str(path.resolve()).casefold()
-                resources.append(Resource(hashlib.sha256(identity.encode()).hexdigest()[:24], category,
-                                          path.relative_to(root).as_posix(), str(path.resolve())))
             if count > limit:
-                diagnostics.append(f"{CATEGORIES[category]}: inventario limitado a {limit} archivos; elige una carpeta más concreta.")
                 break
     return tuple(resources), tuple(diagnostics)
+

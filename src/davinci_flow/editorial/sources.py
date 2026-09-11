@@ -94,13 +94,15 @@ def capture(session: Any, track: int = 1, first: int = 1, last: int = 120) -> Sn
                 left, right = item.GetLeftOffset(), item.GetRightOffset()
                 if left is None or right is None:
                     get_type = getattr(item, 'GetType', None)
-                    if not callable(get_type) or get_type() != 'transition':
+                    item_type = str(get_type() if callable(get_type) else "").strip().lower()
+                    mpi = item.GetMediaPoolItem() if hasattr(item, 'GetMediaPoolItem') else None
+                    if item_type not in {'transition', 'generator', 'title', 'still', 'fusion'} and mpi is not None:
                         raise EditorialError('Resolve no confirmó los offsets de un clip del montaje.')
-                    # Las transiciones de 21.1 no tienen offsets de medios. Su
-                    # identidad, nombre y tiempos también forman parte de la huella.
+                    # Elementos sintéticos, generadores y transiciones no tienen offsets de medios.
+                    # Su identidad, nombre, tipo y tiempos forman parte de la huella del montaje.
                     cuts.append((track_type, index, str(item.GetUniqueId()),
                                  float(item.GetStart()), float(item.GetEnd()),
-                                 None, None, 'transition', str(item.GetName())))
+                                 None, None, item_type or 'transition', str(item.GetName())))
                     continue
                 cuts.append((track_type, index, str(item.GetUniqueId()),
                              float(item.GetStart()), float(item.GetEnd()),

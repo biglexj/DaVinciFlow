@@ -8,6 +8,8 @@ Plan de trabajo, objetivos de producto y hoja de ruta estratégica del proyecto.
 
 ## 🔴 Pendientes activos
 
+- [ ] **Desacople de fase de crudo y pestaña dedicada «Corrección de subtítulos»** — `process/active/2026-09-11_correccion-subtitulos-y-desacople-crudo/`
+  - Eliminación de la fricción entre etapas 1, 2 y 3, renombrando el paso 1 a «1. Montaje y Subtítulos», reconociendo proyectos avanzados con cortes/subtítulos y permitiendo revisión directa 1:1 sin bloqueo. Nueva pestaña dedicada «Corrección de subtítulos» con herramientas de búsqueda/reemplazo global, normalización ortográfica en un clic, glosario, alineación con IA, exportación SRT e inserción de marcadores en Resolve. 241/241 pruebas en verde.
 - [ ] **Puente MCP oficial de Resolve Studio 21.1** — `process/active/2026-09-10_puente-mcp-oficial/`
   - Captura, catálogo, aplicación revisada y reversión del editor integrados con el MCP nativo. Lectura real y muestra Fusion reversible verificadas; conserva compatibilidad con el auxiliar anterior. Pendiente aceptación de uso y validación de generaciones extensas frente al límite de 60 segundos por script.
 - [x] **Modal e Insignia oficial «Acerca de la Aplicación»** — `process/active/2026-09-08_acerca-de-modal-insignia/`

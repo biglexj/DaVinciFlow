@@ -6,7 +6,7 @@ import flet as ft
 
 from davinci_flow.assets.library import CATEGORIES
 from davinci_flow.editorial.model import EditorialError
-from shared.components import ACCENT, MUTED, button, card, field, text
+from shared.components import ACCENT, LINE, MUTED, TEXT, button, card, field, text
 
 
 class LibraryView:
@@ -16,7 +16,7 @@ class LibraryView:
         self.category_buttons = {}
         for key, label in CATEGORIES.items():
             self.category_buttons[key] = button(label, app.bind(self.change_category, key))
-        self.path = field('Carpeta de visuals', self.controller.preferences.paths.get('visuals', ''), expand=True)
+        self.folders_column = ft.Column(spacing=6)
         self.query = field('Buscar en esta categoría', on_change=app.bind(self.search))
         self.list = ft.ListView(height=285, spacing=2, padding=4)
         self.summary = text('Indexa las carpetas para ver tus recursos.', color=MUTED)
@@ -26,9 +26,14 @@ class LibraryView:
             text('Imágenes, vídeo, efectos, música y contexto. Tus archivos permanecen en sus carpetas.', color=MUTED),
             ft.Row(list(self.category_buttons.values()), wrap=True, spacing=8, run_spacing=8),
             card(ft.Column([
-                ft.Row([self.path, button('Elegir', app.bind(self.browse), ft.Icons.FOLDER_OPEN)]),
-                ft.Row([button('Guardar e indexar', app.bind(self.scan), ft.Icons.REFRESH, primary=True), self.summary], wrap=True),
-            ], spacing=12)),
+                text('Carpetas configuradas:', size=12, color=MUTED, weight=ft.FontWeight.W_600),
+                self.folders_column,
+                ft.Row([
+                    button('Añadir carpeta', app.bind(self.browse), ft.Icons.CREATE_NEW_FOLDER),
+                    button('Guardar e indexar', app.bind(self.scan), ft.Icons.REFRESH, primary=True),
+                    self.summary,
+                ], wrap=True, spacing=10),
+            ], spacing=10)),
             self.query, card(self.list, padding=8),
             ft.Row([button('Anterior', app.bind(self.paginate, -80)), button('Siguiente', app.bind(self.paginate, 80)),
                 button('Quitar selección no disponible', app.bind(self.remove_missing))], wrap=True),
@@ -36,10 +41,60 @@ class LibraryView:
             text('Marca hasta 80 recursos para compartir sus nombres y categorías con la IA. No se envían los archivos. '
                  'Los documentos se catalogan por nombre; la colocación de música, sonidos y visuals se completa en las siguientes fases.', color=MUTED),
         ], spacing=14, scroll=ft.ScrollMode.AUTO, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
+        self.update_folders_ui()
         self.refresh()
 
     def save_path(self):
-        self.controller.preferences.paths[self.category] = self.path.value.strip()
+        self.controller.save_preferences()
+
+    def _get_folders(self) -> list[str]:
+        raw = self.controller.preferences.paths.get(self.category, '')
+        return [p.strip() for p in raw.split(';') if p.strip()]
+
+    def _set_folders(self, folders: list[str]) -> None:
+        self.controller.preferences.paths[self.category] = '; '.join(folders)
+        self.controller.save_preferences()
+
+    def update_folders_ui(self):
+        folders = self._get_folders()
+        items = []
+        if not folders:
+            items.append(
+                text(
+                    f'No hay carpetas configuradas para {CATEGORIES[self.category].lower()}. Pulsa "+ Añadir carpeta".',
+                    color=MUTED,
+                    size=12,
+                )
+            )
+        else:
+            for idx, fld in enumerate(folders):
+                items.append(
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.FOLDER, size=16, color=ACCENT),
+                            text(fld, size=12, color=TEXT, expand=True, selectable=True),
+                            ft.IconButton(
+                                icon=ft.Icons.DELETE_OUTLINE,
+                                icon_color='#FF6B6B',
+                                tooltip='Quitar esta carpeta',
+                                on_click=self.app.bind(self.remove_folder, idx),
+                            ),
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        bgcolor='#14181C',
+                        border=ft.Border.all(1, LINE),
+                        border_radius=8,
+                        padding=ft.Padding(left=10, right=6, top=2, bottom=2),
+                    )
+                )
+        self.folders_column.controls = items
+
+    async def remove_folder(self, index: int):
+        folders = self._get_folders()
+        if 0 <= index < len(folders):
+            folders.pop(index)
+            self._set_folders(folders)
+            self.update_folders_ui()
+            self.app.page.update()
 
     def refresh(self):
         chosen = set(self.controller.preferences.resource_ids)
@@ -60,21 +115,24 @@ class LibraryView:
             self.notes.value += f' {len(missing)} seleccionados pendientes de localizar. Indexa su carpeta o quítalos explícitamente.'
 
     async def change_category(self, key):
-        self.save_path()
         self.category, self.offset = key, 0
-        self.path.label = f'Carpeta de {CATEGORIES[key].lower()}'
-        self.path.value = self.controller.preferences.paths.get(key, '')
+        self.update_folders_ui()
         self.refresh()
+        self.app.page.update()
 
     async def browse(self):
-        path = await self.app.picker.get_directory_path(dialog_title=CATEGORIES[self.category],
-            initial_directory=self.path.value if Path(self.path.value).is_dir() else None)
+        path = await self.app.picker.get_directory_path(
+            dialog_title=f"Añadir carpeta de {CATEGORIES[self.category].lower()}"
+        )
         if path:
-            self.path.value = path
-            self.save_path()
+            folders = self._get_folders()
+            if path not in folders:
+                folders.append(path)
+                self._set_folders(folders)
+                self.update_folders_ui()
+                self.app.page.update()
 
     async def scan(self):
-        self.save_path()
         self.controller.save_preferences()
         result = await self.app.run('Indexando los nombres de tus recursos…', self.controller.scan_resources)
         if result:

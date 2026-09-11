@@ -218,6 +218,16 @@ class TransitionCaptureTests(unittest.TestCase):
             with self.assertRaisesRegex(EditorialError, 'offsets'):
                 capture(session)
 
+    def test_generator_has_no_offsets_but_captured_in_fingerprint(self):
+        session, item = self.session()
+        item.GetType.return_value = 'generator'
+        item.GetName.return_value = 'Color sólido'
+        item.GetMediaPoolItem.return_value = None
+        with patch('davinci_flow.editorial.sources.ResolveSubtitleReader') as reader:
+            reader.return_value.read_track.return_value = sample().snapshot.cues
+            snap = capture(session)
+            self.assertEqual(snap.cuts[0][6:], (None, 'generator', 'Color sólido'))
+
 
 class NativeNameCompatibilityTests(unittest.TestCase):
     def test_legacy_names_are_reused_and_reverted_without_duplicates(self):

@@ -218,7 +218,8 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
         dialog = self.page.show_dialog.call_args.args[0]
         self.assertEqual(dialog.alignment, ft.Alignment.CENTER)
         contents = dialog.content.content.controls
-        contents[2].value = target.name
+        filename_field = [c for c in contents if isinstance(c, ft.TextField)][-1]
+        filename_field.value = target.name
         await dialog.actions[1].on_click()
         result = await asyncio.wait_for(job, 2)
         self.assertEqual(Path(result[0].path), target)
@@ -237,11 +238,11 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_editor_layout_buttons_and_expanded_table(self):
         self.assertTrue(self.app.editor.table_view.expand)
-        first_card_row = self.app.editor.content.controls[0].content.controls[0]
+        first_card_row = self.app.editor.content.controls[1].content.controls[0]
         has_cargar_srt = any(getattr(c, 'text', '') == 'Cargar SRT' or getattr(c, 'content', '') == 'Cargar SRT'
                              for c in first_card_row.controls)
         self.assertTrue(has_cargar_srt)
-        action_row = self.app.editor.content.controls[3]
+        action_row = self.app.editor.content.controls[4]
         action_labels = [
             getattr(btn, 'text', '') or getattr(btn, 'content', '')
             for sub in action_row.controls

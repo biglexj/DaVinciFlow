@@ -5,7 +5,7 @@ from dataclasses import asdict, replace
 from typing import Protocol, Any
 
 from davinci_flow.editorial.model import (
-    Decision, EditorialError, EditorialOptions, Proposal, Snapshot, Template, is_grounded_excerpt,
+    BUILTIN_SFX_IDS, Decision, EditorialError, EditorialOptions, Proposal, Snapshot, Template, is_grounded_excerpt,
 )
 
 
@@ -16,8 +16,11 @@ class JsonClient(Protocol):
                       temperature: float = 0.2) -> Any: ...
 
 
+FORBIDDEN_LLM_KEYS = frozenset({"reviewed", "start_frame", "end_frame", "edit_note"})
+
+
 def _read_batch(result: Any, start: int, end: int, options: EditorialOptions | None) -> list[Decision]:
-    if not isinstance(result, dict) or set(result) != {"decisions"} or not isinstance(result["decisions"], list):
+    if not isinstance(result, dict) or "decisions" not in result or not isinstance(result["decisions"], list):
         raise EditorialError("La LLM no devolvió el contrato editorial esperado.")
     if len(result["decisions"]) != end - start:
         raise EditorialError("La LLM omitió o duplicó subtítulos.")
@@ -41,6 +44,163 @@ def _validate_batch(snapshot: Snapshot, templates: tuple[Template, ...], batch: 
     local_decisions = tuple(replace(decision, cue_index=index) for index, decision in enumerate(batch))
     Proposal(local_snapshot, templates, local_decisions, model,
              "1.1.0" if options is not None else "1.0.0", options).validate()
+
+
+def _reconcile_batch(
+    result: Any,
+    start: int,
+    end: int,
+    snapshot: Snapshot,
+    templates: tuple[Template, ...],
+    options: EditorialOptions | None,
+    model_name: str,
+) -> list[Decision] | None:
+    """Reconcilia un lote de la LLM cuando omitió, duplicó o desordenó subtítulos."""
+    if not isinstance(result, dict) or not isinstance(result.get("decisions"), list):
+        return None
+
+    raw_list = result["decisions"]
+    # Si algún elemento intenta inyectar campos prohibidos de seguridad o tiempos, no reconciliar
+    for item in raw_list:
+        if isinstance(item, dict) and (FORBIDDEN_LLM_KEYS & set(item)):
+            return None
+
+    catalog = {t.id: t for t in templates}
+    default_template_id = templates[0].id if templates else ""
+    if not default_template_id:
+        return None
+
+    selective = options is not None and options.mode == "highlights"
+    allowed_resources = ({r["id"] for r in options.resources} | BUILTIN_SFX_IDS) if options is not None else BUILTIN_SFX_IDS
+
+    # Indexar decisiones por cue_index si están en rango
+    raw_by_index: dict[int, dict] = {}
+    for item in raw_list:
+        if not isinstance(item, dict):
+            continue
+        idx = item.get("cue_index")
+        if isinstance(idx, int) and start <= idx < end and idx not in raw_by_index:
+            raw_by_index[idx] = item
+
+    # Si ningún índice coincidió pero la cantidad es exacta, mapear por posición relativa (ej. 0..N en vez de start..end)
+    if not raw_by_index and len(raw_list) == (end - start):
+        for offset, item in enumerate(raw_list):
+            if isinstance(item, dict):
+                raw_by_index[start + offset] = item
+
+    batch: list[Decision] = []
+    for index in range(start, end):
+        cue = snapshot.cues[index]
+        if index in raw_by_index:
+            raw = raw_by_index[index]
+            context = str(raw.get("context", "") or "")
+            main = str(raw.get("main", "") or "")
+            accent = str(raw.get("accent", "") or "")
+            reason = str(raw.get("reason", "") or "").strip() or "Diseño editorial sugerido por la IA."
+            enabled = bool(raw.get("enabled", True)) if options is not None else True
+            visual_note = str(raw.get("visual_note", "") or "") if options is not None else ""
+            resource_id = str(raw.get("resource_id", "") or "") if options is not None else ""
+
+            if resource_id and resource_id not in allowed_resources:
+                resource_id = ""
+
+            raw_templates = raw.get("templates")
+            templates_dict: dict[str, str] = {}
+            if isinstance(raw_templates, dict):
+                templates_dict = {
+                    str(k): str(v) for k, v in raw_templates.items()
+                    if str(v) in catalog
+                }
+
+            if selective and not enabled:
+                context = ""
+                main = ""
+                accent = ""
+                templates_dict = {}
+            else:
+                if not main.strip():
+                    if context.strip() and not accent.strip():
+                        main, context = context, ""
+                    elif accent.strip() and not context.strip():
+                        main, accent = accent, ""
+                    elif not selective:
+                        main = cue.text
+                        context = ""
+                        accent = ""
+                    else:
+                        enabled = False
+                        context = ""
+                        main = ""
+                        accent = ""
+                        templates_dict = {}
+
+                if enabled or not selective:
+                    active_layers = {layer for layer, text in (("context", context), ("main", main), ("accent", accent)) if text.strip()}
+                    for layer in active_layers:
+                        if layer not in templates_dict or templates_dict[layer] not in catalog:
+                            templates_dict[layer] = default_template_id
+                    templates_dict = {k: v for k, v in templates_dict.items() if k in active_layers}
+
+                    reconstructed = " ".join(" ".join((context, main, accent)).split())
+                    covered = is_grounded_excerpt(cue.text, reconstructed) if selective else reconstructed == " ".join(cue.text.split())
+                    if not covered:
+                        context = ""
+                        main = cue.text
+                        accent = ""
+                        templates_dict = {"main": templates_dict.get("main", default_template_id)}
+                        if templates_dict["main"] not in catalog:
+                            templates_dict["main"] = default_template_id
+                        reason = (reason.rstrip(". ") + ". Se conservó el subtítulo original porque la IA alteró sus palabras dos veces.").strip()
+
+            batch.append(Decision(
+                cue_index=index,
+                context=context,
+                main=main,
+                accent=accent,
+                templates=templates_dict,
+                reason=reason,
+                enabled=enabled,
+                reviewed=False,
+                edit_note="",
+                visual_note=visual_note,
+                resource_id=resource_id,
+            ))
+        else:
+            # Subtítulo omitido por la LLM
+            if selective:
+                batch.append(Decision(
+                    cue_index=index,
+                    context="",
+                    main="",
+                    accent="",
+                    templates={},
+                    reason="Sin rótulo (subtítulo no seleccionado por la IA).",
+                    enabled=False,
+                    reviewed=False,
+                    edit_note="",
+                    visual_note="",
+                    resource_id="",
+                ))
+            else:
+                batch.append(Decision(
+                    cue_index=index,
+                    context="",
+                    main=cue.text,
+                    accent="",
+                    templates={"main": default_template_id},
+                    reason="Subtítulo conservado automáticamente al ser omitido en la respuesta de la IA.",
+                    enabled=True,
+                    reviewed=False,
+                    edit_note="",
+                    visual_note="",
+                    resource_id="",
+                ))
+
+    try:
+        _validate_batch(snapshot, templates, batch, start, model_name, options)
+        return batch
+    except Exception:
+        return None
 
 
 def _preserve_invalid_source_text(snapshot: Snapshot, templates: tuple[Template, ...], batch: list[Decision],
@@ -94,12 +254,14 @@ def propose(snapshot: Snapshot, templates: tuple[Template, ...], client: JsonCli
             if orientation == "vertical" else
             "Encuadre HORIZONTAL (16:9): permite líneas más amplias y equilibradas, dejando respirar el montaje."
         )
-        payload = {"target_indices": list(range(start, end)), "context": context,
-                   "orientation": orientation,
-                   "frame": {"width": snapshot.width, "height": snapshot.height},
-                   "cuts": [{"track_type": c[0], "start": c[3], "end": c[4]} for c in snapshot.cuts
-                            if c[4] > snapshot.cues[start].start_frame and c[3] < snapshot.cues[end - 1].end_frame],
-                   "templates": [{"id": t.id, "name": t.name, "source": t.source} for t in templates]}
+        payload: dict[str, Any] = {
+            "target_indices": list(range(start, end)), "context": context,
+            "orientation": orientation,
+            "frame": {"width": snapshot.width, "height": snapshot.height},
+            "cuts": [{"track_type": c[0], "start": c[3], "end": c[4]} for c in snapshot.cuts
+                     if c[4] > snapshot.cues[start].start_frame and c[3] < snapshot.cues[end - 1].end_frame],
+            "templates": [{"id": t.id, "name": t.name, "source": t.source} for t in templates],
+        }
         if options is not None:
             payload["editorial"] = asdict(options)
             payload["previous_choices"] = [{"cue_index": d.cue_index, "enabled": d.enabled, "main": d.main}
@@ -169,6 +331,10 @@ DATOS:
                         else:
                             decisions.extend(repaired_batch)
                             break
+                    reconciled = _reconcile_batch(result, start, end, snapshot, templates, options, client.model_name)
+                    if reconciled is not None:
+                        decisions.extend(reconciled)
+                        break
                     raise EditorialError(
                         f"La LLM devolvió dos respuestas inválidas para el mismo lote. Último error: {error}"
                     ) from error

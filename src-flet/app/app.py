@@ -13,6 +13,7 @@ from shared.path_picker import WorkspaceFilePicker
 from app.instance import DesktopInstance
 from app.runtime import desktop_runtime
 from features.editor.editor_view import EditorView
+from features.subtitles.subtitles_view import SubtitlesView
 from features.catalog.catalog_view import CatalogView
 from features.library.library_view import LibraryView
 from features.settings.settings_view import SettingsView
@@ -58,13 +59,32 @@ class DesktopApp:
         self.progress = ft.ProgressRing(width=16, height=16, stroke_width=2, visible=False, color=ACCENT)
         self.heading = text('Editor', 17, weight=ft.FontWeight.W_600)
         self.editor = EditorView(self)
+        self.subtitles = SubtitlesView(self)
         self.catalog = CatalogView(self)
         self.library = LibraryView(self)
         self.settings = SettingsView(self)
-        self.views = {'editor': self.editor, 'catalog': self.catalog, 'library': self.library, 'settings': self.settings}
+        self.views = {
+            'editor': self.editor,
+            'subtitles': self.subtitles,
+            'catalog': self.catalog,
+            'library': self.library,
+            'settings': self.settings,
+        }
         self.nav = {}
-        self.labels = {'editor': 'Editor', 'catalog': 'Plantillas', 'library': 'Biblioteca', 'settings': 'Ajustes'}
-        icons = (ft.Icons.EDIT_NOTE_ROUNDED, ft.Icons.TEXT_FIELDS_ROUNDED, ft.Icons.FOLDER_OUTLINED, ft.Icons.SETTINGS_OUTLINED)
+        self.labels = {
+            'editor': 'Editor',
+            'subtitles': 'Corrección',
+            'catalog': 'Plantillas',
+            'library': 'Biblioteca',
+            'settings': 'Ajustes',
+        }
+        icons = (
+            ft.Icons.EDIT_NOTE_ROUNDED,
+            ft.Icons.SPELLCHECK_ROUNDED,
+            ft.Icons.TEXT_FIELDS_ROUNDED,
+            ft.Icons.FOLDER_OUTLINED,
+            ft.Icons.SETTINGS_OUTLINED,
+        )
         for (key, label), icon in zip(self.labels.items(), icons):
             self.nav[key] = ft.Container(ft.Row([ft.Icon(icon, size=19, color=ACCENT if key == 'editor' else MUTED),
                 text(label, 13, weight=ft.FontWeight.W_500)], spacing=10), padding=12, border_radius=9,
@@ -72,8 +92,10 @@ class DesktopApp:
 
         def on_about_hover(e):
             self.about_btn.bgcolor = '#173A35' if e.data == 'true' else None
-            self.about_btn.content.controls[0].color = ACCENT if e.data == 'true' else MUTED
-            self.about_btn.content.controls[1].color = TEXT if e.data == 'true' else MUTED
+            btn_content = self.about_btn.content
+            if isinstance(btn_content, ft.Row) and len(btn_content.controls) >= 2:
+                btn_content.controls[0].color = ACCENT if e.data == 'true' else MUTED
+                btn_content.controls[1].color = TEXT if e.data == 'true' else MUTED
             self.page.update()
 
         self.about_btn = ft.Container(
@@ -206,7 +228,7 @@ class DesktopApp:
         self.library.save_path()
         self.current = key
         self.workspace.content = self.views[key].content
-        self.heading.value = self.labels[key]
+        self.heading.value = 'Corrección de subtítulos' if key == 'subtitles' else self.labels[key]
         for item, control in self.nav.items():
             control.bgcolor = '#173A35' if item == key else None
             control.content.controls[0].color = ACCENT if item == key else MUTED
@@ -214,6 +236,10 @@ class DesktopApp:
             self.catalog.refresh()
         elif key == 'library':
             self.library.refresh()
+        elif key == 'subtitles':
+            self.subtitles.refresh()
+        elif key == 'editor':
+            self.editor.refresh()
 
     def refresh_identity(self):
         s = self.controller.snapshot
@@ -235,7 +261,7 @@ class DesktopApp:
 
     async def show_toast(self, message, icon=ft.Icons.CHECK_CIRCLE_OUTLINE_ROUNDED, duration=4.0):
         self.toast_text.value = message
-        self.toast_icon.name = icon
+        self.toast_icon.icon = icon
         self.toast_overlay.visible = True
         self.toast_overlay.opacity = 1.0
         try:

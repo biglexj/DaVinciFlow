@@ -14,8 +14,16 @@ from davinci_flow.editorial.service import apply_reviewed, undo_reviewed
 
 class Tool:
     def __init__(self):
-        self.value = "Original"
+        self.inputs = {"StyledText": "Original"}
         self.reject = False
+
+    @property
+    def value(self):
+        return self.inputs.get("StyledText", "Original")
+
+    @value.setter
+    def value(self, val):
+        self.inputs["StyledText"] = val
 
     def GetAttrs(self):
         return {"TOOLS_RegID": "TextPlus"}
@@ -23,11 +31,11 @@ class Tool:
     def SetInput(self, key, value):
         if self.reject:
             return False
-        self.value = value
+        self.inputs[key] = value
         return True
 
     def GetInput(self, key):
-        return self.value
+        return self.inputs.get(key, self.value)
 
 
 class Comp:

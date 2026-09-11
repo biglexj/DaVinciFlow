@@ -1,10 +1,10 @@
-"""Adaptador estricto de plantillas sobre los registros y reversión existentes."""
-
+from dataclasses import replace
 import hashlib
 from pathlib import Path
 from typing import Any
 
 from davinci_flow.editorial.model import EditorialError, Proposal
+from davinci_flow.editorial.sources import basic_titles
 from davinci_flow.resolve.timeline_writer import ResolveTimelineWriter
 from davinci_flow.themes.tokens import ThemeTokens
 from davinci_flow.editorial.template_files import ROOT_TOOL, prepare_comp, template_bytes
@@ -24,9 +24,56 @@ def text_tool(comp: Any, tool_name: str = "") -> Any:
             attrs = tool.GetAttrs()
             if isinstance(attrs, dict) and attrs.get("TOOLS_RegID") in ("TextPlus", "Text3D", "Fuse.TextPlus"):
                 candidates.append(tool)
-    if len(candidates) != 1:
+        if not candidates:
+            tools_rec = comp.GetToolList(True) or {}
+            values_rec = tools_rec.values() if isinstance(tools_rec, dict) else tools_rec
+            for tool in values_rec:
+                attrs = tool.GetAttrs()
+                if isinstance(attrs, dict) and attrs.get("TOOLS_RegID") in ("TextPlus", "Text3D", "Fuse.TextPlus"):
+                    candidates.append(tool)
+    if not candidates:
+        raise EditorialError("Plantilla ambigua: indica el nombre del nodo de texto en el catálogo.")
+    if len(candidates) > 1:
+        preferred = [
+            t for t in candidates
+            if isinstance(getattr(t, "Name", None), str)
+            and any(n in t.Name.lower() for n in ("template", "styled", "main", "principal"))
+        ]
+        if len(preferred) == 1:
+            return preferred[0]
         raise EditorialError("Plantilla ambigua: indica el nombre del nodo de texto en el catálogo.")
     return candidates[0]
+
+
+def calculate_layer_y(role: str, active_roles: tuple[str, ...], is_vertical: bool) -> float:
+    """Calcula la coordenada Center Y para ubicar subtítulos en el tercio inferior seguro."""
+    if is_vertical:
+        # Formato vertical 9:16 (Shorts, TikTok, Reels): tercio inferior compacto (Y ~ 0.285 a 0.355)
+        if len(active_roles) >= 3:
+            positions = {"context": 0.355, "main": 0.320, "accent": 0.285}
+        elif len(active_roles) == 2:
+            if "context" in active_roles and "main" in active_roles:
+                positions = {"context": 0.355, "main": 0.320}
+            elif "main" in active_roles and "accent" in active_roles:
+                positions = {"main": 0.325, "accent": 0.290}
+            else:
+                positions = {"context": 0.355, "accent": 0.320}
+        else:
+            positions = {role: 0.315}
+    else:
+        # Formato horizontal 16:9: tercio inferior estándar
+        if len(active_roles) >= 3:
+            positions = {"context": 0.240, "main": 0.190, "accent": 0.140}
+        elif len(active_roles) == 2:
+            if "context" in active_roles and "main" in active_roles:
+                positions = {"context": 0.240, "main": 0.190}
+            elif "main" in active_roles and "accent" in active_roles:
+                positions = {"main": 0.200, "accent": 0.150}
+            else:
+                positions = {"context": 0.240, "accent": 0.190}
+        else:
+            positions = {role: 0.180}
+    return positions.get(role, 0.320 if is_vertical else 0.190)
 
 
 def set_template_text(comp: Any, text: str, tool_name: str = "", input_id: str = "StyledText") -> None:
@@ -59,6 +106,10 @@ class EditorialWriter(ResolveTimelineWriter):
                  handles: dict[str, Any], **kwargs: Any) -> None:
         kwargs.setdefault("temp_root", Path.home() / ".davinci_flow/generated")
         super().__init__(timeline, media_pool, **kwargs)
+        fresh_basic = {t.id: t for t in basic_titles()}
+        synced_templates = tuple(fresh_basic.get(t.id, t) for t in proposal.templates)
+        if synced_templates != proposal.templates:
+            proposal = replace(proposal, templates=synced_templates)
         self.proposal = proposal
         self.templates = {t.id: t for t in proposal.templates}
         self.handles = handles
@@ -70,6 +121,16 @@ class EditorialWriter(ResolveTimelineWriter):
         }
         self.expected_text = {
             self._native_name("exec_" + plan.plan_id, f"item_{plan.plan_id}_b{i}_{role[:3]}"): getattr(d, role)
+            for i, d in enumerate(proposal.decisions, 1) if d.enabled
+            for role in d.templates
+        }
+        is_vertical = proposal.snapshot.height > proposal.snapshot.width
+        self.target_y_by_native_name = {
+            self._native_name("exec_" + plan.plan_id, f"item_{plan.plan_id}_b{i}_{role[:3]}"): calculate_layer_y(
+                role,
+                tuple(r for r in ("context", "main", "accent") if getattr(d, r).strip()),
+                is_vertical,
+            )
             for i, d in enumerate(proposal.decisions, 1) if d.enabled
             for role in d.templates
         }
@@ -230,6 +291,13 @@ class EditorialWriter(ResolveTimelineWriter):
             if template.source != "media_pool":
                 connect_template_output(comp, template)
             set_template_text(comp, text, template.text_tool, template.text_input)
+            target_y = self.target_y_by_native_name.get(native_name)
+            if target_y is not None:
+                try:
+                    tool = text_tool(comp, template.text_tool)
+                    tool.SetInput("Center", [0.5, target_y])
+                except Exception:
+                    pass
             if comp.SetAttrs({"COMPN_GlobalStart": 0, "COMPN_GlobalEnd": duration - 1,
                               "COMPN_RenderStart": 0, "COMPN_RenderEnd": duration - 1}) is False:
                 raise EditorialError("La composición rechazó el rango de animación.")

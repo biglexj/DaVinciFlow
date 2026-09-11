@@ -76,6 +76,38 @@ class TemplateScannerTests(unittest.TestCase):
         self.assertEqual(result, new_folder)
         mock_media_pool.AddSubFolder.assert_called_with(mock_root, "DaVinciFlow")
 
+    def test_scan_discovers_titles_in_root_master_and_title_bins(self) -> None:
+        pool = MagicMock()
+        root = MagicMock()
+        pool.GetRootFolder.return_value = root
+        root.GetName.return_value = "Master"
+
+        clip_vid = MagicMock()
+        clip_vid.GetName.return_value = "RawFootage.mp4"
+        clip_vid.GetClipProperty.return_value = "Video + audio"
+
+        clip_title = MagicMock()
+        clip_title.GetName.return_value = "Statement"
+        clip_title.GetClipProperty.return_value = "Fusion Title"
+
+        root.GetClipList.return_value = [clip_vid, clip_title]
+
+        sub_folder = MagicMock()
+        sub_folder.GetName.return_value = "Subtitles"
+        sub_folder.GetSubFolderList.return_value = []
+        clip_sub = MagicMock()
+        clip_sub.GetName.return_value = "SubtitleStyle1"
+        clip_sub.GetClipProperty.return_value = "Title"
+        sub_folder.GetClipList.return_value = [clip_sub]
+
+        root.GetSubFolderList.return_value = [sub_folder]
+
+        presets = scan_davinciflow_presets(pool)
+        names = [p.name for p in presets]
+        self.assertIn("Statement", names)
+        self.assertIn("SubtitleStyle1", names)
+        self.assertNotIn("RawFootage.mp4", names)
+
 
 if __name__ == "__main__":
     unittest.main()

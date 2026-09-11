@@ -6,7 +6,7 @@
 				Font = Input { Value = "Montserrat" },
 				Style = Input { Value = "ExtraBold" },
 				Size = Input { Value = 0.075 },
-				Center = Input { Value = { 0.5, 0.48 } },
+				Center = Input { Value = { 0.5, 0.19 } },
 				Width = Input { Value = 1920 },
 				Height = Input { Value = 1080 },
 				UseFrameFormatSettings = Input { Value = 1 },

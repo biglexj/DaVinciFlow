@@ -26,7 +26,7 @@ class EditorView:
         self.source_summary = text('Captura los subtítulos de tu montaje o abre un SRT.', color=MUTED)
         self.count = text('Sin fuente', color=MUTED)
         self.stage_container = ft.Container(padding=ft.Padding.only(bottom=4))
-        self.table = ft.DataTable(columns=[ft.DataColumn(text(t, color=MUTED)) for t in
+        self.table = ft.DataTable(columns=[ft.DataColumn(label=text(t, color=MUTED)) for t in
             ('Tiempo', 'Contexto', 'Principal', 'Énfasis', 'Sonido', 'Plantilla', 'Revisión')],
             rows=[], heading_row_height=38, data_row_min_height=40, data_row_max_height=44,
             column_spacing=18, horizontal_margin=14, show_checkbox_column=False,
@@ -75,6 +75,7 @@ class EditorView:
                 button('Cerrar', app.bind(self.close_review), ft.Icons.CLOSE_ROUNDED),
             ], wrap=True, spacing=8),
         ], spacing=10), visible=False)
+        self.user_stage = None
         self.stage_container.content = self._stage_indicator(1)
         self.content = ft.Column([
             self.stage_container,
@@ -107,7 +108,7 @@ class EditorView:
 
     def _stage_indicator(self, stage: int):
         stages = [
-            (1, "1. Ingesta del Crudo", ft.Icons.DOWNLOAD_ROUNDED),
+            (1, "1. Montaje y Subtítulos", ft.Icons.DOWNLOAD_ROUNDED),
             (2, "2. Mesa de Revisión", ft.Icons.RATE_REVIEW_ROUNDED),
             (3, "3. Aplicación en Resolve", ft.Icons.MOVIE_CREATION_ROUNDED),
         ]
@@ -129,9 +130,38 @@ class EditorView:
                     border_radius=16,
                     bgcolor=bg,
                     border=ft.Border.all(0.8, border_c),
+                    ink=True,
+                    tooltip=f'Cambiar a etapa: {label}',
+                    on_click=self.app.bind(self.set_stage, num),
                 )
             )
         return ft.Row(chips, spacing=10, alignment=ft.MainAxisAlignment.START)
+
+    async def set_stage(self, stage: int):
+        if stage == 1:
+            self.user_stage = 1
+            self.refresh()
+            self.app.notify('Fase 1: Configuración de captura y dirección creativa.')
+        elif stage == 2:
+            if self.controller.snapshot is None:
+                self.app.notify('Captura primero los subtítulos de Resolve o carga un SRT.')
+                return
+            if self.controller.proposal is None:
+                self.controller.create_default_proposal()
+                self.app.notify('Propuesta creada desde tus subtítulos para revisión directa.')
+            self.user_stage = 2
+            self.refresh()
+            self.app.notify('Fase 2: Mesa de revisión de textos, estilos y sonido.')
+        elif stage == 3:
+            if self.controller.snapshot is None:
+                self.app.notify('Captura primero una secuencia antes de aplicar.')
+                return
+            if self.controller.proposal is None:
+                self.app.notify('Genera o revisa una propuesta antes de aplicar en Resolve.')
+                return
+            self.user_stage = 3
+            self.refresh()
+            self.app.notify('Fase 3: Verificación final y aplicación en Resolve.')
 
     def sync_preferences(self):
         p = self.controller.preferences
@@ -143,25 +173,30 @@ class EditorView:
         self.empty.visible = snapshot is None
         self.table_view.visible = snapshot is not None
 
-        stage = 1
-        if snapshot is not None:
-            if proposal is not None:
-                reviewed = sum(d.reviewed for d in proposal.decisions)
-                if reviewed == len(proposal.decisions) and len(proposal.decisions) > 0:
-                    stage = 3
+        stage = self.user_stage
+        if stage is None:
+            stage = 1
+            if snapshot is not None:
+                if proposal is not None:
+                    reviewed = sum(d.reviewed for d in proposal.decisions)
+                    if reviewed == len(proposal.decisions) and len(proposal.decisions) > 0:
+                        stage = 3
+                    else:
+                        stage = 2
                 else:
-                    stage = 2
-            else:
-                stage = 1
+                    stage = 1
         self.stage_container.content = self._stage_indicator(stage)
 
         if snapshot is None:
             return
-        self.source_summary.value = f'{snapshot.timeline} · {len(snapshot.cues)} subtítulos · {snapshot.width} × {snapshot.height} · {snapshot.fps:g} fps'
+        cuts_count = len(snapshot.cuts) if snapshot.cuts else 0
+        cuts_str = f" · {cuts_count} cortes" if cuts_count > 0 else ""
+        montage_type = "Montaje avanzado" if cuts_count > 0 else "Secuencia"
+        self.source_summary.value = f'{montage_type}: {snapshot.timeline} · {len(snapshot.cues)} subtítulos{cuts_str} · {snapshot.width} × {snapshot.height} · {snapshot.fps:g} fps'
         catalog = {t.id: t.name for t in proposal.templates} if proposal else {}
         sfx_names = {a.id: a.name for a in DEFAULT_SFX_ASSETS}
-        if proposal and proposal.options and proposal.options.resources:
-            for r in proposal.options.resources:
+        if proposal and proposal.options and getattr(proposal.options, 'resources', None):
+            for r in getattr(proposal.options, 'resources', ()):
                 if r.get('category') == 'sfx':
                     sfx_names[r['id']] = r['name']
 
@@ -207,6 +242,7 @@ class EditorView:
         if result:
             self.selected = None
             self.review_card.visible = False
+            self.user_stage = None
             self.refresh()
             self.app.notify('Fuente capturada. Elige la dirección creativa y genera una propuesta.')
 
@@ -218,6 +254,7 @@ class EditorView:
             self.controller.read_srt(path, float(self.fps.value))
             self.selected = None
             self.review_card.visible = False
+            self.user_stage = None
             self.refresh()
 
     async def generate(self):
@@ -228,20 +265,25 @@ class EditorView:
         if result:
             self.selected = None
             self.review_card.visible = False
+            self.user_stage = 2
             self.refresh()
             self.app.notify('Propuesta lista. Revisa cada bloque, incluidos los momentos sin texto.')
 
     async def choose(self, index):
         if self.controller.proposal is None:
-            self.app.notify('Estos son los subtítulos originales. Genera o abre una propuesta para revisarlos.')
-            return
+            self.controller.create_default_proposal()
+            self.user_stage = 2
+            self.app.notify('Propuesta inicial creada desde tus subtítulos para revisión directa.')
         if self.selected == index:
             await self.close_review()
             return
         if self.form_changed():
             raise EditorialError('Guarda la revisión del bloque antes de cambiar de fila.')
         self.selected = index
+        self.user_stage = 2
         p = self.controller.proposal
+        if p is None:
+            return
         d = p.decisions[index]
         for role in self.texts:
             self.texts[role].value = getattr(d, role)
@@ -249,9 +291,9 @@ class EditorView:
             self.templates[role].value = d.templates.get(role)
         sfx_options = [ft.DropdownOption(key='', text='(Sin sonido)')]
         sfx_options.extend([ft.DropdownOption(key=a.id, text=f'{a.name} ({a.category})') for a in DEFAULT_SFX_ASSETS])
-        if p.options and p.options.resources:
+        if p.options and getattr(p.options, 'resources', None):
             seen_keys = {opt.key for opt in sfx_options}
-            for r in p.options.resources:
+            for r in getattr(p.options, 'resources', ()):
                 if r.get('category') == 'sfx' and r['id'] not in seen_keys:
                     sfx_options.append(ft.DropdownOption(key=r['id'], text=r['name']))
         self.sfx.options = sfx_options

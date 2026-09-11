@@ -1,11 +1,11 @@
 """Estado y operaciones del editor, sin dependencias de un framework gráfico."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from davinci_flow.ai.client import GeminiClient
 from davinci_flow.assets.library import scan_library
-from davinci_flow.editorial.model import EditorialError, EditorialOptions, Proposal, Template
+from davinci_flow.editorial.model import Decision, EditorialError, EditorialOptions, Proposal, Template
 from davinci_flow.editorial.planner import propose
 from davinci_flow.editorial.preferences import Preferences, PREFERENCES_PATH
 from davinci_flow.editorial.sources import basic_titles, from_srt, scan_installed
@@ -20,8 +20,13 @@ class EditorialController:
         self.snapshot = None
         self.proposal = None
         self.dirty = False
-        self.templates = tuple(Template(**t) for t in self.preferences.templates) or basic_titles()
-        self.catalog = {t.id: t for t in basic_titles() + self.templates}
+        fresh_basic = {t.id: t for t in basic_titles()}
+        loaded_templates = [fresh_basic.get(t.id, t) for t in (Template(**d) for d in self.preferences.templates)]
+        self.templates = tuple(loaded_templates) or basic_titles()
+        self.catalog = dict(fresh_basic)
+        self.catalog.update({t.id: t for t in self.templates})
+        if self.preferences.templates != [asdict(t) for t in self.templates]:
+            self.save_preferences()
         self.resources = ()
         self.library_loaded = False
         self.diagnostics = ()
@@ -134,11 +139,84 @@ class EditorialController:
     def apply(self):
         if self.proposal is None:
             raise EditorialError('No hay una propuesta revisada.')
+        fresh_basic = {t.id: t for t in basic_titles()}
+        synced_templates = tuple(fresh_basic.get(t.id, t) for t in self.proposal.templates)
+        if synced_templates != self.proposal.templates:
+            self.proposal = replace(self.proposal, templates=synced_templates)
         self.proposal.validate(require_review=True)
         return resolve_bridge.apply(self.proposal)
 
     def undo(self):
         return resolve_bridge.undo()
+
+    def create_default_proposal(self):
+        """Crea una propuesta base 1:1 desde los subtítulos existentes sin requerir llamada a IA."""
+        if self.snapshot is None:
+            raise EditorialError('Captura la secuencia o abre un SRT primero.')
+        fresh_basic = {t.id: t for t in basic_titles()}
+        templates = tuple(fresh_basic.get(t.id, t) for t in (self.templates or basic_titles()))
+        if not templates:
+            raise EditorialError('No hay plantillas disponibles para la propuesta.')
+        main_template = next((t.id for t in templates if 'principal' in t.name.lower()), templates[0].id)
+        decisions = []
+        for i, cue in enumerate(self.snapshot.cues):
+            decisions.append(
+                Decision(
+                    cue_index=i,
+                    context='',
+                    main=cue.text,
+                    accent='',
+                    templates={'main': main_template},
+                    reason='Subtítulo original listo para revisión directa.',
+                    enabled=True,
+                    reviewed=False,
+                    edit_note='',
+                    visual_note='',
+                    resource_id='',
+                )
+            )
+        options = self.options()
+        proposal = Proposal(
+            snapshot=self.snapshot,
+            templates=templates,
+            decisions=tuple(decisions),
+            model='manual-direct',
+            version='1.1.0',
+            options=options,
+        )
+        proposal.validate()
+        self.proposal = proposal
+        self.dirty = True
+        return proposal
+
+    def update_cues(self, new_cues):
+        """Sincroniza subtítulos corregidos actualizando el snapshot y las decisiones existentes."""
+        if self.snapshot is None:
+            raise EditorialError('No hay una secuencia activa para actualizar subtítulos.')
+        if len(new_cues) != len(self.snapshot.cues):
+            raise EditorialError('La cantidad de subtítulos corregidos no coincide con la secuencia.')
+        old_cues = self.snapshot.cues
+        self.snapshot = replace(self.snapshot, cues=tuple(new_cues))
+        if self.proposal is not None:
+            new_decisions = []
+            for i, (decision, old_cue, new_cue) in enumerate(zip(self.proposal.decisions, old_cues, new_cues)):
+                if old_cue.text != new_cue.text:
+                    note = decision.edit_note
+                    if not note:
+                        note = f"Texto corregido: '{old_cue.text}' -> '{new_cue.text}'"
+                    if decision.main == old_cue.text and not decision.context and not decision.accent:
+                        new_d = replace(decision, main=new_cue.text, edit_note=note)
+                    else:
+                        new_main = new_cue.text if decision.main == old_cue.text else decision.main
+                        new_d = replace(decision, main=new_main, edit_note=note)
+                    new_decisions.append(new_d)
+                else:
+                    new_decisions.append(decision)
+            updated_proposal = replace(self.proposal, snapshot=self.snapshot, decisions=tuple(new_decisions))
+            updated_proposal.validate()
+            self.proposal = updated_proposal
+            self.dirty = True
+        return self.snapshot
 
     def save_preferences(self):
         self.preferences.templates = [asdict(t) for t in self.templates]
