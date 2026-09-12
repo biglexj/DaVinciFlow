@@ -90,18 +90,19 @@ class DesktopApp:
                 text(label, 13, weight=ft.FontWeight.W_500)], spacing=10), padding=12, border_radius=9,
                 bgcolor='#173A35' if key == 'editor' else None, on_click=self.bind(self.navigate, key))
 
+        about_icon = ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, size=18, color=MUTED)
+        about_label = text('Acerca de', 13, weight=ft.FontWeight.W_500, color=MUTED)
+
         def on_about_hover(e):
             self.about_btn.bgcolor = '#173A35' if e.data == 'true' else None
-            btn_content = self.about_btn.content
-            if isinstance(btn_content, ft.Row) and len(btn_content.controls) >= 2:
-                btn_content.controls[0].color = ACCENT if e.data == 'true' else MUTED
-                btn_content.controls[1].color = TEXT if e.data == 'true' else MUTED
+            about_icon.color = ACCENT if e.data == 'true' else MUTED
+            about_label.color = TEXT if e.data == 'true' else MUTED
             self.page.update()
 
         self.about_btn = ft.Container(
             content=ft.Row([
-                ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, size=18, color=MUTED),
-                text('Acerca de', 13, weight=ft.FontWeight.W_500, color=MUTED),
+                about_icon,
+                about_label,
             ], spacing=10),
             padding=ft.Padding.symmetric(horizontal=12, vertical=10),
             border_radius=9,

@@ -77,7 +77,7 @@ def selected_transport():
 def connection_status():
     """Diagnóstico explícito del transporte y disponibilidad; no escribe ni abre Resolve."""
     transport, executable = selected_transport()
-    if transport == 'legacy':
+    if transport == 'legacy' or executable is None:
         return {'transport': 'legacy', 'python': resolve_python()}
     try:
         with ResolveMCP(executable) as client:
@@ -178,6 +178,8 @@ def dispatch(operation, parameters, *, session=None):
         snapshot = capture(session, **parameters)
         return {'snapshot': asdict(snapshot), 'templates': catalog}
     if operation == 'apply':
+        if proposal is None:
+            raise EditorialError('No se proporcionó una propuesta válida para aplicar.')
         s = proposal.snapshot
         return apply_reviewed(proposal, session, record_path_for(s.project_id, s.timeline_id)).to_dict()
     return undo_reviewed(session, record_path_for(str(session.project.GetUniqueId()),

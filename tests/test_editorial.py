@@ -432,8 +432,10 @@ class StrictModelTests(unittest.TestCase):
     def test_404_and_timeout_do_not_switch_model(self):
         from davinci_flow.ai.client import GeminiClient
         from davinci_flow.errors import GeminiError
+        import email.message
         import urllib.error
-        for error in (TimeoutError(), urllib.error.HTTPError("test", 404, "missing", {}, None)):
+        hdrs = email.message.Message()
+        for error in (TimeoutError(), urllib.error.HTTPError("test", 404, "missing", hdrs, None)):
             client = GeminiClient(api_key="test-key", model_name="explicit-model", strict_model=True)
             with patch("urllib.request.urlopen", side_effect=error) as request:
                 with self.assertRaises(GeminiError):
