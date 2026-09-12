@@ -3,7 +3,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from davinci_flow.editorial.model import EditorialError, Proposal
+from davinci_flow.editorial.model import EditorialConflictDetail, EditorialConflictError, EditorialError, Proposal
 from davinci_flow.editorial.sources import basic_titles
 from davinci_flow.resolve.timeline_writer import ResolveTimelineWriter
 from davinci_flow.themes.tokens import ThemeTokens
@@ -201,16 +201,45 @@ class EditorialWriter(ResolveTimelineWriter):
                 if hashlib.sha256(template_bytes(template)).hexdigest() != template.fingerprint:
                     raise EditorialError(f"La plantilla {template.name} cambió o desapareció. Vuelve a analizar.")
         names = {"context": "DF_CONTEXT", "main": "DF_MAIN", "accent": "DF_ACCENT"}
+        conflicts: list[EditorialConflictDetail] = []
         for track in range(1, int(self.timeline.GetTrackCount("video")) + 1):
-            track_name = self.timeline.GetTrackName("video", track)
+            track_name = str(self.timeline.GetTrackName("video", track) or "")
             if track_name not in names.values():
                 continue
             role = next(r for r, n in names.items() if n == track_name)
             for item in self._iter_values(self.timeline.GetItemListInTrack("video", track)):
-                for cue, decision in zip(self.proposal.snapshot.cues, self.proposal.decisions):
-                    if decision.enabled and role in decision.templates and item.GetStart() < cue.end_frame and item.GetEnd() > cue.start_frame:
-                        if not self._name_candidates(item.GetName()).intersection(self.assignments):
-                            raise EditorialError("Hay un clip ajeno en el intervalo de una pista de texto. Desplázalo o usa otra secuencia.")
+                item_name = str(item.GetName() or "")
+                # Los clips generados por DaVinci Flow (prefijo DF__) pertenecen a ejecuciones previas y se reemplazan.
+                if item_name.startswith("DF__"):
+                    continue
+                item_start = float(item.GetStart())
+                item_end = float(item.GetEnd())
+                for idx, (cue, decision) in enumerate(zip(self.proposal.snapshot.cues, self.proposal.decisions)):
+                    if decision.enabled and role in decision.templates and item_start < cue.end_frame and item_end > cue.start_frame:
+                        if not self._name_candidates(item_name).intersection(self.assignments):
+                            conflicts.append(
+                                EditorialConflictDetail(
+                                    track_name=track_name,
+                                    track_index=track,
+                                    clip_name=item_name,
+                                    start_frame=item_start,
+                                    end_frame=item_end,
+                                    cue_index=idx,
+                                    cue_text=cue.text,
+                                )
+                            )
+        if conflicts:
+            first = conflicts[0]
+            count = len(conflicts)
+            plural = f" y {count - 1} colisiones más" if count > 1 else ""
+            msg = (
+                f"Conflicto en la pista '{first.track_name}' (V{first.track_index}): "
+                f"El clip externo '{first.clip_name}' (fotogramas {first.start_frame:g}–{first.end_frame:g}) "
+                f"coincide con el subtítulo #{first.cue_index + 1} ('{first.cue_text[:28]}...'){plural}. "
+                f"Mueve este clip fuera de las pistas de DaVinci Flow o usa 'Limpiar pistas DF' para vaciarlas."
+            )
+            raise EditorialConflictError(msg, tuple(conflicts))
+
 
     def _find_timeline_item(self, track_type: str, track_index: int, expected_name: str) -> Any:
         matches = [item for item in self._iter_values(self.timeline.GetItemListInTrack(track_type, track_index))

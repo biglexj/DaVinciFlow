@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from davinci_flow.editorial.model import Decision, EditorialError, Proposal
+from davinci_flow.editorial.model import Decision, EditorialConflictError, EditorialError, Proposal
 from davinci_flow.editorial.sources import capture, media_pool_catalog
 from davinci_flow.editorial.service import apply_reviewed, undo_reviewed
 
@@ -216,10 +216,26 @@ class EditorialApplicationTests(unittest.TestCase):
         foreign = Clip("foreign", "Título manual", track=3)
         session.timeline.items[3] = [foreign]
         with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaises(EditorialError):
+            with self.assertRaises(EditorialConflictError) as ctx:
                 apply_reviewed(proposal, session, Path(tmp) / "record.json")
+            err = ctx.exception
+            self.assertTrue(len(err.conflicts) > 0)
+            self.assertEqual(err.conflicts[0].clip_name, "Título manual")
+            self.assertEqual(err.conflicts[0].track_name, "DF_MAIN")
+            self.assertEqual(err.conflicts[0].cue_index, 0)
         self.assertEqual(pool.count, 0)
         self.assertIn(foreign, session.timeline.items[3])
+
+    def test_df_prefixed_clips_are_treated_as_reversion_target_not_foreign_conflict(self):
+        session, pool, proposal = setup()
+        session.timeline.names += ["DF_CONTEXT", "DF_MAIN", "DF_ACCENT"]
+        previous_df_clip = Clip("prev_df", "DF__exec_12345__main_0", track=3)
+        session.timeline.items[3] = [previous_df_clip]
+        with tempfile.TemporaryDirectory() as tmp:
+            record_path = Path(tmp) / "record.json"
+            result = apply_reviewed(proposal, session, record_path)
+            self.assertIsNotNone(result)
+            self.assertEqual(pool.count, 3)
 
 
 if __name__ == "__main__":

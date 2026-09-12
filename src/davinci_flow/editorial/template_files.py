@@ -12,15 +12,32 @@ ROOT_TOOL = re.compile(r'Tools\s*=\s*ordered\(\)\s*\{\s*([\w]+)\s*=\s*(MacroOper
 EXPOSED_TEXT = re.compile(r'(\w+)\s*=\s*InstanceInput\s*\{[^{}]*Source\s*=\s*"StyledText"[^{}]*\}', re.S)
 
 
-def descriptor(name: str, source: str, locator: str, content: bytes) -> Template:
+def descriptor(name: str, source: str, locator: str, content: bytes, category: str = "") -> Template:
     text = content.decode("utf-8-sig")
     root = ROOT_TOOL.search(text)
     controls = EXPOSED_TEXT.findall(text)
     node, input_id = "", "StyledText"
     if root and root[2] in ("MacroOperator", "GroupOperator") and len(controls) == 1:
         node, input_id = root[1], controls[0]
+    if not category:
+        nl = (name + " " + locator).lower()
+        if any(k in nl for k in ("short", "tiktok", "reel", "vertical")):
+            category = "shorts"
+        elif any(k in nl for k in ("youtube", "vlog", "horizontal")):
+            category = "youtube"
+        elif any(k in nl for k in ("noticiero", "news", "titular", "reportaje")):
+            category = "news"
+        elif any(k in nl for k in ("básico", "basico", "basic_title")):
+            category = "basic"
+        elif source == "media_pool":
+            category = "media_pool"
+        elif source in ("installed_file", "installed_archive"):
+            category = "installed"
+        else:
+            category = "general"
     return Template("tpl_" + digest(locator)[:20], name, source, locator, node,
-                    hashlib.sha256(content).hexdigest(), input_id)
+                    hashlib.sha256(content).hexdigest(), input_id, category)
+
 
 
 def scan_archive(path: Path) -> tuple[Template, ...]:

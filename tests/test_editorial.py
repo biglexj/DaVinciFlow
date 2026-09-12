@@ -336,13 +336,14 @@ class TemplateFileTests(unittest.TestCase):
 
     def test_basic_titles_inventory(self):
         titles = basic_titles()
-        self.assertEqual(len(titles), 3)
-        names = {t.name for t in titles}
-        self.assertEqual(names, {
-            "Text+ básico - Contexto",
-            "Text+ básico - Principal",
-            "Text+ básico - Énfasis",
-        })
+        self.assertEqual(len(titles), 12)
+        categories = {t.category for t in titles}
+        self.assertEqual(categories, {"basic", "shorts", "youtube", "news"})
+        for cat in ("basic", "shorts", "youtube", "news"):
+            cat_titles = [t for t in titles if t.category == cat]
+            self.assertEqual(len(cat_titles), 3)
+            roles = {t.name.split(" - ")[-1] for t in cat_titles}
+            self.assertEqual(roles, {"Contexto", "Principal", "Énfasis"})
 
 
 class FusionTextTests(unittest.TestCase):

@@ -149,6 +149,19 @@ class EditorialController:
     def undo(self):
         return resolve_bridge.undo()
 
+    def clean_df_tracks(self):
+        """Elimina todos los clips situados en las pistas de DaVinci Flow en Resolve."""
+        return resolve_bridge.clean_tracks()
+
+    def choose_pack(self, pack_name: str):
+        """Selecciona las plantillas que coincidan con la categoría o nombre de pack."""
+        matching = [t.id for t in self.catalog.values() if t.category == pack_name or pack_name.lower() in t.name.lower()]
+        if matching:
+            self.choose_templates(matching)
+            return len(matching)
+        return 0
+
+
     def create_default_proposal(self):
         """Crea una propuesta base 1:1 desde los subtítulos existentes sin requerir llamada a IA."""
         if self.snapshot is None:

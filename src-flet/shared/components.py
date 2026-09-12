@@ -51,11 +51,21 @@ def card(content, padding=14, **kwargs):
 
 
 def source_label(template):
+    cat = getattr(template, 'category', '')
+    if cat == 'shorts':
+        return '📱 Shorts Bold'
+    if cat == 'youtube':
+        return '🎬 YouTube Dinámico'
+    if cat == 'news':
+        return '📰 Noticiero TV'
     if template.source == 'media_pool':
-        return 'Proyecto · Fusion'
+        return '📁 Proyecto · Media Pool'
     if 'basic_titles' in template.locator:
         return 'Text+ básico'
+    if template.source == 'installed_archive':
+        return '✨ DRFX Instalado'
     return 'Instalado / archivo'
+
 
 
 def scroll_table(table, width=1080, height=None, expand=True):

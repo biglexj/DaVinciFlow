@@ -170,7 +170,7 @@ class DesktopApp:
             self.page.update()
         return handler
 
-    async def run(self, message, operation):
+    async def run(self, message, operation, reraise: bool = False):
         if self.busy:
             return None
         self.busy = True
@@ -183,6 +183,8 @@ class DesktopApp:
             self.notify('Acción completada.')
             return result
         except Exception as error:
+            if reraise:
+                raise
             self.show_error(str(error))
             return None
         finally:

@@ -20,6 +20,25 @@ class EditorialError(DaVinciFlowError):
     """La propuesta no puede aplicarse con garantías."""
 
 
+@dataclass(frozen=True)
+class EditorialConflictDetail:
+    track_name: str
+    track_index: int
+    clip_name: str
+    start_frame: float
+    end_frame: float
+    cue_index: int
+    cue_text: str
+
+
+class EditorialConflictError(EditorialError):
+    """Colisión con un clip ajeno en las pistas exclusivas de DaVinci Flow."""
+
+    def __init__(self, message: str, conflicts: tuple[EditorialConflictDetail, ...] = ()):
+        super().__init__(message)
+        self.conflicts = conflicts
+
+
 def digest(data: Any) -> str:
     return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False,
                                     allow_nan=False).encode("utf-8")).hexdigest()
@@ -34,6 +53,7 @@ class Template:
     text_tool: str = ""
     fingerprint: str = ""
     text_input: str = "StyledText"
+    category: str = "general"
 
     def __post_init__(self) -> None:
         if self.source not in ("installed_file", "installed_archive", "media_pool") or not all(
@@ -42,6 +62,7 @@ class Template:
             raise EditorialError("Descriptor de plantilla inválido.")
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", self.id):
             raise EditorialError("ID de plantilla inválido.")
+
 
 
 @dataclass(frozen=True)

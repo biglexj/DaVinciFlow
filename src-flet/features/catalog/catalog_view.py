@@ -14,16 +14,39 @@ class CatalogView:
         self.selected = {t.id for t in self.controller.templates}
         self.offset = 0
         self.query = field('Buscar títulos', expand=True, on_change=app.bind(self.search))
-        self.source = select('Fuente', {'all':'Todas', 'installed':'Instalados / archivos', 'media_pool':'Proyecto · Fusion',
-                            'basic':'Text+ básico'}, 'all', 200, on_select=app.bind(self.search))
+        self.source = select('Categoría / Fuente', {
+            'all': 'Todas las plantillas',
+            'shorts': '📱 Shorts & Reels (Bold)',
+            'youtube': '🎬 YouTube Dinámico',
+            'news': '📰 Noticiero & Editorial',
+            'media_pool': '📁 Proyecto · Media Pool',
+            'installed': '✨ Instalados · DRFX',
+            'basic': 'Text+ básico',
+        }, 'all', 220, on_select=app.bind(self.search))
         self.list = ft.ListView(height=310, spacing=4, padding=4)
         self.summary = text('', color=MUTED)
         self.detail = text('Cada capa conserva la fuente, el estilo y la animación de la plantilla que elijas.', color=MUTED)
         self.node = field('Nombre del nodo', hint_text='Vacío: detectar un único Text+', expand=True)
         self.input = field('Control de texto', 'StyledText', width=180)
+        self.packs_card = card(
+            ft.Column([
+                ft.Row([
+                    ft.Icon(ft.Icons.AUTO_AWESOME, color=ACCENT, size=18),
+                    text('Packs de estilo rápido (1 clic para configurar las 3 capas):', size=13, weight=ft.FontWeight.W_600),
+                ], spacing=8),
+                ft.Row([
+                    button('📱 Shorts Bold', app.bind(self.apply_pack, 'shorts'), ft.Icons.PHONE_ANDROID),
+                    button('🎬 YouTube Dinámico', app.bind(self.apply_pack, 'youtube'), ft.Icons.ONDEMAND_VIDEO),
+                    button('📰 Noticiero TV', app.bind(self.apply_pack, 'news'), ft.Icons.NEWSPAPER),
+                    button('✏️ Text+ Básico', app.bind(self.apply_pack, 'basic'), ft.Icons.TITLE),
+                ], wrap=True, spacing=8, run_spacing=8),
+            ], spacing=8),
+            padding=10,
+        )
         self.content = ft.Column([
             text('Tus títulos, tu estilo', 22, weight=ft.FontWeight.W_600),
-            text('Elige lo que podrá usar la IA. Las composiciones de karaoke no se seleccionan automáticamente.', color=MUTED),
+            text('Elige lo que podrá usar la IA o activa un pack predeterminado para tu formato.', color=MUTED),
+            self.packs_card,
             ft.Row([button('Leer instalados', app.bind(self.installed), ft.Icons.DOWNLOAD_DONE),
                 button('Leer proyecto', app.bind(self.project), ft.Icons.VIDEO_LIBRARY_OUTLINED),
                 button('Añadir carpeta', app.bind(self.folder), ft.Icons.CREATE_NEW_FOLDER_OUTLINED)], wrap=True, run_spacing=8),
@@ -42,17 +65,45 @@ class CatalogView:
         if sync:
             self.selected = {t.id for t in self.controller.templates}
         query, source = self.query.value.casefold(), self.source.value
-        items = [t for t in sorted(self.controller.catalog.values(), key=lambda t:t.name.casefold())
-                 if (not query or query in (t.name + ' ' + t.locator).casefold()) and
-                 (source == 'all' or source == 'media_pool' and t.source == 'media_pool' or
-                  source == 'basic' and 'basic_titles' in t.locator or
-                  source == 'installed' and t.source != 'media_pool' and 'basic_titles' not in t.locator)]
+        items = []
+        for t in sorted(self.controller.catalog.values(), key=lambda t: t.name.casefold()):
+            cat = getattr(t, 'category', '')
+            if query and query not in (t.name + ' ' + t.locator + ' ' + cat).casefold():
+                continue
+            if source == 'all':
+                items.append(t)
+            elif source == 'shorts' and (cat == 'shorts' or 'short' in t.name.lower()):
+                items.append(t)
+            elif source == 'youtube' and (cat == 'youtube' or 'youtube' in t.name.lower()):
+                items.append(t)
+            elif source == 'news' and (cat == 'news' or 'noticiero' in t.name.lower()):
+                items.append(t)
+            elif source == 'media_pool' and t.source == 'media_pool':
+                items.append(t)
+            elif source == 'basic' and (cat == 'basic' or 'basic_titles' in t.locator):
+                items.append(t)
+            elif source == 'installed' and t.source != 'media_pool' and 'basic_titles' not in t.locator:
+                items.append(t)
         if self.offset >= len(items):
             self.offset = max(0, (len(items) - 1) // 60 * 60)
         self.list.controls = [ft.Checkbox(label=f'{t.name}   ·   {source_label(t)}',
             value=t.id in self.selected, tooltip=t.locator, active_color=ACCENT,
             on_change=self.app.bind(self.toggle, t.id)) for t in items[self.offset:self.offset+60]]
         self.summary.value = f'{len(items)} encontradas · {len(self.selected)} elegidas · página {self.offset//60+1}'
+
+    async def apply_pack(self, pack_name):
+        count = self.controller.choose_pack(pack_name)
+        self.selected = {t.id for t in self.controller.templates}
+        self.refresh()
+        names = {
+            'shorts': '📱 Shorts Bold (Viral / Alto Impacto)',
+            'youtube': '🎬 YouTube Dinámico (Elegante)',
+            'news': '📰 Noticiero TV (Informativo)',
+            'basic': '✏️ Text+ Básico',
+        }
+        pack_label = names.get(pack_name, pack_name)
+        self.app.notify(f'Pack {pack_label} aplicado ({count} plantillas elegidas).')
+
 
     async def toggle(self, identifier):
         if identifier in self.selected:

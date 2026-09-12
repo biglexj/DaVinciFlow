@@ -27,10 +27,22 @@
 - [x] 3.5 Soportar clips sintéticos y generadores (como 'Color sólido', títulos o ajustes) sin offsets de medios en `capture()`, previniendo la excepción `Resolve no confirmó los offsets de un clip del montaje`.
 - [x] 3.6 Implementar resiliencia y auto-reconciliación de lotes en `planner.py` (`_reconcile_batch`): auto-recuperar decisiones válidas ante omisiones, duplicaciones o índices fuera de orden por parte de la LLM en subtítulos de corta duración/caracteres especiales en el segundo intento, garantizando el contrato editorial sin abortar la propuesta completa.
 
+
 ### 4. Calibración Vertical de Shorts, Plantillas Media Pool (`Statement`) y Multi-Carpeta de Biblioteca
 - [x] 4.1 Calibración vertical dinámica para encuadres verticales / Shorts (9:16) en `EditorialWriter`: situar títulos en el tercio inferior seguro (Y: 0.28–0.36) con interlineado compacto cohesionado según las capas activas de cada bloque.
 - [x] 4.2 Ampliar escáner de plantillas Media Pool (`template_scanner.py`) para indexar títulos y macros Fusion (como `Statement`) presentes en el root/Master o carpetas del Media Pool sin restringirse exclusivamente a una carpeta llamada 'DaVinciFlow'.
 - [x] 4.3 Flexibilizar `text_tool` en `writer.py` para priorizar nodos TextPlus con `StyledText` o nombrados 'Template'/'Text' sin fallar por ambigüedad cuando una macro contiene múltiples nodos TextPlus.
 - [x] 4.4 Soportar múltiples carpetas por categoría en `LibraryView` y `scan_library` (separación por `;` o lista dinámica), permitiendo añadir carpetas adicionales de música/SFX/visuals sin sobrescribir las previas.
 - [x] 4.5 Añadir pruebas unitarias para el nuevo posicionamiento vertical, multi-carpeta de biblioteca y escaneo flexible de plantillas Media Pool.
+
+### 5. Resolución Visual de Conflictos en Pistas DF, Limpieza Atómica y Packs de Plantillas
+- [x] 5.1 Distinguir en `writer.py` los clips propios de DaVinci Flow (`DF__...`) de clips externos y auto-reemplazar/limpiar en re-aplicaciones en pistas `DF_*`.
+- [x] 5.2 Estructurar excepción `EditorialConflictError` con detalles precisos (pista, nombre del clip, fotogramas y bloque de subtítulo colisionante).
+- [x] 5.3 Añadir método `clean_df_tracks()` en `controller.py` y puente Resolve para vaciar las pistas `DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`, `DF_SFX` en 1 clic.
+- [x] 5.4 Implementar diagnóstico visual en `EditorView`: pintar en rojo (`#3B1818` / `#EF4444`) las filas en conflicto, mostrar tooltip/alerta explicativa con acción de limpieza y botón `[Limpiar pistas DF]`.
+- [x] 5.5 Diseñar presets de estilos `.setting` para casos reales: *Shorts Bold Pop*, *YouTube Dinámico* y *Noticiero/Editorial*.
+- [x] 5.6 Incorporar selector de categorías y botón de "Aplicar Pack Completo en 1 Clic" en `CatalogView`.
+- [x] 5.7 Pruebas unitarias para auto-reemplazo, detección de conflicto detallado y carga de packs de plantillas.
+
+
 

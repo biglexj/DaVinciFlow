@@ -44,10 +44,27 @@ El usuario probó la aplicación en un flujo de trabajo real con un vídeo reci�
 - Corregir el selector en `test_desktop.py` afectado por los contenedores de carpetas del selector de archivos y la fila de fases.
 - Añadir pruebas unitarias completas para la nueva vista de corrección y el flujo de navegación de fases desacoplado.
 
+### D. Resolución Visual de Conflictos y Auto-reemplazo en Pistas DF
+- Distinguir clips generados previamente por DaVinci Flow (`DF__...`) de clips externos de usuario (`Statement`, etc.) en las pistas dedicadas (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`).
+- Reemplazar/actualizar automáticamente los clips generados anteriores sin arrojar falsos positivos de "clip ajeno".
+- En caso de colisión con un clip manual externo, arrojar un error quirúrgico y detallado con pista, nombre del clip, rango de fotogramas y subtítulo afectado.
+- Destacar visualmente en rojo (`#EF4444`) las filas en conflicto en la tabla del Editor, con botón directo para limpiar las pistas DF en Resolve.
+
+### E. Sistema de Plantillas Categorizadas y Packs de Estilo
+- Crear presets nativos de alta calidad organizados por casos de uso reales:
+  - 📱 *Shorts & TikTok (Bold Pop)*: Tipografía gruesa, trazo exterior pronunciado, sombra suave y amarillo neón.
+  - 🎬 *YouTube & Vlogs (Dinámico)*: Jerarquía limpia, tracking espaciado y acento dorado.
+  - 📰 *Noticiero & Editorial*: Tipografía formal y zócalo contrastado.
+- Reestructurar `CatalogView` con filtros de categoría y botón de aplicación de pack completo en 1 clic.
+
 ## 3. Criterios de Finalización
 
 - [ ] Paso 1 renombrado y desacoplado de la etiqueta restrictiva de "crudo".
 - [ ] Selector interactivo de fases (1, 2 y 3) con soporte para revisión directa de subtítulos existentes.
 - [ ] Nueva pestaña `Corrección de subtítulos` operativa en la barra lateral con búsqueda/reemplazo, normalización, edición rápida y alineación IA.
 - [ ] Sincronización bidireccional limpia entre la corrección de subtítulos y el editor editorial.
-- [ ] Suite de pruebas automatizadas (228+ pruebas) ejecutándose al 100% en verde sin errores.
+- [ ] Eliminación del falso positivo de "clip ajeno" en pistas DF y diagnóstico visual en rojo en caso de colisión.
+- [ ] Botón de limpieza atómica de pistas de texto de DaVinci Flow en Resolve.
+- [ ] Catálogo categorizado por formatos (Shorts, YouTube, Noticiero, Media Pool) con packs de 1 clic.
+- [ ] Suite de pruebas automatizadas ejecutándose al 100% en verde sin errores.
+

@@ -47,4 +47,33 @@
   - Tarjeta interactiva con listado visual de carpetas añadidas, botón para remover individualmente y botón `+ Añadir carpeta` mediante selector nativo.
   - Indexación unificada sin duplicados de recursos compartidos.
 - [x] Suite completa de pruebas ejecutada: 248 pruebas ejecutadas en 6.011s, 100% en verde (`OK`).
+- [x] Actualización de pruebas unitarias para 12 plantillas categorizadas en 4 packs (`basic`, `shorts`, `youtube`, `news`).
+
+### 4. Resolución de Conflictos, Limpieza Atómica y Packs de Plantillas
+- [x] Distinción de clips propios vs. ajenos en `writer.py`:
+  - Los clips con prefijo `DF__` se identifican como artefactos de ejecuciones previas de DaVinci Flow y se omiten durante la comprobación de colisión foránea.
+  - Comprobado en `tests/test_editorial_writer.py` (`test_df_prefixed_clips_are_treated_as_reversion_target_not_foreign_conflict`).
+- [x] Excepción estructurada `EditorialConflictError`:
+  - Reporta tupla de `EditorialConflictDetail` con pista, índice de pista, nombre de clip, fotogramas iniciales/finales, índice de subtítulo y texto.
+  - Comprobado en `tests/test_editorial_writer.py` (`test_foreign_clip_in_destination_is_not_overwritten`).
+- [x] Limpieza atómica de pistas DF (`clean_tracks` / `clean_df_tracks`):
+  - Operación directa en Resolve que localiza y elimina clips situados en `DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT` y `DF_SFX` sin tocar pistas de usuario.
+  - Validado en vivo en DaVinci Resolve Studio: 59 clips huérfanos eliminados limpiamente (`{'deleted_count': 59}` y posterior verificación `{'deleted_count': 0}`).
+  - Comprobado en `tests/test_subtitles_view.py` (`test_clean_df_tracks_invokes_bridge`).
+- [x] Mesa de revisión visual de conflictos en `EditorView`:
+  - Filas colisionantes resaltadas con fondo oscuro rojizo (`#3B1818`), tipografía en rojo (`#EF4444`) e icono `⚠️`.
+  - Tooltips detallados indicando el clip ajeno y el rango de fotogramas en conflicto.
+  - Diálogo modal con explicación clara y botón de 1 clic «Limpiar pistas DF y reintentar».
+  - Botón accesible `[Limpiar pistas DF]` en la barra de acciones de la mesa de edición.
+- [x] Presets de estilos profesionales (.setting) categorizados:
+  - `📱 Shorts Bold Pop` (`Shorts Bold - Contexto.setting`, `Shorts Bold - Principal.setting`, `Shorts Bold - Énfasis.setting`): calibrados para 9:16 vertical, trazo negro de 0.02, sombra paralela y resalte amarillo fluorescente `#FFEA00`.
+  - `🎬 YouTube Dinámico` (`YouTube Dinámico - Contexto.setting`, `YouTube Dinámico - Principal.setting`, `YouTube Dinámico - Énfasis.setting`): interlineado elegante, resalte dorado `#FFBC00` y composición horizontal 16:9.
+  - `📰 Noticiero TV` (`Noticiero TV - Contexto.setting`, `Noticiero TV - Principal.setting`, `Noticiero TV - Énfasis.setting`): estilo rótulo broadcast con alto contraste.
+  - `✏️ Text+ Básico`: plantillas estándar minimalistas.
+- [x] Catálogo con filtro de categorías y aplicación de packs en 1 clic:
+  - Menú desplegable de categorías en `CatalogView` (`Todos`, `📱 Shorts / TikTok`, `🎬 YouTube Dinámico`, `📰 Noticiero / TV`, `📁 Media Pool / Proyecto`, `🎨 Text+ Básico`).
+  - Tarjeta de accesos rápidos con botones de 1 clic para asignar las 3 capas (`context`, `main`, `accent`) simultáneamente.
+  - Método `choose_pack()` en `EditorialController` validado en `tests/test_subtitles_view.py` (`test_choose_pack_selects_matching_templates`).
+- [x] Suite completa de pruebas ejecutada: 251 pruebas ejecutadas en 6.549s, 100% en verde (`OK`).
+
 

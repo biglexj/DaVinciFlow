@@ -248,3 +248,21 @@ class ControllerDirectProposalTests(unittest.TestCase):
         assert controller.proposal is not None
         self.assertEqual(controller.proposal.decisions[0].main, "Hola amigos de Biglex J!")
         controller.proposal.validate()
+
+    def test_choose_pack_selects_matching_templates(self):
+        controller = EditorialController()
+        # Ensure fresh basic titles are loaded into catalog
+        count = controller.choose_pack("shorts")
+        self.assertEqual(count, 3)
+        self.assertTrue(all(t.category == "shorts" for t in controller.templates))
+
+        count_yt = controller.choose_pack("youtube")
+        self.assertEqual(count_yt, 3)
+        self.assertTrue(all(t.category == "youtube" for t in controller.templates))
+
+    def test_clean_df_tracks_invokes_bridge(self):
+        controller = EditorialController()
+        with patch("davinci_flow.editorial.resolve_bridge.clean_tracks", return_value={"status": "ok", "deleted_count": 4}) as mock_clean:
+            res = controller.clean_df_tracks()
+            mock_clean.assert_called_once()
+            self.assertEqual(res["deleted_count"], 4)

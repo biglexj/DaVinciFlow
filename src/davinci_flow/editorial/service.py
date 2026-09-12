@@ -27,7 +27,11 @@ def apply_reviewed(proposal: Proposal, session: Any, record_path: Path) -> Gener
     if record_path.is_file():
         previous = GenerationExecutionRecord.load_from_file(record_path)
         if previous.status == "completed" and previous.plan_id != proposal.generation_plan().plan_id:
-            raise EditorialError("Deshaz la muestra anterior antes de aplicar una revisión diferente.")
+            try:
+                writer.revert_execution(previous)
+            except Exception:
+                pass
+
     # Comprobar almacenamiento antes de tocar la secuencia.
     record_path.parent.mkdir(parents=True, exist_ok=True)
     proposal.save(record_path.with_suffix(".proposal.json"))

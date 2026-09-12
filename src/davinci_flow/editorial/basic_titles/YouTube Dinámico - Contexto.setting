@@ -1,0 +1,41 @@
+{
+	Tools = ordered() {
+		BasicText = TextPlus {
+			Inputs = {
+				StyledText = Input { Value = "Contexto" },
+				Font = Input { Value = "Montserrat" },
+				Style = Input { Value = "Medium Italic" },
+				Size = Input { Value = 0.040 },
+				Tracking = Input { Value = 1.05 },
+				Center = Input { Value = { 0.5, 0.240 } },
+				Width = Input { Value = 1920 },
+				Height = Input { Value = 1080 },
+				UseFrameFormatSettings = Input { Value = 1 },
+				VerticalJustificationNew = Input { Value = 3 },
+				HorizontalJustificationNew = Input { Value = 3 },
+				Red1 = Input { Value = 0.9 },
+				Green1 = Input { Value = 0.9 },
+				Blue1 = Input { Value = 0.9 },
+				Alpha1 = Input { Value = 0.95 },
+				Enabled2 = Input { Value = 1 },
+				Element2 = Input { Value = 2 },
+				Type2 = Input { Value = 0 },
+				Red2 = Input { Value = 0 },
+				Green2 = Input { Value = 0 },
+				Blue2 = Input { Value = 0 },
+				Alpha2 = Input { Value = 0.9 },
+				Thickness2 = Input { Value = 0.010 },
+				Enabled3 = Input { Value = 1 },
+				Element3 = Input { Value = 3 },
+				Type3 = Input { Value = 0 },
+				Red3 = Input { Value = 0 },
+				Green3 = Input { Value = 0 },
+				Blue3 = Input { Value = 0 },
+				Alpha3 = Input { Value = 0.8 },
+				Softness3 = Input { Value = 0.018 },
+				Offset3 = Input { Value = { 0.005, -0.005 } }
+			}
+		},
+		MediaOut1 = MediaOut { Inputs = { Input = Input { SourceOp = "BasicText", Source = "Output" } } }
+	}
+}

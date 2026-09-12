@@ -15,7 +15,7 @@ from davinci_flow.generation.record import GenerationExecutionRecord
 from davinci_flow.subtitles.model import SubtitleCue
 from davinci_flow.resolve.mcp_client import MCPError, ResolveMCP, find_mcp_executable
 
-OPERATIONS = {'capture', 'titles', 'apply', 'undo'}
+OPERATIONS = {'capture', 'titles', 'apply', 'undo', 'clean_tracks'}
 RESULT_PREFIX = 'DAVINCI_FLOW_RESULT='
 SOURCE = Path(__file__).resolve().parents[2]
 
@@ -138,6 +138,10 @@ def undo():
     return GenerationExecutionRecord.from_dict(request('undo'))
 
 
+def clean_tracks():
+    return request('clean_tracks')
+
+
 def dispatch(operation, parameters, *, session=None):
     """Solo se ejecuta en el auxiliar; ningún objeto nativo cruza el proceso."""
     if operation not in OPERATIONS:
@@ -150,6 +154,22 @@ def dispatch(operation, parameters, *, session=None):
     if proposal:
         proposal.validate(require_review=True)
     session = session if session is not None else connect_to_resolve()
+    if operation == 'clean_tracks':
+        timeline = session.timeline
+        names = {"DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_SFX"}
+        deleted_count = 0
+        for track_type in ("video", "audio"):
+            count = int(timeline.GetTrackCount(track_type) or 0)
+            for idx in range(1, count + 1):
+                name = str(timeline.GetTrackName(track_type, idx) or "")
+                if name in names:
+                    items = timeline.GetItemListInTrack(track_type, idx) or []
+                    if isinstance(items, dict):
+                        items = list(items.values())
+                    if items:
+                        timeline.DeleteClips(items, False)
+                        deleted_count += len(items)
+        return {'deleted_count': deleted_count}
     if operation in {'capture', 'titles'}:
         templates, _ = media_pool_catalog(session.project.GetMediaPool())
         catalog = [asdict(t) for t in templates]
@@ -162,6 +182,7 @@ def dispatch(operation, parameters, *, session=None):
         return apply_reviewed(proposal, session, record_path_for(s.project_id, s.timeline_id)).to_dict()
     return undo_reviewed(session, record_path_for(str(session.project.GetUniqueId()),
                                                   str(session.timeline.GetUniqueId()))).to_dict()
+
 
 
 def main():

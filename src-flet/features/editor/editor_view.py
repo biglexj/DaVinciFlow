@@ -1,7 +1,7 @@
 import asyncio
 import flet as ft
 
-from davinci_flow.editorial.model import EditorialError
+from davinci_flow.editorial.model import EditorialConflictError, EditorialError
 from davinci_flow.sfx.catalog import DEFAULT_SFX_ASSETS
 from shared.components import (
     ACCENT, CARD, LINE, MUTED, TEXT, MODES, FORMATS, DENSITIES, button, card, field, scroll_table, select, text,
@@ -14,7 +14,9 @@ class EditorView:
         self.controller = app.controller
         p = self.controller.preferences
         self.selected = None
+        self.conflict_cue_indices = {}
         self.track = field('Pista', '1', 72)
+
         self.fps = field('FPS SRT', '24', 90)
         self.first = field('Desde', '1', 80)
         self.last = field('Hasta', '120', 80)
@@ -101,6 +103,8 @@ class EditorView:
                            tooltip='Se aplica la revisión guardada, sin volver a llamar a la IA.'),
                     button('Deshacer', app.bind(self.undo), ft.Icons.UNDO_ROUNDED,
                            tooltip='Deshacer la muestra aplicada en esta secuencia'),
+                    button('Limpiar pistas DF', app.bind(self.clean_tracks), ft.Icons.CLEANING_SERVICES_OUTLINED,
+                           tooltip='Vaciar las pistas de DaVinci Flow (DF_CONTEXT, DF_MAIN, DF_ACCENT, DF_SFX) en Resolve'),
                 ], wrap=True, spacing=8, run_spacing=8),
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             self.empty, self.initial_loading, self.table_view, self.review_card,
@@ -202,6 +206,7 @@ class EditorView:
 
         for i, cue in enumerate(snapshot.cues):
             decision = proposal.decisions[i] if proposal else None
+            conflict = self.conflict_cue_indices.get(i)
             sfx_label = sfx_names.get(decision.resource_id, decision.resource_id) if (decision and decision.resource_id) else ''
             values = (f'{cue.start_frame:g}–{cue.end_frame:g}', decision.context if decision else '',
                       (decision.main if decision.enabled else 'Sin rótulo') if decision else cue.text,
@@ -209,11 +214,24 @@ class EditorView:
                       sfx_label,
                       ', '.join(dict.fromkeys(catalog.get(t, '') for t in decision.templates.values())) if decision else 'Por elegir',
                       ('Revisado' if decision.reviewed else 'Pendiente') if decision else 'Fuente')
-            cells = [ft.DataCell(ft.Container(content=text(value or '—', color=MUTED if decision and not decision.enabled else TEXT,
-                no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS, tooltip=value), width=width))
-                for value, width in zip(values, (110, 130, 230, 130, 120, 170, 90))]
+            row_bg = '#3B1818' if conflict else ('#173A35' if i == self.selected else None)
+            text_color = '#EF4444' if conflict else (MUTED if decision and not decision.enabled else TEXT)
+            cells = []
+            for col_idx, (value, width) in enumerate(zip(values, (110, 130, 230, 130, 120, 170, 90))):
+                display_val = value or '—'
+                if conflict and col_idx == 0:
+                    display_val = f'⚠️ {display_val}'
+                cell_tooltip = f"[CONFLICTO con '{conflict.clip_name}' en pista {conflict.track_name} (f. {conflict.start_frame:g}–{conflict.end_frame:g})]\n" if conflict else ""
+                cell_tooltip += str(value or '')
+                cells.append(ft.DataCell(ft.Container(content=text(
+                    display_val,
+                    color=text_color,
+                    weight=ft.FontWeight.BOLD if conflict else ft.FontWeight.NORMAL,
+                    no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS,
+                    tooltip=cell_tooltip,
+                ), width=width)))
             self.table.rows.append(ft.DataRow(cells=cells, selected=i == self.selected,
-                color='#173A35' if i == self.selected else None, on_select_change=self.app.bind(self.choose, i)))
+                color=row_bg, on_select_change=self.app.bind(self.choose, i)))
         reviewed = sum(d.reviewed for d in proposal.decisions) if proposal else 0
         active = sum(d.enabled for d in proposal.decisions) if proposal else 0
         self.count.value = f'{active} rótulos · {reviewed}/{len(snapshot.cues)} revisados' if proposal else f'{len(snapshot.cues)} subtítulos originales'
@@ -380,13 +398,90 @@ class EditorView:
                 return
             self.controller.approve_all()
             self.refresh()
-        result = await self.app.run('Aplicando la revisión exacta en Resolve…', self.controller.apply)
-        if result:
-            self.app.notify(f'Aplicados {result.item_count} elementos. Comprueba la reproducción en Resolve.')
+        try:
+            result = await self.app.run('Aplicando la revisión exacta en Resolve…', self.controller.apply, reraise=True)
+            if result:
+                self.conflict_cue_indices.clear()
+                self.refresh()
+                self.app.notify(f'Aplicados {result.item_count} elementos. Comprueba la reproducción en Resolve.')
+        except EditorialConflictError as e:
+            self.conflict_cue_indices = {c.cue_index: c for c in e.conflicts}
+            self.refresh()
+            await self._show_conflict_dialog(e)
+
+    async def _show_conflict_dialog(self, error: EditorialConflictError):
+        conflict_lines = []
+        for c in error.conflicts[:4]:
+            conflict_lines.append(
+                f"• Pista {c.track_name} (índice {c.track_index}): clip '{c.clip_name}' "
+                f"[frames {c.start_frame:g}–{c.end_frame:g}] choca con subtítulo #{c.cue_index + 1} '{c.cue_text}'"
+            )
+        if len(error.conflicts) > 4:
+            conflict_lines.append(f"• … y {len(error.conflicts) - 4} colisión(es) adicionales marcadas en rojo en la tabla.")
+
+        summary_text = (
+            f"Se detectaron {len(error.conflicts)} conflicto(s) de clips en las pistas exclusivas de DaVinci Flow.\n\n"
+            + "\n".join(conflict_lines)
+            + "\n\nLas filas afectadas se resaltaron en rojo en la tabla.\n"
+            "Puedes vaciar las pistas de DaVinci Flow ahora mismo o mover los clips ajenos en Resolve."
+        )
+
+        async def dismiss(event):
+            if hasattr(self.app.page, 'pop_dialog'):
+                self.app.page.pop_dialog()
+            self.app.page.update()
+
+        async def clean_and_retry(event):
+            if hasattr(self.app.page, 'pop_dialog'):
+                self.app.page.pop_dialog()
+            self.app.page.update()
+            await self.clean_tracks(auto_retry=True)
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=text('Conflicto en la línea de tiempo', 18, color='#EF4444', weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                ft.Column([
+                    ft.Row([
+                        ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color='#EF4444', size=24),
+                        text('Colisión con clips en pistas de DaVinci Flow', 14, weight=ft.FontWeight.W_600),
+                    ], spacing=8),
+                    text(summary_text, size=13, selectable=True),
+                ], spacing=10, tight=True),
+                width=620,
+            ),
+            alignment=ft.Alignment.CENTER,
+            actions=[
+                button('Entendido', dismiss),
+                button('Limpiar pistas DF y reintentar', clean_and_retry, ft.Icons.CLEANING_SERVICES_OUTLINED, primary=True),
+            ],
+        )
+        if hasattr(self.app.page, 'show_dialog'):
+            self.app.page.show_dialog(dialog)
+        self.app.page.update()
+
+    async def clean_tracks(self, auto_retry: bool = False):
+        if not auto_retry:
+            confirmed = await self.app.confirm(
+                'Limpiar pistas DaVinci Flow',
+                '¿Deseas eliminar todos los clips situados en las pistas DF_CONTEXT, DF_MAIN, DF_ACCENT y DF_SFX de la línea de tiempo activa en Resolve? Las pistas de usuario permanecerán intactas.'
+            )
+            if not confirmed:
+                return
+        result = await self.app.run('Limpiando pistas DF en Resolve…', self.controller.clean_df_tracks)
+        if result is not None:
+            deleted = result.get('deleted_count', 0) if isinstance(result, dict) else 0
+            self.conflict_cue_indices.clear()
+            self.refresh()
+            self.app.notify(f'Pistas DF limpiadas con éxito: {deleted} clips eliminados en Resolve.')
+            if auto_retry:
+                await self.apply()
 
     async def undo(self):
         result = await self.app.run('Deshaciendo la muestra de esta secuencia…', self.controller.undo)
         if result:
+            self.conflict_cue_indices.clear()
+            self.refresh()
             self.app.notify(f'Reversión: {result.status}.')
 
     async def auto_capture_default(self):
