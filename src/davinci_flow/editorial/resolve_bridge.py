@@ -181,7 +181,9 @@ def dispatch(operation, parameters, *, session=None):
         if proposal is None:
             raise EditorialError('No se proporcionó una propuesta válida para aplicar.')
         s = proposal.snapshot
-        return apply_reviewed(proposal, session, record_path_for(s.project_id, s.timeline_id)).to_dict()
+        project_id = s.project_id or str(session.project.GetUniqueId())
+        timeline_id = s.timeline_id or str(session.timeline.GetUniqueId())
+        return apply_reviewed(proposal, session, record_path_for(project_id, timeline_id)).to_dict()
     return undo_reviewed(session, record_path_for(str(session.project.GetUniqueId()),
                                                   str(session.timeline.GetUniqueId()))).to_dict()
 
