@@ -8,6 +8,8 @@ Plan de trabajo, objetivos de producto y hoja de ruta estratégica del proyecto.
 
 ## 🔴 Pendientes activos
 
+- [ ] **Subtítulos cinéticos nativos (Statement en V3) y sincronización automática de SFX en Shorts** — `process/active/2026-09-24_subtitulos-cineticos-statement-y-sfx-shorts/`
+  - Reorientación utilitaria de DaVinci Flow para generación de subtítulos dinámicos mediante Fusion Titles nativos (`Statement` y catálogo animado en `V3`) con `StyledText` editable en Inspector. Eliminación completa de archivos portadores `.avi` y pre-renderizados `.mov`. Sincronización automática de efectos de sonido (`A4`: `pop_02.mp3`, `suction_pop_07.mp3`, `swoosh_02.mp3`) con cada cambio de expresión visual del personaje (`V4`: `Expresiones_*.webp` / `Ada Cosplay`).
 - [ ] **Desacople de fase de crudo y pestaña dedicada «Corrección de subtítulos»** — `process/active/2026-09-11_correccion-subtitulos-y-desacople-crudo/`
   - Eliminación de la fricción entre etapas 1, 2 y 3, renombrando el paso 1 a «1. Montaje y Subtítulos», reconociendo proyectos avanzados con cortes/subtítulos y permitiendo revisión directa 1:1 sin bloqueo. Nueva pestaña dedicada «Corrección de subtítulos» con herramientas de búsqueda/reemplazo global, normalización ortográfica en un clic, glosario, alineación con IA, exportación SRT e inserción de marcadores en Resolve. 241/241 pruebas en verde.
 - [ ] **Puente MCP oficial de Resolve Studio 21.1** — `process/active/2026-09-10_puente-mcp-oficial/`
