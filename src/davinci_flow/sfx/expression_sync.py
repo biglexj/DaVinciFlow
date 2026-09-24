@@ -50,18 +50,25 @@ class SFXExpressionSynchronizer:
         media_pool: Any | None = None,
         sfx_catalog: SFXCatalog | None = None,
         custom_sfx_dirs: Sequence[Path] | None = None,
+        assets_root: str | Path | None = None,
         min_cooldown_frames: int = 14,
         swoosh_lead_frames: int = 3,
+        anticipation_frames: int | None = None,
     ) -> None:
         self.timeline = timeline
         self.media_pool = media_pool
         self.catalog = sfx_catalog or SFXCatalog()
         self.min_cooldown_frames = max(1, min_cooldown_frames)
-        self.swoosh_lead_frames = max(0, swoosh_lead_frames)
+        effective_lead = anticipation_frames if anticipation_frames is not None else swoosh_lead_frames
+        self.swoosh_lead_frames = max(0, effective_lead)
 
         self._sfx_search_dirs: list[Path] = []
         if custom_sfx_dirs:
             self._sfx_search_dirs.extend(d for d in custom_sfx_dirs if d.is_dir())
+        if assets_root:
+            root_p = Path(assets_root)
+            if root_p.is_dir() and root_p not in self._sfx_search_dirs:
+                self._sfx_search_dirs.append(root_p)
         for default_dir in (DEFAULT_POP_DIR, DEFAULT_WHOOSH_DIR):
             if default_dir.is_dir() and default_dir not in self._sfx_search_dirs:
                 self._sfx_search_dirs.append(default_dir)
@@ -180,6 +187,20 @@ class SFXExpressionSynchronizer:
                 inserted_events.append(ev)
 
         return tuple(inserted_events)
+
+    def sync_expressions(
+        self,
+        expression_track_index: int = 4,
+        sfx_track_index: int = 4,
+        dry_run: bool = False,
+    ) -> tuple[int, tuple[ExpressionCutEvent, ...]]:
+        """Inserta los SFX sincronizados con las expresiones y retorna el conteo y los eventos colocados."""
+        events = self.apply_sfx_sync(
+            expression_track_index=expression_track_index,
+            sfx_audio_track_index=sfx_track_index,
+            dry_run=dry_run,
+        )
+        return len(events), events
 
     def _ensure_audio_tracks(self, target_index: int) -> None:
         get_count = getattr(self.timeline, "GetTrackCount", None)

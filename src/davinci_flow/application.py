@@ -538,7 +538,7 @@ def sync_sfx_for_expressions(
     assets_root: str | Path | None = None,
     anticipation_frames: int = 3,
     resolve_session: Any | None = None,
-) -> tuple[int, list[Any]]:
+) -> tuple[int, Sequence[Any]]:
     """Analiza cortes de expresión visual (ej. Ely en V4) e inserta SFX sincronizados en pista de audio (ej. A4)."""
     from davinci_flow.sfx.expression_sync import SFXExpressionSynchronizer
 
