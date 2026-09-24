@@ -103,7 +103,7 @@ class EditorView:
                            tooltip='Se aplica la revisión guardada, sin volver a llamar a la IA.'),
                     button('Deshacer', app.bind(self.undo), ft.Icons.UNDO_ROUNDED,
                            tooltip='Deshacer la muestra aplicada en esta secuencia'),
-                    button('Limpiar pistas DF', app.bind(self.clean_tracks), ft.Icons.CLEANING_SERVICES_OUTLINED,
+                    button('Limpiar', app.bind(self.clean_tracks), ft.Icons.CLEANING_SERVICES_OUTLINED,
                            tooltip='Vaciar las pistas de DaVinci Flow (DF_CONTEXT, DF_MAIN, DF_ACCENT, DF_SFX) en Resolve'),
                 ], wrap=True, spacing=8, run_spacing=8),
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),

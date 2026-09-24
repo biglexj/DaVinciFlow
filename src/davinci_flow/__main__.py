@@ -12,6 +12,7 @@ from davinci_flow.application import (
     plan_active_subtitles,
     reconcile_active_timeline,
     scan_active_subtitles,
+    sync_sfx_for_expressions,
 )
 from davinci_flow.errors import DaVinciFlowError
 from davinci_flow.installer import (
@@ -147,6 +148,36 @@ def _parser() -> argparse.ArgumentParser:
         help="Abre la ventana gráfica de DaVinci Flow en DaVinci Resolve.",
     )
     parser.add_argument(
+        "--preset",
+        type=str,
+        default=None,
+        choices=["statement", "word_highlight", "rotate", "lollipop", "slide_in"],
+        help="Plantilla de título cinético nativo editable (por defecto: statement).",
+    )
+    parser.add_argument(
+        "--sync-sfx",
+        action="store_true",
+        help="Sincroniza automáticamente efectos de sonido (SFX pop/whoosh) con cambios de expresión en V4.",
+    )
+    parser.add_argument(
+        "--expression-track",
+        type=int,
+        default=4,
+        help="Pista de video con expresiones del personaje (por defecto: 4 para V4).",
+    )
+    parser.add_argument(
+        "--sfx-track",
+        type=int,
+        default=4,
+        help="Pista de audio destino para efectos de sonido (por defecto: 4 para A4).",
+    )
+    parser.add_argument(
+        "--anticipation",
+        type=int,
+        default=3,
+        help="Fotogramas de anticipación auditiva para los SFX (por defecto: 3 fotogramas).",
+    )
+    parser.add_argument(
         "--about",
         action="store_true",
         help="Muestra información de versión, autoría y enlaces de apoyo oficial.",
@@ -223,6 +254,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     use_ai = args.correct_ai or bool(script_text or glossary or args.gemini_key)
 
     try:
+        # Modo Sincronización de SFX para Expresiones
+        if args.sync_sfx:
+            count, sfx_events = sync_sfx_for_expressions(
+                expression_track_index=args.expression_track,
+                sfx_track_index=args.sfx_track,
+                anticipation_frames=args.anticipation,
+            )
+            print(f"🎬 Sincronización de SFX completada: {count} efectos colocados en audio A{args.sfx_track}.")
+            for ev in sfx_events[:10]:
+                print(f"  • f:{ev.target_frame} [{ev.sfx_asset_name}] -> {ev.clip_name} ({ev.event_type}, dur: {ev.duration_frames}f)")
+            if len(sfx_events) > 10:
+                print(f"  … {len(sfx_events) - 10} efectos adicionales.")
+            return 0
+
         # Modo Reconciliación
         if args.reconcile:
             diff = reconcile_active_timeline(args.reconcile, track_index=args.track)
@@ -239,6 +284,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # Modo Generación
         if args.generate or args.dry_run:
+            gen_kwargs = {}
+            if args.preset:
+                gen_kwargs["animation_preset"] = args.preset
             record = generate_from_active_timeline(
                 track_index=args.track,
                 theme_name=args.theme,
@@ -252,6 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 use_ai_correction=use_ai,
                 insert_markers=args.add_markers,
                 srt_path=args.srt,
+                **gen_kwargs,
             )
             mode_label = "SIMULACIÓN (Dry-Run)" if args.dry_run else "GENERACIÓN"
             print(f"[{mode_label}] Ejecución: {record.execution_id}")
@@ -266,6 +315,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # Modo Planificación / Exportación
         if args.plan or args.export_plan:
+            plan_kwargs = {}
+            if args.preset:
+                plan_kwargs["animation_preset"] = args.preset
             plan, corr = plan_active_subtitles(
                 track_index=args.track,
                 theme_name=args.theme,
@@ -277,6 +329,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 model_name=args.gemini_model,
                 use_ai_correction=use_ai,
                 srt_path=args.srt,
+                **plan_kwargs,
             )
             print(f"Proyecto: {plan.project_name}")
             print(f"Línea de tiempo: {plan.timeline_name}")

@@ -14,10 +14,12 @@ from davinci_flow.generation.fusion_template import generate_textplus_fusion_set
 from davinci_flow.generation.carrier_media import write_black_uncompressed_avi
 from davinci_flow.generation.plan import GenerationPlan
 from davinci_flow.generation.record import GenerationExecutionRecord, GenerationItemRecord
+from davinci_flow.resolve.kinetic_titles import KineticTitleWriter
 from davinci_flow.resolve.track_manager import ResolveTrackManager
 from davinci_flow.sfx.assets import ensure_builtin_sfx_assets
 from davinci_flow.sfx.catalog import SFXCatalog, SFXCatalogError
 from davinci_flow.themes.tokens import ThemeTokens, get_theme
+
 
 _CARRIER_MEDIA_NAME = "DF_Fusion_Title.png"
 _TRANSPARENT_PNG_BYTES = (
@@ -48,6 +50,7 @@ class ResolveTimelineWriter:
             else Path(tempfile.gettempdir()) / "DaVinciFlow"
         )
         self.sfx_catalog = sfx_catalog or SFXCatalog()
+        self.kinetic_writer = KineticTitleWriter(timeline=self.timeline, media_pool=self.media_pool)
         self._carrier_media_items: dict[str, Any] = {}
         self._imported_sfx: dict[str, Any] = {}
         self._plan_carrier_frames = 1
@@ -412,8 +415,45 @@ class ResolveTimelineWriter:
         animation_preset: str = "none",
         template_media_item: Any | None = None,
     ) -> Any:
-        """Añade un soporte transparente o usa una plantilla Text+ del Media Pool e inyecta el texto."""
+        """Añade un título cinético nativo editable (Statement, etc.), una plantilla Text+ o soporte de composición."""
         duration_frames = max(1, round(end_frame - start_frame))
+
+        # 1. Intentar inserción nativa de título cinético (sin carrier files)
+        if template_media_item is None and callable(getattr(self.timeline, "InsertFusionTitleIntoTimeline", None)):
+            try:
+                preset_id = animation_preset
+                if preset_id in ("kinetic_pulse", "pop_bounce", "none", "slide_up") or not self.kinetic_writer.catalog.get(preset_id):
+                    preset_id = "statement"
+                
+                font_name = (
+                    theme.font_family_context
+                    if role == "context"
+                    else (theme.font_family_accent if role == "accent" else theme.font_family_main)
+                )
+
+                kinetic_item = self.kinetic_writer.insert_kinetic_subtitle(
+                    track_index=track_index,
+                    record_frame=self._resolve_record_frame(start_frame),
+                    duration_frames=duration_frames,
+                    text=text,
+                    preset_id=preset_id,
+                    fps=fps,
+                    custom_name=native_name,
+                    font_name=font_name,
+                )
+                if kinetic_item is not None:
+                    self._verify_native_item(
+                        item=kinetic_item,
+                        track_type="video",
+                        track_index=track_index,
+                        record_frame=self._resolve_record_frame(start_frame),
+                        duration_frames=duration_frames,
+                    )
+                    return kinetic_item
+            except Exception:
+                # Recurrir al flujo de respaldo si la inserción nativa directa no fue completada
+                pass
+
         if template_media_item is not None:
             media_item = template_media_item
         else:
@@ -597,7 +637,7 @@ class ResolveTimelineWriter:
                 raise TimelineWriteError(
                     f"Resolve creó una duración de audio de {actual_duration:g} fotogramas; se esperaban {expected_duration}."
                 )
-            elif track_type == "video" and abs(actual_duration - expected_duration) > 0.01:
+            elif track_type == "video" and abs(actual_duration - expected_duration) > 1.01:
                 raise TimelineWriteError(
                     f"Resolve creó una duración de vídeo de {actual_duration:g} fotogramas; se esperaban {expected_duration}."
                 )

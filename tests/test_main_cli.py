@@ -163,6 +163,49 @@ class MainCliTests(unittest.TestCase):
         self.assertEqual(result, 0)
         mock_reconcile.assert_called_once_with("path/to/plan.json", track_index=1)
 
+    @patch("davinci_flow.__main__.generate_from_active_timeline")
+    def test_generate_flag_with_preset(self, mock_generate: MagicMock) -> None:
+        mock_generate.return_value = GenerationExecutionRecord(
+            execution_id="exec_preset",
+            plan_id="p1",
+            source_hash="h1",
+            project_name="Proj",
+            timeline_name="TL",
+            theme_name="ely",
+            profile_name="natural",
+            items=(),
+        )
+        result = main(["--generate", "--dry-run", "--preset", "statement"])
+        self.assertEqual(result, 0)
+        self.assertEqual(mock_generate.call_args.kwargs.get("animation_preset"), "statement")
+
+    @patch("davinci_flow.__main__.sync_sfx_for_expressions")
+    def test_sync_sfx_command(self, mock_sync: MagicMock) -> None:
+        from davinci_flow.sfx.expression_sync import ExpressionCutEvent
+        mock_sync.return_value = (
+            1,
+            [
+                ExpressionCutEvent(
+                    frame=86403,
+                    clip_name="ely_intelligence_talk.png",
+                    previous_clip_name="ely_intelligence_idle.png",
+                    event_type="pop",
+                    sfx_asset_name="pop_02.mp3",
+                    target_frame=86400,
+                    lead_frames=3,
+                    duration_frames=12,
+                )
+            ],
+        )
+        result = main(["--sync-sfx", "--expression-track", "4", "--sfx-track", "4", "--anticipation", "3"])
+        self.assertEqual(result, 0)
+        mock_sync.assert_called_once_with(
+            expression_track_index=4,
+            sfx_track_index=4,
+            anticipation_frames=3,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -23,6 +23,8 @@ class TimelineWriterTests(unittest.TestCase):
         self.mock_timeline.GetTrackName.side_effect = lambda _track_type, _index: ""
         self.mock_timeline.GetStartFrame.return_value = 86_400
         self.mock_timeline.DeleteClips.return_value = True
+        self.mock_timeline.GetItemListInTrack.return_value = []
+        self.mock_timeline.InsertFusionTitleIntoTimeline = None
 
         self.mock_media_pool = MagicMock()
         root_folder = MagicMock()
@@ -254,6 +256,41 @@ class TimelineWriterTests(unittest.TestCase):
         reverted = writer.revert_execution(record)
         self.assertEqual(reverted.status, "reverted")
         self.assertTrue(all(it.status == "reverted" for it in reverted.items))
+
+    def test_apply_plan_with_kinetic_fusion_title(self) -> None:
+        """Comprueba que si Resolve soporta títulos Fusion, se inserta la plantilla nativa sin archivos carrier."""
+        last_locked = [1]
+        def set_lock_side_effect(track_type, idx, locked):
+            if locked and idx >= last_locked[0]:
+                last_locked[0] = idx + 1
+            return True
+        self.mock_timeline.SetTrackLock.side_effect = set_lock_side_effect
+
+        mock_tools = []
+        def insert_title_side_effect(name):
+            mock_title_item = MagicMock()
+            mock_title_item.GetTrackTypeAndIndex.return_value = ["video", last_locked[0]]
+            mock_title_item.GetStart.return_value = 86_400
+            mock_title_item.GetDuration.return_value = 48
+            mock_title_item.GetUniqueId.return_value = f"native-kinetic-{len(mock_tools) + 1}"
+
+            mock_comp = MagicMock()
+            mock_tool = MagicMock()
+            mock_tools.append(mock_tool)
+            mock_title_item.GetFusionCompByIndex.return_value = mock_comp
+            mock_comp.FindTool.return_value = mock_tool
+            return mock_title_item
+
+        self.mock_timeline.InsertFusionTitleIntoTimeline = MagicMock(side_effect=insert_title_side_effect)
+        self.mock_timeline.GetIsTrackLocked.return_value = False
+
+        with tempfile.TemporaryDirectory() as temp_root:
+            writer = self._writer(temp_root)
+            record = writer.apply_plan(self.plan)
+
+        self.assertEqual(record.status, "completed")
+        self.mock_timeline.InsertFusionTitleIntoTimeline.assert_called()
+        self.assertTrue(any(t.SetInput.called for t in mock_tools))
 
 
 if __name__ == "__main__":

@@ -530,3 +530,28 @@ def revert_active_generation() -> int:
 def save_user_gemini_key(api_key: str) -> Path:
     """Guarda la clave API de Gemini en la configuración local del usuario."""
     return save_gemini_api_key(api_key)
+
+
+def sync_sfx_for_expressions(
+    expression_track_index: int = 4,
+    sfx_track_index: int = 4,
+    assets_root: str | Path | None = None,
+    anticipation_frames: int = 3,
+    resolve_session: Any | None = None,
+) -> tuple[int, list[Any]]:
+    """Analiza cortes de expresión visual (ej. Ely en V4) e inserta SFX sincronizados en pista de audio (ej. A4)."""
+    from davinci_flow.sfx.expression_sync import SFXExpressionSynchronizer
+
+    session = resolve_session or connect_to_resolve()
+    media_pool = session.project.GetMediaPool() if session.project is not None else None
+    synchronizer = SFXExpressionSynchronizer(
+        timeline=session.timeline,
+        media_pool=media_pool,
+        assets_root=assets_root,
+        anticipation_frames=anticipation_frames,
+    )
+    return synchronizer.sync_expressions(
+        expression_track_index=expression_track_index,
+        sfx_track_index=sfx_track_index,
+    )
+
