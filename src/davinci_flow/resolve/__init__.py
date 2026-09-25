@@ -1,5 +1,11 @@
 """Adaptadores para DaVinci Resolve."""
 
+from davinci_flow.resolve.broll_writer import (
+    BRollAuditReport,
+    BRollCut,
+    BRollExecutionResult,
+    BRollWriter,
+)
 from davinci_flow.resolve.client import ResolveSession, connect_to_resolve
 from davinci_flow.resolve.kinetic_titles import (
     KineticTitleCatalog,
@@ -12,6 +18,10 @@ from davinci_flow.resolve.timeline_writer import ResolveTimelineWriter
 from davinci_flow.resolve.track_manager import ResolveTrackManager
 
 __all__ = [
+    "BRollAuditReport",
+    "BRollCut",
+    "BRollExecutionResult",
+    "BRollWriter",
     "KineticTitleCatalog",
     "KineticTitleDescriptor",
     "KineticTitleWriter",

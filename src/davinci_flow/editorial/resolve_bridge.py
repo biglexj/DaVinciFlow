@@ -49,19 +49,29 @@ def resolve_python():
 def request(operation, **parameters):
     if operation not in OPERATIONS:
         raise EditorialError('Operación de Resolve no admitida.')
-    transport, executable = selected_transport()
+    transport, executable = selected_transport(operation)
     if transport == 'mcp':
         from davinci_flow.editorial.mcp_bridge import request as mcp_request
         return mcp_request(executable, operation, parameters)
     return legacy_request(operation, **parameters)
 
 
-def selected_transport():
+def selected_transport(operation=None):
     mode = os.environ.get('DAVINCIFLOW_RESOLVE_TRANSPORT', 'auto').strip().lower()
     if mode not in {'auto', 'mcp', 'legacy'}:
         raise EditorialError('DAVINCIFLOW_RESOLVE_TRANSPORT debe ser auto, mcp o legacy.')
     if mode == 'legacy':
         return 'legacy', None
+    # ResolveMCP.exe impone un límite interno estricto e inmutable de 60 segundos por script
+    # (run_script_unsafe: max 60s). En modo 'auto', las operaciones de escritura masiva
+    # ('apply', 'undo', 'clean_tracks') que procesan secuencias completas se ejecutan vía CPython
+    # nativo ('legacy') cuando esté disponible, evitando abortos forzados a los 60s.
+    if mode == 'auto' and operation in {'apply', 'undo', 'clean_tracks'}:
+        try:
+            resolve_python()
+            return 'legacy', None
+        except Exception:
+            pass
     try:
         executable = find_mcp_executable()
     except MCPError as error:

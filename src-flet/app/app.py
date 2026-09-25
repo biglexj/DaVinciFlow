@@ -12,10 +12,13 @@ from shared.components import ACCENT, BG, LINE, MUTED, SIDE, TEXT, button, text
 from shared.path_picker import WorkspaceFilePicker
 from app.instance import DesktopInstance
 from app.runtime import desktop_runtime
+from features.assistant.assistant_view import AssistantView
 from features.editor.editor_view import EditorView
-from features.subtitles.subtitles_view import SubtitlesView
+from features.sfx.sfx_view import SFXView
+from features.brolls.brolls_view import BRollsView
 from features.catalog.catalog_view import CatalogView
 from features.library.library_view import LibraryView
+from features.subtitles.subtitles_view import SubtitlesView
 from features.settings.settings_view import SettingsView
 
 BRANDING = Path(__file__).resolve().parents[2] / 'assets/branding/icons'
@@ -58,37 +61,57 @@ class DesktopApp:
         self.status = text('Listo para abrir tu montaje.', color=MUTED, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, expand=True)
         self.progress = ft.ProgressRing(width=16, height=16, stroke_width=2, visible=False, color=ACCENT)
         self.heading = text('Editor', 17, weight=ft.FontWeight.W_600)
+        self.assistant = AssistantView(self)
         self.editor = EditorView(self)
-        self.subtitles = SubtitlesView(self)
+        self.sfx = SFXView(self)
+        self.brolls = BRollsView(self)
         self.catalog = CatalogView(self)
         self.library = LibraryView(self)
+        self.subtitles = SubtitlesView(self)
         self.settings = SettingsView(self)
         self.views = {
+            'assistant': self.assistant,
             'editor': self.editor,
-            'subtitles': self.subtitles,
+            'sfx': self.sfx,
+            'brolls': self.brolls,
             'catalog': self.catalog,
             'library': self.library,
+            'subtitles': self.subtitles,
             'settings': self.settings,
         }
         self.nav = {}
         self.labels = {
+            'assistant': 'Asistente IA',
             'editor': 'Editor',
-            'subtitles': 'Corrección',
+            'sfx': 'Efectos (SFX)',
+            'brolls': 'B-Rolls',
             'catalog': 'Plantillas',
             'library': 'Biblioteca',
+            'subtitles': 'Corrección',
             'settings': 'Ajustes',
         }
-        icons = (
-            ft.Icons.EDIT_NOTE_ROUNDED,
-            ft.Icons.SPELLCHECK_ROUNDED,
-            ft.Icons.TEXT_FIELDS_ROUNDED,
-            ft.Icons.FOLDER_OUTLINED,
-            ft.Icons.SETTINGS_OUTLINED,
-        )
-        for (key, label), icon in zip(self.labels.items(), icons):
-            self.nav[key] = ft.Container(ft.Row([ft.Icon(icon, size=19, color=ACCENT if key == 'editor' else MUTED),
-                text(label, 13, weight=ft.FontWeight.W_500)], spacing=10), padding=12, border_radius=9,
-                bgcolor='#173A35' if key == 'editor' else None, on_click=self.bind(self.navigate, key))
+        icons = {
+            'assistant': ft.Icons.AUTO_AWESOME_ROUNDED,
+            'editor': ft.Icons.EDIT_NOTE_ROUNDED,
+            'sfx': ft.Icons.GRAPHIC_EQ_ROUNDED,
+            'brolls': ft.Icons.VIDEO_LIBRARY_ROUNDED,
+            'catalog': ft.Icons.TEXT_FIELDS_ROUNDED,
+            'library': ft.Icons.FOLDER_OUTLINED,
+            'subtitles': ft.Icons.SPELLCHECK_ROUNDED,
+            'settings': ft.Icons.SETTINGS_OUTLINED,
+        }
+        for key, label in self.labels.items():
+            icon = icons[key]
+            self.nav[key] = ft.Container(
+                ft.Row([
+                    ft.Icon(icon, size=18, color=ACCENT if key == 'editor' else MUTED),
+                    text(label, 12.5, weight=ft.FontWeight.W_500),
+                ], spacing=9),
+                padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+                border_radius=9,
+                bgcolor='#173A35' if key == 'editor' else None,
+                on_click=self.bind(self.navigate, key),
+            )
 
         about_icon = ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, size=18, color=MUTED)
         about_label = text('Acerca de', 13, weight=ft.FontWeight.W_500, color=MUTED)
@@ -111,12 +134,12 @@ class DesktopApp:
             on_click=self.bind(self.show_about),
             on_hover=on_about_hover,
         )
-        sidebar = ft.Container(width=168, bgcolor=SIDE, padding=ft.Padding.symmetric(horizontal=12, vertical=18),
+        sidebar = ft.Container(width=174, bgcolor=SIDE, padding=ft.Padding.symmetric(horizontal=10, vertical=16),
             content=ft.Column([ft.Row([ft.Image(src=str(BRANDING / 'icon-transparent.png'), width=28, height=28),
                 text('DaVinci Flow', 14, weight=ft.FontWeight.W_700)], spacing=5),
                 text('Tu espacio creativo', 11, color=MUTED), ft.Container(height=5), self.identity,
-                ft.Divider(color=LINE, height=22), *self.nav.values(),
-                ft.Container(expand=True), self.about_btn], spacing=6))
+                ft.Divider(color=LINE, height=18), *self.nav.values(),
+                ft.Container(expand=True), self.about_btn], spacing=4))
         self.workspace = ft.Container(content=self.editor.content, expand=True, padding=ft.Padding.only(right=10))
         header = ft.Row([self.heading, ft.Container(expand=True),
             ft.Container(self.model, bgcolor='#153630', padding=ft.Padding.symmetric(horizontal=10, vertical=6), border_radius=7),
@@ -243,12 +266,19 @@ class DesktopApp:
             self.subtitles.refresh()
         elif key == 'editor':
             self.editor.refresh()
+        elif key == 'assistant':
+            self.assistant.refresh()
+        elif key == 'sfx':
+            self.sfx.refresh()
+        elif key == 'brolls':
+            self.brolls.refresh()
 
     def refresh_identity(self):
         s = self.controller.snapshot
         self.identity.value = f'{s.project}\n{s.timeline}' if s else 'Sin secuencia capturada'
         self.identity.tooltip = self.identity.value
         self.model.value = self.controller.preferences.model
+        self.assistant.refresh()
 
     async def pin(self):
         self.page.window.always_on_top = not self.page.window.always_on_top

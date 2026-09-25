@@ -50,8 +50,13 @@ def request(executable, operation, parameters):
             return envelope['result']
     except MCPError as error:
         if writing and dispatched:
+            msg = str(error)
+            if 'timed out after 60s' in msg:
+                msg = (f'{error} ResolveMCP alcanzó su límite de 60s en run_script_unsafe. '
+                       'Para secuencias extensas, configura DAVINCIFLOW_RESOLVE_TRANSPORT=legacy '
+                       'o verifica el puente CPython 3.13.')
             raise EditorialError(
-                f'{error} El resultado de la escritura no está confirmado. '
+                f'{msg} El resultado de la escritura no está confirmado. '
                 'No se ha reintentado: revisa la secuencia y el registro antes de repetir o deshacer.'
             ) from error
         raise EditorialError(f'{error} Comprueba Resolve Studio 21.1 y su conexión MCP.') from error

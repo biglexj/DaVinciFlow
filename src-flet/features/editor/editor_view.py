@@ -24,7 +24,7 @@ class EditorView:
         self.format = select('Formato', FORMATS, p.format, 180)
         self.density = select('Densidad', DENSITIES, p.density, 160)
         self.direction = field('Dirección creativa', p.direction, hint_text='Pocas palabras grandes; alternar con planos sin texto.',
-                               multiline=True, min_lines=1, max_lines=3)
+                               multiline=False, expand=True)
         self.source_summary = text('Captura los subtítulos de tu montaje o abre un SRT.', color=MUTED)
         self.count = text('Sin fuente', color=MUTED)
         self.stage_container = ft.Container(padding=ft.Padding.only(bottom=4))
@@ -88,16 +88,16 @@ class EditorView:
                 self.source_summary,
             ], spacing=10)),
             ft.Row([self.mode, self.format, self.density], wrap=True, spacing=10, run_spacing=10),
-            self.direction,
             ft.Row([
-                ft.Row([
-                    button('Proponer con IA', app.bind(self.generate), ft.Icons.AUTO_AWESOME, primary=True),
-                    button('Abrir propuesta', app.bind(self.load), ft.Icons.FOLDER_OPEN),
-                    button('Guardar', app.bind(self.save), ft.Icons.SAVE_OUTLINED),
-                    button('Aprobar todo', app.bind(self.approve_all), ft.Icons.DONE_ALL,
-                           tooltip='Aprobar todos los bloques de la propuesta actual'),
-                    self.count,
-                ], wrap=True, spacing=8, run_spacing=8),
+                self.direction,
+                button('Proponer con IA', app.bind(self.generate), ft.Icons.AUTO_AWESOME, primary=True),
+                button('Abrir propuesta', app.bind(self.load), ft.Icons.FOLDER_OPEN),
+                button('Guardar', app.bind(self.save), ft.Icons.SAVE_OUTLINED),
+                button('Aprobar todo', app.bind(self.approve_all), ft.Icons.DONE_ALL,
+                       tooltip='Aprobar todos los bloques de la propuesta actual'),
+            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([
+                self.count,
                 ft.Row([
                     button('Aplicar revisión', app.bind(self.apply), ft.Icons.PLAY_ARROW_ROUNDED, primary=True,
                            tooltip='Se aplica la revisión guardada, sin volver a llamar a la IA.'),

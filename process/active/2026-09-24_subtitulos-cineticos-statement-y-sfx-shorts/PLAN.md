@@ -37,9 +37,13 @@ Implementar un motor utilitario en DaVinci Flow para generación de subtítulos 
 
 ## Criterios de finalización
 
-- [ ] Plantilla cinética `Statement` inyectable en pista `V3` con texto `StyledText` dinámico sin archivos `.mov` pre-renderizados.
-- [ ] Duración y tiempos de subtítulo sincronizados con precisión de fotograma con la pista de voz (`A1`).
-- [ ] Inserción de SFX en `A4` (`pop`, `swoosh`) alineada con las entradas de expresiones en `V4`.
+- [x] Plantilla cinética `Statement` inyectable en pista `V3` con texto `StyledText` dinámico sin archivos `.mov` pre-renderizados.
+- [x] Duración y tiempos de subtítulo sincronizados con precisión de fotograma con la pista de voz (`A1`).
+- [x] Inserción de SFX en `A4` (`pop`, `swoosh`) alineada con las entradas de expresiones en `V4`.
+- [ ] Solución al timeout de 60s de ResolveMCP en escrituras masivas (`apply`, `undo`, `clean_tracks`) derivando a CPython 3.13 nativo sin límite de tiempo.
+- [ ] Reorganización de la barra del Editor: `Dirección creativa` alineada en la misma fila con `Proponer con IA`, `Abrir propuesta`, `Guardar` y `Aprobar todo`.
+- [ ] Eliminación de doble scrollbar en `Plantillas` (`CatalogView`) y vista previa visual enriquecida de tipografía, estilos y roles.
+- [ ] Navegación modular por áreas dedicadas: Asistente IA, Editor, Efectos de sonido (SFX), B-Rolls, Plantillas, Biblioteca y Ajustes.
 - [ ] Batería de pruebas unitarias existentes y nuevas pasando al 100%.
 - [ ] Evidencia documentada en `VALIDATION.md` y aprobación registrada en `APPROVAL.md`.
 

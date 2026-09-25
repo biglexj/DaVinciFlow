@@ -5,7 +5,7 @@ from pathlib import Path
 import flet as ft
 
 from davinci_flow.editorial.model import EditorialError
-from shared.components import ACCENT, MUTED, button, card, field, select, source_label, text
+from shared.components import ACCENT, LINE, MUTED, button, card, field, select, source_label, text
 
 
 class CatalogView:
@@ -23,7 +23,7 @@ class CatalogView:
             'installed': '✨ Instalados · DRFX',
             'basic': 'Text+ básico',
         }, 'all', 220, on_select=app.bind(self.search))
-        self.list = ft.ListView(height=310, spacing=4, padding=4)
+        self.list = ft.Column(spacing=6)
         self.summary = text('', color=MUTED)
         self.detail = text('Cada capa conserva la fuente, el estilo y la animación de la plantilla que elijas.', color=MUTED)
         self.node = field('Nombre del nodo', hint_text='Vacío: detectar un único Text+', expand=True)
@@ -61,6 +61,77 @@ class CatalogView:
         ], spacing=14, scroll=ft.ScrollMode.AUTO, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
         self.refresh()
 
+    def _render_template_item(self, t):
+        is_selected = t.id in self.selected
+        cat = getattr(t, 'category', '')
+        name_lower = t.name.lower()
+
+        if 'énfasis' in name_lower or 'enfasis' in name_lower or 'accent' in name_lower:
+            role_label = 'Énfasis'
+            role_badge_bg = '#332600'
+            role_badge_border = '#8A6D00'
+            preview_color = '#FFBC00'
+            preview_weight = ft.FontWeight.W_800
+            preview_sample = 'PALABRA DESTACADA'
+        elif 'contexto' in name_lower or 'context' in name_lower:
+            role_label = 'Contexto'
+            role_badge_bg = '#142028'
+            role_badge_border = '#243A4A'
+            preview_color = '#8FA8B8'
+            preview_weight = ft.FontWeight.W_400
+            preview_sample = 'Línea de contexto superior'
+        else:
+            role_label = 'Principal'
+            role_badge_bg = '#1F2A28'
+            role_badge_border = '#2C4A42'
+            preview_color = '#FFFFFF'
+            preview_weight = ft.FontWeight.BOLD
+            preview_sample = 'TEXTO PRINCIPAL'
+
+        font_hint = "Montserrat" if ("shorts" in cat or "youtube" in cat or "bold" in name_lower) else "TextPlus"
+
+        return ft.Container(
+            content=ft.Row([
+                ft.Checkbox(
+                    value=is_selected,
+                    active_color=ACCENT,
+                    on_change=self.app.bind(self.toggle, t.id),
+                ),
+                ft.Column([
+                    ft.Row([
+                        text(t.name, size=13, weight=ft.FontWeight.W_600),
+                        ft.Container(
+                            content=text(source_label(t), size=10, weight=ft.FontWeight.W_500, color=ACCENT),
+                            padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+                            border_radius=10,
+                            bgcolor='#172A24',
+                            border=ft.Border.all(0.6, ACCENT),
+                        ),
+                        ft.Container(
+                            content=text(role_label, size=10, weight=ft.FontWeight.W_500, color=preview_color),
+                            padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+                            border_radius=10,
+                            bgcolor=role_badge_bg,
+                            border=ft.Border.all(0.6, role_badge_border),
+                        ),
+                    ], spacing=8, alignment=ft.MainAxisAlignment.START),
+                    text(f'Nodo: {t.text_tool or "TextPlus"} · Fuente sugerida: {font_hint} · Control: {t.text_input}',
+                         size=11, color=MUTED),
+                ], spacing=3, expand=True),
+                ft.Container(
+                    content=text(preview_sample, size=12, weight=preview_weight, color=preview_color),
+                    padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+                    bgcolor='#111518',
+                    border=ft.Border.all(0.8, LINE),
+                    border_radius=6,
+                ),
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            bgcolor='#182220' if is_selected else '#14181B',
+            border=ft.Border.all(1, ACCENT if is_selected else LINE),
+            border_radius=8,
+            padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+        )
+
     def refresh(self, sync=False):
         if sync:
             self.selected = {t.id for t in self.controller.templates}
@@ -86,9 +157,7 @@ class CatalogView:
                 items.append(t)
         if self.offset >= len(items):
             self.offset = max(0, (len(items) - 1) // 60 * 60)
-        self.list.controls = [ft.Checkbox(label=f'{t.name}   ·   {source_label(t)}',
-            value=t.id in self.selected, tooltip=t.locator, active_color=ACCENT,
-            on_change=self.app.bind(self.toggle, t.id)) for t in items[self.offset:self.offset+60]]
+        self.list.controls = [self._render_template_item(t) for t in items[self.offset:self.offset+60]]
         self.summary.value = f'{len(items)} encontradas · {len(self.selected)} elegidas · página {self.offset//60+1}'
 
     async def apply_pack(self, pack_name):

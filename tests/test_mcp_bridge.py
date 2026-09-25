@@ -116,6 +116,15 @@ class BridgeSelectionTests(unittest.TestCase):
             self.assertEqual(resolve_bridge.selected_transport(), ('legacy', None))
         find.assert_not_called()
 
+    def test_auto_prefers_legacy_for_heavy_writes_when_python_available(self):
+        with patch.dict(os.environ, {'DAVINCIFLOW_RESOLVE_TRANSPORT': 'auto'}), \
+             patch.object(resolve_bridge, 'resolve_python', return_value='python.exe'), \
+             patch.object(resolve_bridge, 'find_mcp_executable', return_value=Path('ResolveMCP.exe')):
+            self.assertEqual(resolve_bridge.selected_transport('apply'), ('legacy', None))
+            self.assertEqual(resolve_bridge.selected_transport('undo'), ('legacy', None))
+            self.assertEqual(resolve_bridge.selected_transport('clean_tracks'), ('legacy', None))
+            self.assertEqual(resolve_bridge.selected_transport('capture'), ('mcp', Path('ResolveMCP.exe')))
+
 
 class NativeEditorialTests(unittest.TestCase):
     def test_injected_session_never_reconnects_to_native_dll(self):
