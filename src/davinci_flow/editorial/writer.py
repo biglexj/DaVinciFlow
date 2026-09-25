@@ -192,6 +192,39 @@ class EditorialWriter(ResolveTimelineWriter):
             mapping[name] = count
         return mapping
 
+    def clean_previous_df_clips(self) -> int:
+        """Elimina clips de DaVinci Flow (prefijo DF_) en pistas exclusivas que solapen con el bloque activo para admitir iteraciones sucesivas sin alterar otros bloques."""
+        if not self.proposal.snapshot.cues:
+            return 0
+        block_start = float(self.proposal.snapshot.cues[0].start_frame)
+        block_end = float(self.proposal.snapshot.cues[-1].end_frame)
+
+        names = {"DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_SFX"}
+        deleted_count = 0
+        for track_type in ("video", "audio"):
+            count = int(self.timeline.GetTrackCount(track_type) or 0)
+            for idx in range(1, count + 1):
+                name = str(self.timeline.GetTrackName(track_type, idx) or "")
+                if name in names:
+                    items = self.timeline.GetItemListInTrack(track_type, idx) or []
+                    if isinstance(items, dict):
+                        items = list(items.values())
+                    df_items = []
+                    for it in items:
+                        it_name = str(getattr(it, "GetName", lambda: "")() or "")
+                        if it_name.startswith("DF_") or it_name.startswith("DF__"):
+                            try:
+                                it_start = float(it.GetStart())
+                                it_end = float(it.GetEnd())
+                                if it_start < block_end and it_end > block_start:
+                                    df_items.append(it)
+                            except (TypeError, ValueError, AttributeError):
+                                df_items.append(it)
+                    if df_items:
+                        self.timeline.DeleteClips(df_items, False)
+                        deleted_count += len(df_items)
+        return deleted_count
+
     def preflight(self) -> None:
         for template in self.assignments.values():
             if template.source == "media_pool":
@@ -209,8 +242,8 @@ class EditorialWriter(ResolveTimelineWriter):
             role = next(r for r, n in names.items() if n == track_name)
             for item in self._iter_values(self.timeline.GetItemListInTrack("video", track)):
                 item_name = str(item.GetName() or "")
-                # Los clips generados por DaVinci Flow (prefijo DF__) pertenecen a ejecuciones previas y se reemplazan.
-                if item_name.startswith("DF__"):
+                # Los clips generados por DaVinci Flow (prefijo DF_ o DF__) pertenecen a ejecuciones previas y se reemplazan.
+                if item_name.startswith("DF_") or item_name.startswith("DF__"):
                     continue
                 item_start = float(item.GetStart())
                 item_end = float(item.GetEnd())

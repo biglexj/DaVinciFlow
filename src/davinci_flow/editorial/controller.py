@@ -104,6 +104,11 @@ class EditorialController:
         self.dirty = True
         return result
 
+    def generate_text(self, prompt: str, system_instruction: str = "", temperature: float = 0.4, client=None) -> str:
+        """Genera una respuesta textual libre usando el modelo Gemini activo."""
+        ai_client = client or GeminiClient(model_name=self.preferences.model, strict_model=True)
+        return ai_client.generate_text(prompt=prompt, system_instruction=system_instruction, temperature=temperature)
+
     def load_proposal(self, path):
         result = Proposal.load(path)
         self.proposal, self.snapshot = result, result.snapshot

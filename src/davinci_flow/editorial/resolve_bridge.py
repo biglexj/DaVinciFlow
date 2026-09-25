@@ -10,7 +10,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 
-from davinci_flow.editorial.model import EditorialError, Proposal, Snapshot, Template
+from davinci_flow.editorial.model import EditorialConflictDetail, EditorialConflictError, EditorialError, Proposal, Snapshot, Template
 from davinci_flow.generation.record import GenerationExecutionRecord
 from davinci_flow.subtitles.model import SubtitleCue
 from davinci_flow.resolve.mcp_client import MCPError, ResolveMCP, find_mcp_executable
@@ -118,6 +118,9 @@ def legacy_request(operation, **parameters):
     try:
         envelope = json.loads(messages[0])
         if not envelope['ok']:
+            if envelope.get('is_conflict'):
+                conflicts = tuple(EditorialConflictDetail(**c) for c in envelope.get('conflicts', []))
+                raise EditorialConflictError(envelope['error'], conflicts)
             raise EditorialError(envelope['error'])
         return envelope['result']
     except (ValueError, KeyError, TypeError) as error:
@@ -206,6 +209,9 @@ def main():
         payload = json.load(sys.stdin)
         result = dispatch(payload['operation'], payload.get('parameters', {}))
         envelope = {'ok': True, 'result': result}
+    except EditorialConflictError as error:
+        conflicts = [asdict(c) for c in error.conflicts]
+        envelope = {'ok': False, 'error': str(error), 'is_conflict': True, 'conflicts': conflicts}
     except Exception as error:
         envelope = {'ok': False, 'error': str(error)}
     print(RESULT_PREFIX + json.dumps(envelope, ensure_ascii=False), flush=True)

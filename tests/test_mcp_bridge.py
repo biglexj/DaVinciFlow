@@ -59,7 +59,7 @@ class MCPTransportTests(unittest.TestCase):
             with ResolveMCP(Path('test-server')) as client:
                 self.assertEqual(client.server_info['version'], '21.1')
                 self.assertTrue(client.status()['running'])
-                self.assertTrue(client.status()['running'])
+            assert client.process is not None
             self.assertIsNotNone(client.process.poll())
             self.assertFalse(any(thread.is_alive() for thread in client.threads))
 
@@ -69,6 +69,7 @@ class MCPTransportTests(unittest.TestCase):
                 with ResolveMCP(Path('test-server')) as client:
                     with self.assertRaises(MCPError):
                         client.call_tool('get_resolve_status', timeout=.05 if mode == 'timeout' else 2)
+                assert client.process is not None
                 self.assertIsNotNone(client.process.poll())
 
     def test_bad_explicit_path_is_not_silently_ignored(self):

@@ -106,21 +106,31 @@ class BRollsView:
             if not p.is_dir():
                 continue
             try:
-                for file_path in p.rglob("*"):
+                # Si no hay búsqueda, solo listar archivos superficiales para evitar escanear terabytes de anime
+                iterator = p.rglob("*") if query else p.glob("*")
+                for file_path in iterator:
                     if file_path.suffix.lower() in valid_extensions and file_path.is_file():
                         if not query or query in file_path.name.lower():
                             matched_files.append(file_path)
+                            if len(matched_files) >= (40 if query else 20):
+                                break
             except OSError:
                 continue
+            if len(matched_files) >= (40 if query else 20):
+                break
 
         matched_files.sort(key=lambda x: x.name.lower())
         count = len(matched_files)
-        self.summary.value = f"{len(folders)} carpetas configuradas · {count} B-Rolls encontrados."
+        if query:
+            self.summary.value = f"{len(folders)} carpetas configuradas · Mostrando {count} resultados para '{query}'."
+        else:
+            self.summary.value = f"{len(folders)} carpetas configuradas · Vista previa rápida (usa el buscador para clips específicos)."
 
         if not matched_files:
             empty_msg = (
-                "No hay clips en las carpetas configuradas." if folders
-                else "No hay carpetas de B-Roll añadidas. Pulsa '+ Añadir carpeta' para indexar tus clips."
+                f"No se encontraron clips que coincidan con '{query}'." if query
+                else ("No hay archivos visuales en la raíz de las carpetas configuradas. Usa el buscador superior para explorar subcarpetas." if folders
+                      else "No hay carpetas de B-Roll añadidas. Pulsa '+ Añadir carpeta' para indexar tus clips.")
             )
             self.list_column.controls = [
                 ft.Container(
@@ -130,4 +140,4 @@ class BRollsView:
                 )
             ]
         else:
-            self.list_column.controls = [self._render_broll_item(f) for f in matched_files[:80]]
+            self.list_column.controls = [self._render_broll_item(f) for f in matched_files]

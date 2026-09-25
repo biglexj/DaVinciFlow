@@ -25,7 +25,7 @@ class AssistantView:
             ("🔊 Sonido sutil", "¿Qué efectos de sonido (pop, whoosh) recomiendas para acentuar ideas clave sin saturar?"),
             ("✨ Dirección para Shorts", "Genera una dirección creativa de alto impacto para formato vertical de 60s."),
         ]
-        chips = [
+        chips: list[ft.Control] = [
             ft.Container(
                 content=text(label, size=11, weight=ft.FontWeight.W_500, color=TEXT),
                 padding=ft.Padding.symmetric(horizontal=10, vertical=6),
@@ -45,7 +45,7 @@ class AssistantView:
                 ft.Icon(ft.Icons.AUTO_AWESOME, color=ACCENT, size=18),
                 self.context_summary,
             ], spacing=8), padding=10),
-            ft.Row(chips, wrap=True, spacing=6, run_spacing=6),
+            ft.Row(controls=chips, wrap=True, spacing=6, run_spacing=6),
             card(self.messages_column, padding=12, expand=True),
             ft.Row([
                 self.prompt_field,
@@ -78,6 +78,15 @@ class AssistantView:
                     tooltip="Copia esta propuesta directamente al campo 'Dirección creativa' del Editor",
                 )
             )
+        if is_ai:
+            body_content = ft.Markdown(
+                value=content,
+                selectable=True,
+                extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+                auto_follow_links=True,
+            )
+        else:
+            body_content = text(content, size=13, selectable=True)
 
         msg_card = ft.Container(
             content=ft.Column([
@@ -85,7 +94,7 @@ class AssistantView:
                     ft.Icon(ft.Icons.AUTO_AWESOME if is_ai else ft.Icons.PERSON, size=14, color=sender_color),
                     text(sender, size=12, weight=ft.FontWeight.W_600, color=sender_color),
                 ], spacing=6),
-                text(content, size=13, selectable=True),
+                body_content,
                 *([ft.Row(actions, alignment=ft.MainAxisAlignment.END)] if actions else []),
             ], spacing=6),
             padding=12,
@@ -136,8 +145,7 @@ class AssistantView:
         )
 
         try:
-            generator = self.controller.text_generator()
-            response = await self.app.run("Consultando al Asistente IA…", lambda: generator.generate(prompt_with_context))
+            response = await self.app.run("Consultando al Asistente IA…", lambda: self.controller.generate_text(prompt_with_context))
             self._append_message("Asistente", response, is_ai=True, can_transfer=True)
         except Exception as err:
             self._append_message("Asistente", f"No pude completar la consulta: {err}", is_ai=True)

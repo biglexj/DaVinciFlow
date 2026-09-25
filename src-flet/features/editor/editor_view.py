@@ -84,6 +84,8 @@ class EditorView:
             card(ft.Column([
                 ft.Row([self.track, self.fps, self.first, self.last,
                     button('Capturar Resolve', app.bind(self.capture), ft.Icons.VIDEO_LIBRARY_OUTLINED),
+                    button('◀ Bloque ant.', app.bind(self.prev_block_range), ft.Icons.NAVIGATE_BEFORE_ROUNDED, tooltip='Retroceder y cargar el bloque anterior de subtítulos'),
+                    button('Bloque sig. ▶', app.bind(self.next_block_range), ft.Icons.NAVIGATE_NEXT_ROUNDED, tooltip='Avanzar y capturar el siguiente bloque de subtítulos en Resolve'),
                     button('Cargar SRT', app.bind(self.open_srt), ft.Icons.UPLOAD_FILE_OUTLINED)], wrap=True, spacing=8, run_spacing=10),
                 self.source_summary,
             ], spacing=10)),
@@ -263,6 +265,39 @@ class EditorView:
             self.user_stage = None
             self.refresh()
             self.app.notify('Fuente capturada. Elige la dirección creativa y genera una propuesta.')
+
+    async def next_block_range(self):
+        if not await self.replacement_allowed():
+            return
+        try:
+            first = int(self.first.value)
+            last = int(self.last.value)
+            size = max(1, last - first + 1)
+        except ValueError:
+            first, last, size = 1, 120, 120
+        self.first.value = str(last + 1)
+        self.last.value = str(last + size)
+        self.app.page.update()
+        await self.capture()
+
+    async def prev_block_range(self):
+        if not await self.replacement_allowed():
+            return
+        try:
+            first = int(self.first.value)
+            last = int(self.last.value)
+            size = max(1, last - first + 1)
+        except ValueError:
+            first, last, size = 1, 120, 120
+        new_last = max(1, first - 1)
+        new_first = max(1, new_last - size + 1)
+        if new_last <= 1 and first <= 1:
+            self.app.notify('Ya te encuentras en el primer bloque de subtítulos.')
+            return
+        self.first.value = str(new_first)
+        self.last.value = str(new_last)
+        self.app.page.update()
+        await self.capture()
 
     async def open_srt(self):
         if not await self.replacement_allowed():
