@@ -21,9 +21,10 @@ class Preferences:
     paths: dict[str, str] = field(default_factory=dict)
     templates: list[dict] = field(default_factory=list)
     resource_ids: list[str] = field(default_factory=list)
+    track_mode: str = "triple"
 
     def validate(self):
-        EditorialOptions(self.mode, self.format, self.density, self.direction).validate()
+        EditorialOptions(self.mode, self.format, self.density, self.direction, track_mode=self.track_mode).validate()
         if not isinstance(self.model, str) or not self.model.strip():
             raise EditorialError("Falta el modelo seleccionado.")
         if not isinstance(self.paths, dict) or any(k not in CATEGORIES or not isinstance(v, str) for k, v in self.paths.items()):
@@ -45,8 +46,12 @@ class Preferences:
         if not path.is_file():
             return cls()
         try:
-            result = cls(**json.loads(path.read_text(encoding='utf-8')))
+            data = json.loads(path.read_text(encoding='utf-8'))
+            if isinstance(data, dict):
+                data.setdefault("track_mode", "triple")
+            result = cls(**data)
             result.validate()
             return result
         except (ValueError, TypeError, KeyError) as error:
             raise EditorialError("No se pudieron leer las preferencias. Conserva el archivo para revisarlo.") from error
+

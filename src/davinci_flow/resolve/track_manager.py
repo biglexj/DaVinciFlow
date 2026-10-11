@@ -12,8 +12,9 @@ class TrackManagementError(DaVinciFlowError):
 class ResolveTrackManager:
     """Administra y crea las pistas de vídeo y audio dedicadas (DF_CONTEXT, DF_MAIN, DF_ACCENT, DF_SFX) sin sobrescribir pistas de usuario."""
 
-    def __init__(self, timeline: Any) -> None:
+    def __init__(self, timeline: Any, track_mode: str = "triple") -> None:
         self.timeline = timeline
+        self.track_mode = track_mode if track_mode in ("single", "dual", "triple") else "triple"
 
     def get_track_indices(self) -> dict[str, int]:
         """Calcula los índices de pistas dedicadas colocándolas SIEMPRE por encima de las pistas de usuario."""
@@ -45,15 +46,31 @@ class ResolveTrackManager:
         if "DF_BROLL" not in video_mapping:
             base_v += 1
             video_mapping["DF_BROLL"] = base_v
-        if "DF_CONTEXT" not in video_mapping:
-            base_v += 1
-            video_mapping["DF_CONTEXT"] = base_v
-        if "DF_MAIN" not in video_mapping:
-            base_v += 1
-            video_mapping["DF_MAIN"] = base_v
-        if "DF_ACCENT" not in video_mapping:
-            base_v += 1
-            video_mapping["DF_ACCENT"] = base_v
+
+        if self.track_mode == "single":
+            if "DF_MAIN" not in video_mapping:
+                base_v += 1
+                video_mapping["DF_MAIN"] = base_v
+            video_mapping["DF_CONTEXT"] = video_mapping["DF_MAIN"]
+            video_mapping["DF_ACCENT"] = video_mapping["DF_MAIN"]
+        elif self.track_mode == "dual":
+            if "DF_MAIN" not in video_mapping:
+                base_v += 1
+                video_mapping["DF_MAIN"] = base_v
+            if "DF_ACCENT" not in video_mapping:
+                base_v += 1
+                video_mapping["DF_ACCENT"] = base_v
+            video_mapping["DF_CONTEXT"] = video_mapping["DF_MAIN"]
+        else:
+            if "DF_CONTEXT" not in video_mapping:
+                base_v += 1
+                video_mapping["DF_CONTEXT"] = base_v
+            if "DF_MAIN" not in video_mapping:
+                base_v += 1
+                video_mapping["DF_MAIN"] = base_v
+            if "DF_ACCENT" not in video_mapping:
+                base_v += 1
+                video_mapping["DF_ACCENT"] = base_v
 
         base_a = max(highest_user_audio, 0)
         if "DF_SFX" not in audio_mapping:
@@ -74,14 +91,16 @@ class ResolveTrackManager:
                 "Resolve no expone las operaciones necesarias para crear y nombrar pistas dedicadas."
             )
 
-        # 1. Asegurar la cantidad necesaria de pistas de vídeo
+        # 1. Asegurar la cantidad necesaria de pistas de vídeo activas
+        if self.track_mode == "single":
+            active_video_names = ("DF_BROLL", "DF_MAIN")
+        elif self.track_mode == "dual":
+            active_video_names = ("DF_BROLL", "DF_MAIN", "DF_ACCENT")
+        else:
+            active_video_names = ("DF_BROLL", "DF_CONTEXT", "DF_MAIN", "DF_ACCENT")
+
         curr_v_count = self._safe_get_track_count("video")
-        max_v_needed = max(
-            track_map.get("DF_BROLL", 1),
-            track_map.get("DF_CONTEXT", 1),
-            track_map.get("DF_MAIN", 1),
-            track_map.get("DF_ACCENT", 1),
-        )
+        max_v_needed = max((track_map.get(name, 1) for name in active_video_names), default=1)
 
         while curr_v_count < max_v_needed:
             try:
@@ -95,8 +114,8 @@ class ResolveTrackManager:
                 raise TrackManagementError("Resolve no confirmó la nueva pista de vídeo dedicada.")
             curr_v_count = new_count
 
-        # Asignar nombres oficiales a las pistas de vídeo
-        for name in ("DF_BROLL", "DF_CONTEXT", "DF_MAIN", "DF_ACCENT"):
+        # Asignar nombres oficiales a las pistas de vídeo activas
+        for name in active_video_names:
             idx = track_map.get(name)
             if idx:
                 try:
@@ -105,6 +124,7 @@ class ResolveTrackManager:
                     raise TrackManagementError(f"No se pudo nombrar la pista {name}.") from error
                 if result is False or self._safe_get_track_name("video", idx) != name:
                     raise TrackManagementError(f"Resolve no confirmó el nombre de pista {name}.")
+
 
         # 2. Asegurar pista de audio para SFX por encima de las del usuario
         curr_a_count = self._safe_get_track_count("audio")

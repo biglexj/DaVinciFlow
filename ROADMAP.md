@@ -8,6 +8,8 @@ Plan de trabajo, objetivos de producto y hoja de ruta estratégica del proyecto.
 
 ## 🔴 Pendientes activos
 
+- [ ] **Asignación configurable de pistas (1, 2 o 3 filas) para Fusion Titles frente al límite de SnapCaptions** — `process/active/2026-10-10_modos-de-pistas-multicapa-fusion/`
+  - Selección dinámica de modo de pistas: `single` (1 fila única tipo SnapCaptions), `dual` (2 filas: Base + Énfasis) y `triple` (3 filas completas: Contexto + Principal + Énfasis). Enrutamiento flexible sin forzar pistas no requeridas y soporte de selección en UI de DaVinci Flow.
 - [ ] **Subtítulos cinéticos nativos (Statement en V3) y sincronización automática de SFX en Shorts** — `process/active/2026-09-24_subtitulos-cineticos-statement-y-sfx-shorts/`
   - Reorientación utilitaria de DaVinci Flow para generación de subtítulos dinámicos mediante Fusion Titles nativos (`Statement` y catálogo animado en `V3`) con `StyledText` editable en Inspector. Eliminación completa de archivos portadores `.avi` y pre-renderizados `.mov`. Sincronización automática de efectos de sonido (`A4`: `pop_02.mp3`, `suction_pop_07.mp3`, `swoosh_02.mp3`) con cada cambio de expresión visual del personaje (`V4`: `Expresiones_*.webp` / `Ada Cosplay`).
 - [ ] **Desacople de fase de crudo y pestaña dedicada «Corrección de subtítulos»** — `process/active/2026-09-11_correccion-subtitulos-y-desacople-crudo/`

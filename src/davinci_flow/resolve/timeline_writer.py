@@ -110,16 +110,26 @@ class ResolveTimelineWriter:
                 if not block.is_enabled:
                     continue
 
-                layers = (
+                # Consolidar capas por índice de pista físico para evitar colisiones en modos single y dual
+                track_grouped_layers: dict[int, list[tuple[str, str, str]]] = {}
+                for role, track_name, text in (
                     ("context", "DF_CONTEXT", block.context_text),
                     ("main", "DF_MAIN", block.main_text),
                     ("accent", "DF_ACCENT", block.accent_text),
-                )
-                for role, track_name, text in layers:
+                ):
                     if not text:
                         continue
+                    t_idx = track_indices[track_name]
+                    track_grouped_layers.setdefault(t_idx, []).append((role, track_name, text))
+
+                for track_index, layer_entries in track_grouped_layers.items():
+                    # Si múltiples capas van a la misma pista (ej. single o dual), combinar el texto
+                    text = " ".join(entry[2] for entry in layer_entries)
+                    roles = [entry[0] for entry in layer_entries]
+                    role = "main" if "main" in roles else ("accent" if "accent" in roles else roles[0])
+                    track_name = next(entry[1] for entry in layer_entries if entry[0] == role)
+
                     item_id = f"item_{plan.plan_id}_b{block_index}_{role[:3]}"
-                    track_index = track_indices[track_name]
                     native_item = None
                     if not dry_run:
                         native_name = self._native_name(execution_id, item_id)
@@ -171,6 +181,7 @@ class ResolveTimelineWriter:
                             created_at=now_str,
                         )
                     )
+
 
                 if block.sfx_proposal:
                     item_id = f"item_{plan.plan_id}_b{block_index}_sfx"

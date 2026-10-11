@@ -159,8 +159,15 @@ class EditorialWriter(ResolveTimelineWriter):
         return mapping
 
     def ensure_text_tracks(self) -> dict[str, int]:
-        """Crea solo tres pistas de texto; nunca renombra una pista existente ajena."""
-        names = ("DF_CONTEXT", "DF_MAIN", "DF_ACCENT")
+        """Crea solo las pistas de texto requeridas por el modo; nunca renombra una pista existente ajena."""
+        track_mode = self.proposal.options.track_mode if self.proposal.options else "triple"
+        if track_mode == "single":
+            names = ("DF_MAIN",)
+        elif track_mode == "dual":
+            names = ("DF_MAIN", "DF_ACCENT")
+        else:
+            names = ("DF_CONTEXT", "DF_MAIN", "DF_ACCENT")
+
         count = int(self.timeline.GetTrackCount("video"))
         mapping = {}
         highest_other = 0
@@ -190,7 +197,15 @@ class EditorialWriter(ResolveTimelineWriter):
             if self.timeline.GetTrackName("video", count) != name:
                 raise EditorialError("Resolve no confirmó el nombre de la pista.")
             mapping[name] = count
+
+        if track_mode == "single":
+            mapping["DF_CONTEXT"] = mapping["DF_MAIN"]
+            mapping["DF_ACCENT"] = mapping["DF_MAIN"]
+        elif track_mode == "dual":
+            mapping["DF_CONTEXT"] = mapping["DF_MAIN"]
+
         return mapping
+
 
     def clean_previous_df_clips(self) -> int:
         """Elimina clips de DaVinci Flow (prefijo DF_) en pistas exclusivas que solapen con el bloque activo para admitir iteraciones sucesivas sin alterar otros bloques."""

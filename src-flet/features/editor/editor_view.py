@@ -4,7 +4,7 @@ import flet as ft
 from davinci_flow.editorial.model import EditorialConflictError, EditorialError
 from davinci_flow.sfx.catalog import DEFAULT_SFX_ASSETS
 from shared.components import (
-    ACCENT, CARD, LINE, MUTED, TEXT, MODES, FORMATS, DENSITIES, button, card, field, scroll_table, select, text,
+    ACCENT, CARD, LINE, MUTED, TEXT, MODES, FORMATS, DENSITIES, TRACK_MODES, button, card, field, scroll_table, select, text,
 )
 
 
@@ -23,8 +23,10 @@ class EditorView:
         self.mode = select('Modo', MODES, p.mode, 190)
         self.format = select('Formato', FORMATS, p.format, 180)
         self.density = select('Densidad', DENSITIES, p.density, 160)
+        self.track_mode = select('Pistas de texto', TRACK_MODES, getattr(p, 'track_mode', 'triple'), 220)
         self.direction = field('Dirección creativa', p.direction, hint_text='Pocas palabras grandes; alternar con planos sin texto.',
                                multiline=False, expand=True)
+
         self.source_summary = text('Captura los subtítulos de tu montaje o abre un SRT.', color=MUTED)
         self.count = text('Sin fuente', color=MUTED)
         self.stage_container = ft.Container(padding=ft.Padding.only(bottom=4))
@@ -89,7 +91,7 @@ class EditorView:
                     button('Cargar SRT', app.bind(self.open_srt), ft.Icons.UPLOAD_FILE_OUTLINED)], wrap=True, spacing=8, run_spacing=10),
                 self.source_summary,
             ], spacing=10)),
-            ft.Row([self.mode, self.format, self.density], wrap=True, spacing=10, run_spacing=10),
+            ft.Row([self.mode, self.format, self.density, self.track_mode], wrap=True, spacing=10, run_spacing=10),
             ft.Row([
                 self.direction,
                 button('Proponer con IA', app.bind(self.generate), ft.Icons.AUTO_AWESOME, primary=True),
@@ -172,6 +174,8 @@ class EditorView:
     def sync_preferences(self):
         p = self.controller.preferences
         p.mode, p.format, p.density, p.direction = self.mode.value, self.format.value, self.density.value, self.direction.value.strip()
+        p.track_mode = self.track_mode.value or 'triple'
+
 
     def refresh(self):
         snapshot, proposal = self.controller.snapshot, self.controller.proposal
@@ -391,7 +395,9 @@ class EditorView:
             self.controller.load_proposal(path)
             p = self.controller.preferences
             self.mode.value, self.format.value, self.density.value = p.mode, p.format, p.density
+            self.track_mode.value = getattr(p, 'track_mode', 'triple')
             self.direction.value = p.direction
+
             self.selected = None
             self.review_card.visible = False
             self.refresh()

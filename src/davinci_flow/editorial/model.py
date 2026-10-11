@@ -122,17 +122,21 @@ class EditorialOptions:
     density: str = "balanced"
     direction: str = ""
     resources: tuple[dict, ...] = ()
+    track_mode: str = "triple"
 
     def validate(self) -> None:
         if self.mode not in ("highlights", "captions") or self.format not in ("auto", "horizontal", "vertical"):
             raise EditorialError("Modo o formato editorial inválido.")
         if self.density not in ("sparse", "balanced", "dense") or not isinstance(self.direction, str) or len(self.direction) > 4000:
             raise EditorialError("Densidad o dirección creativa inválida.")
+        if self.track_mode not in ("single", "dual", "triple"):
+            raise EditorialError(f"Modo de pistas '{self.track_mode}' inválido. Debe ser 'single', 'dual' o 'triple'.")
         if len(self.resources) > 80 or any(not isinstance(r, dict) or set(r) != {"id", "name", "category"}
                 or not all(isinstance(v, str) and 0 < len(v) <= 250 for v in r.values()) for r in self.resources):
             raise EditorialError("Contexto de biblioteca inválido.")
         if len({r["id"] for r in self.resources}) != len(self.resources):
             raise EditorialError("Recursos duplicados en la propuesta.")
+
 
 
 def is_grounded_excerpt(original: str, selected: str) -> bool:
@@ -266,10 +270,30 @@ class Proposal:
         """Adapta al contrato anterior sin alterar su esquema ni volver a llamar a la IA."""
         self.validate(require_review=True)
         s = self.snapshot
+        track_mode = self.options.track_mode if self.options else "triple"
+        if track_mode == "single":
+            mapping = {
+                "DF_CONTEXT": "DF_MAIN",
+                "DF_MAIN": "DF_MAIN",
+                "DF_ACCENT": "DF_MAIN",
+                "DF_SFX": "DF_SFX",
+            }
+        elif track_mode == "dual":
+            mapping = {
+                "DF_CONTEXT": "DF_MAIN",
+                "DF_MAIN": "DF_MAIN",
+                "DF_ACCENT": "DF_ACCENT",
+                "DF_SFX": "DF_SFX",
+            }
+        else:
+            mapping = None
+
         base = build_generation_plan(s.project, s.timeline, s.cues, track_index=s.track,
-                                     timeline_id=s.timeline_id, fps=s.fps, width=s.width, height=s.height)
+                                     timeline_id=s.timeline_id, fps=s.fps, width=s.width, height=s.height,
+                                     track_mapping=mapping)
         sfx_ids = ({r["id"] for r in (self.options.resources if self.options else ()) if r.get("category") == "sfx"}
                    | BUILTIN_SFX_IDS)
+
         blocks = []
         for original, decision in zip(base.blocks, self.decisions):
             sfx_choice = decision.resource_id if (decision.enabled and decision.resource_id in sfx_ids) else None

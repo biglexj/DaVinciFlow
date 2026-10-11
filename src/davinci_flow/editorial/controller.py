@@ -90,7 +90,15 @@ class EditorialController:
 
     def options(self):
         p = self.preferences
-        return EditorialOptions(p.mode, p.format, p.density, p.direction, self.resource_context())
+        return EditorialOptions(
+            p.mode,
+            p.format,
+            p.density,
+            p.direction,
+            self.resource_context(),
+            track_mode=getattr(p, 'track_mode', 'triple'),
+        )
+
 
     def generate(self, client=None):
         if self.snapshot is None:

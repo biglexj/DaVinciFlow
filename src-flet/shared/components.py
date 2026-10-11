@@ -14,6 +14,12 @@ ACCENT = '#00C7B1'
 MODES = {'highlights': 'Énfasis selectivo', 'captions': 'Subtítulos completos'}
 FORMATS = {'auto': 'Según la secuencia', 'horizontal': 'Horizontal', 'vertical': 'Vertical'}
 DENSITIES = {'sparse': 'Pocos rótulos', 'balanced': 'Equilibrado', 'dense': 'Más rótulos'}
+TRACK_MODES = {
+    'triple': '3 Pistas (Contexto + Principal + Énfasis)',
+    'dual': '2 Pistas (Base + Énfasis)',
+    'single': '1 Pista (Monocapa · SnapCaptions)',
+}
+
 
 
 def text(value, size=12, color=TEXT, **kwargs):
