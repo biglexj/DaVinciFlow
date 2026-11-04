@@ -1,0 +1,38 @@
+# Configuración de tareas de DaVinci Flow mediante Mise
+# Estándar común: Docs/global/architecture/mise-command-standard.md
+# El despachador único es scripts/mise-task.ts; todas las tareas apuntan a él.
+
+[tasks.setup]
+raw_args = true
+description = "Preparar el entorno .venv con uv e instalar el lanzador en DaVinci Resolve"
+file = "scripts/mise-task.ts"
+
+[tasks.dev]
+raw_args = true
+description = "Ejecutar DaVinci Flow en desarrollo (Python / Flet Desktop)"
+file = "scripts/mise-task.ts"
+
+[tasks.build]
+raw_args = true
+description = "Verificar sintaxis y generar los paquetes Python en dist/ sin generar instalador"
+file = "scripts/mise-task.ts"
+
+[tasks.check]
+raw_args = true
+description = "Verificar sintaxis, importación y contratos de los scripts sin generar artefactos"
+file = "scripts/mise-task.ts"
+
+[tasks.test]
+raw_args = true
+description = "Ejecutar las pruebas unitarias del motor y de la capa de interfaz"
+file = "scripts/mise-task.ts"
+
+[tasks.release]
+raw_args = true
+description = "Generar el instalador de Windows en release/ y los paquetes Python en dist/ sin publicar"
+file = "scripts/mise-task.ts"
+
+[tasks.publish]
+raw_args = true
+description = "Publicar la release en GitHub Releases (--plan y --check sin escritura; --yes autoriza la publicación)"
+file = "scripts/mise-task.ts"

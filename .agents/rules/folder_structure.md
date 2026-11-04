@@ -2,75 +2,65 @@
 trigger: always_on
 ---
 
-# 📁 Regla de Estructura de Carpetas — DaVinci Flow
+# Mapa de carpetas — DaVinci Flow
 
-> [!CAUTION]
-> Esta regla es **CRÍTICA y no negociable**. Todo nuevo archivo, carpeta o módulo creado por el agente DEBE seguir esta convención. Violar esta estructura es inaceptable y debe ser corregido inmediatamente.
+> Mapa de implementación local. Describe dónde vive hoy el código, no una norma global. Las reglas compartidas de estructura están en [organización de proyectos](../../../Docs/global/architecture/project-structure.md) y en la [base de Python](../../../Docs/stacks/python/python-baseline.md); este archivo solo fija las rutas y convenciones reales del proyecto.
 
-## Estructura Raíz del Proyecto
+## Raíz del repositorio
 
+```text
+DaVinciFlow/
+├── .agents/rules/          # Reglas locales del agente (base.md, core_profile.md, folder_structure.md)
+├── src/davinci_flow/       # Motor headless: dominio, Resolve, IA, subtítulos, SFX, voz
+│   ├── ai/                 # Proveedores de IA y credenciales
+│   ├── editorial/          # Propuesta editorial, puente con Resolve y escritura
+│   ├── generation/         # Planes, plantillas Fusion, portadoras y registros
+│   ├── resolve/            # Adaptadores exclusivos de la API de DaVinci Resolve
+│   ├── sfx/                # Catálogo y motor de efectos de sonido
+│   ├── subtitles/          # Modelo de subtítulos, normalizador, clasificador, autocorrector
+│   ├── themes/             # Tokens oficiales Ely/Aurora y Brand Guard
+│   ├── updater/            # Comprobación de actualizaciones y sanitización de notas
+│   └── voice/              # Locución sintética
+├── src-flet/               # Interfaz de escritorio Flet
+│   ├── app/                # Shell de la ventana y ciclo de vida
+│   ├── features/           # Vistas por dominio (editor, catalog, library, settings)
+│   └── shared/             # Componentes y utilidades visuales transversales
+├── assets/                 # Recursos maestros de marca (iconos, plantillas)
+├── packaging/windows/      # Empaquetado Inno Setup (setup.iss, identity.iss, version.iss, launcher/)
+├── scripts/                # Implementación de las tareas: mise-task.ts, release/, packaging/, arranque
+├── docs/                   # Documentación funcional y contratos propios del proyecto
+│   └── es/guides/          # Guías de uso en español
+├── process/                # Procesos: active/, completed/, archive/
+├── tests/                  # Pruebas permanentes (unittest)
+├── release/                # Artefactos de distribución generados (instalador y SHA256SUMS.txt)
+├── dist/                   # Paquetes Python generados por la build
+├── temp/                   # Borradores (ignorado por git)
+├── scratch/                # Utilidades de mantenimiento (ignorado por git)
+├── test/                   # Pruebas temporales (ignorado por git)
+├── mise.toml               # Tareas canónicas del proyecto
+├── pyproject.toml          # Fuente de verdad de la versión y de las dependencias
+├── ROADMAP.md              # Pendientes generales e historial del producto
+├── RELEASE_NOTES.md        # Historial de cambios por versión
+├── RELEASE_MESSAGE.md      # Mensaje público del último lanzamiento
+├── AI_MODELS.md            # Registro local de modelos de IA
+└── README.md               # Documentación pública del proyecto
 ```
-DaVinci Flow/                   # Raíz del repositorio
-├── .agents/rules/                  # Reglas del agente (base.md, folder_structure.md, ...)
-├── frontend/                       # Código fuente del frontend (si aplica)
-│   └── src/
-│       ├── features/               # Lógica de negocio organizada por dominios (PascalCase)
-│       │   └── [DominioFeature]/   # Cada dominio con sus componentes, islands y servicios
-│       ├── pages/                  # Rutas skinny (kebab-case), solo SEO e importaciones
-│       ├── shared/                 # Componentes transversales usados en 2+ features
-│       │   └── components/         # Átomos UI compartidos
-│       └── theme/                  # Tokens de diseño, colores, tipografías
-├── backend/                        # Código fuente del backend (si aplica)
-├── docs/                           # Documentación técnica y guías del proyecto
-│   └── es/guides/                  # Guías de referencia en español
-├── process/                        # Planificación, tareas, validación y aprobación
-│   ├── active/                     # Procesos actualmente en ejecución
-│   ├── completed/                  # Procesos validados y aprobados, por año
-│   ├── archive/                    # Procesos cancelados o cerrados incompletos
-│   └── templates/                  # Moldes locales para crear procesos
-├── scratch/                        # Scripts utilitarios de mantenimiento (solo raíz)
-├── test/                           # Scripts de prueba temporales (ignorado en .gitignore)
-├── .agents/rules/base.md                        # Instrucciones principales del agente (raíz)
-├── ROADMAP.md                      # Pendientes, prioridades e historial del producto
-├── RELEASE_NOTES.md                # Historial de cambios por versión
-├── RELEASE_MESSAGE.md              # Mensaje de anuncio del último lanzamiento
-└── README.md                       # Documentación pública del proyecto
-```
 
-> [!NOTE]
-> Adaptar el árbol anterior al stack tecnológico del proyecto. Mantener la misma **semántica de carpetas**: `features/` para lógica de negocio, `shared/` para código transversal, `pages/` para rutas, `docs/` para documentación.
-
-## Reglas de Nomenclatura [CRÍTICO]
+## Convenciones de nombres
 
 | Elemento | Convención | Ejemplo |
 |---|---|---|
-| Carpetas de feature | `PascalCase` o `camelCase` según stack | `MusicFeature/`, `music/` |
-| Archivos de componente | `PascalCase` + sufijo de tipo | `MusicScreen.kt`, `SongCard.astro` |
-| Archivos de ruta/página | `kebab-case` en minúscula | `music-player.astro`, `index.tsx` |
-| Modelos / Data classes | `PascalCase` | `SongPreview`, `UserProfile` |
-| Constantes | `SCREAMING_SNAKE_CASE` | `MAX_RETRY_COUNT` |
-| Variables / funciones | `camelCase` | `loadSongs()`, `isPlaying` |
+| Módulos y paquetes Python | `snake_case` | `fusion_effects.py`, `src/davinci_flow/ai/providers/` |
+| Clases, dataclasses y modelos | `PascalCase` | `EditorialOptions`, `SubtitleCue` |
+| Constantes de módulo | `SCREAMING_SNAKE_CASE` | `PROTOCOL_VERSION`, `DEFAULT_MODEL` |
+| Funciones y variables | `snake_case` | `propose()`, `build_text_provider()` |
+| Vistas de Flet | `snake_case` por dominio | `src-flet/features/editor/editor_view.py` |
+| Carpetas de dominio en la interfaz | `snake_case` en minúscula | `features/catalog/`, `features/settings/` |
 
-## Reglas Estructurales Obligatorias
+## Reglas estructurales locales
 
-### ✅ PERMITIDO
-- Crear sub-componentes dentro de la carpeta de su feature.
-- Crear componentes en `shared/` solo si son usados por **2 o más** features distintas.
-- Usar `test/` en la raíz para scripts temporales de prueba.
-- Usar `scratch/` en la raíz para scripts de mantenimiento, organizados en subcategorías.
-
-### ❌ PROHIBIDO — VIOLACIONES COMUNES A EVITAR
-- **Nunca** crear carpetas `scratch/` dentro de `frontend/`, `backend/` o carpetas de código fuente.
-- **Nunca** colocar archivos de lógica de negocio directamente en la raíz de `src/` sin una carpeta de feature.
-- **Nunca** duplicar componentes: si ya existe en `shared/`, importarlo; no copiarlo.
-- **Nunca** añadir archivos de modelo/tipo directamente dentro de carpetas de UI.
-- **Nunca** crear carpetas con nombres genéricos (`utils/`, `helpers/`, `misc/`) en la raíz del proyecto sin una categoría clara.
-- **Nunca** dejar archivos de código sueltos en la raíz de `src/` sin pertenecer a una carpeta semántica.
-
-## Regla de Crecimiento de Archivos
-
-Como buena práctica, se debe **evitar normalmente que un archivo supere las 800 - 900 líneas**. El límite máximo permitido es de **1000 a 1200 líneas** (pudiendo llegar excepcionalmente hasta **1220 líneas**). Los archivos que superen las **1200 - 1220 líneas** son **deuda técnica activa** y el agente DEBE proponer su división en sub-componentes y registrarlo en el ROADMAP como tarea de refactorización pendiente.
-
-- **Límite Preferido**: Evitar exceder de 800 a 900 líneas por archivo.
-- **Límite Máximo Absoluto**: 1000 a 1200 líneas (máximo 1220 líneas excepcionales).
-- **Componentes y Screens**: Si un archivo supera las 1200 líneas, extraer sub-componentes en su carpeta de feature.
+- Permitido: añadir módulos dentro del dominio al que pertenecen; crear componentes en `shared/` solo si los usan dos o más vistas; usar `temp/`, `scratch/` y `test/` en la raíz.
+- Prohibido: crear `scratch/` o `test/` dentro de `src/`, `src-flet/` o cualquier carpeta de código; dejar lógica de negocio suelta en la raíz de `src/`; duplicar un componente ya presente en `shared/`; crear carpetas genéricas (`utils/`, `helpers/`, `misc/`) en la raíz.
+- El motor (`src/davinci_flow/`) no importa Flet; la interfaz (`src-flet/`) no habla directamente con la API de Resolve.
+- Los recursos derivados (capturas, iconos derivados, artefactos de compilación) no se versionan en su carpeta de origen: se generan desde el maestro o desde el empaquetado.
+- El límite de tamaño de archivo y su excepción se aplican según la [base de Python](../../../Docs/stacks/python/python-baseline.md) y la decisión local registrada en [base.md](base.md).

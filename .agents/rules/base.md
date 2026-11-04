@@ -2,167 +2,105 @@
 trigger: always_on
 ---
 
-# Instrucciones del proyecto
+# DaVinci Flow — entrada de instrucciones
 
-## Documentación Core — entrada compartida
+> Puente local hacia la [Documentación Core](../../../Docs/README.md). Los estándares compartidos se aplican desde su fuente canónica; este archivo conserva solo los contratos y las decisiones exclusivos de DaVinci Flow. Ante una contradicción, manda la implementación vigente: se comprueba el código y se resuelve de forma explícita, sin copiar reglas de Core aquí.
 
-Consultar primero [Documentación Core](../../../Docs/README.md) y seleccionar solo los módulos pertinentes. Los estándares compartidos se mantienen allí; este archivo conserva el alcance y los contratos específicos del proyecto.
+## 1. Documentación Core aplicable
 
-- [Calidad y entrega proporcionales](../../../Docs/global/quality/quality-baseline.md): build para ajustes visuales pequeños; pruebas pertinentes para elementos, lógica o páginas nuevos y cambios grandes; revisión acotada para documentación.
-- [Procesos según alcance](../../../Docs/global/documentation/process-workflow.md): no añadir fases, archivos ni nuevas aprobaciones por rutina a ajustes pequeños ya autorizados.
-- [Diseño común](../../../Docs/global/design/design_system.md): contenido preciso, espacio útil, mínimo scroll innecesario, fondo global y presets compartidos, conservando la identidad del producto.
-- [Diagnósticos reutilizables](../../../Docs/troubleshooting/README.md) y [promoción a Core](../../../Docs/global/documentation/core-promotion-workflow.md): documentar en Core los fallos confirmados o aprendizajes generalizables y enlazarlos desde el proyecto; mantener locales los detalles exclusivos.
+Seleccionar únicamente los módulos que correspondan al encargo:
 
-En estos criterios comunes, aplicar las bases vigentes enlazadas en lugar de copias históricas de este archivo. Respetar la dirección actual de Biglex y los contratos específicos del producto; ante una contradicción, comprobar la implementación vigente y resolverla explícitamente. Las skills generales importadas son apoyo técnico, no una autoridad para redefinir estas reglas.
+| Ámbito | Fuente canónica |
+|---|---|
+| Reglas de trabajo del agente, tamaño de las reglas y commits de resguardo | [Reglas de trabajo del agente](../../../Docs/global/documentation/agent-working-rules.md) |
+| Tono de las respuestas (Scientific Elegant) | [Estilo de comunicación](../../../Docs/global/agents/communication-style.md) |
+| Calidad y entrega proporcionales | [Base de calidad](../../../Docs/global/quality/quality-baseline.md) |
+| Procesos según alcance (`PLAN`/`TASKS`/`VALIDATION`/`APPROVAL`) | [Flujo de procesos](../../../Docs/global/documentation/process-workflow.md) |
+| Gobernanza documental y promoción a Core | [Gobernanza](../../../Docs/global/documentation/documentation-governance.md) · [Promoción](../../../Docs/global/documentation/core-promotion-workflow.md) |
+| Arquitectura y organización de carpetas | [Base de arquitectura](../../../Docs/global/architecture/architecture-baseline.md) · [Organización de proyectos](../../../Docs/global/architecture/project-structure.md) |
+| Stack Python (dos raíces, `uv`, límites de archivo) | [Base de Python](../../../Docs/stacks/python/python-baseline.md) |
+| Comandos y scripts | [Comandos mediante Mise](../../../Docs/global/architecture/mise-command-standard.md) · [Scripts y alias](../../../Docs/global/architecture/command-scripts-standard.md) |
+| Diseño y textos de interfaz | [Lenguaje de diseño](../../../Docs/global/design/design_system.md) · [Textos de interfaz](../../../Docs/global/design/interface-writing.md) |
+| Lanzamientos | [Base de lanzamientos](../../../Docs/global/releases/release-baseline.md) · [Protocolo oficial](../../../Docs/global/releases/protocolo_lanzamiento_actualizacion.md) · [Release Message web](../../../Docs/global/releases/web-release-message-standard.md) |
+| Modelos de IA | [Modelos de IA](../../../Docs/features/ai-models/README.md) |
+| «Acerca de» y apoyo oficial | [Soporte oficial](../../../Docs/features/official-support/official-support-baseline.md) |
+| Instaladores | [Instaladores](../../../Docs/features/installer/README.md) · [Instalación en Windows](../../../Docs/platforms/windows/installer.md) |
+| Diagnósticos reutilizables | [Problemas conocidos](../../../Docs/troubleshooting/README.md) |
 
-Entrada única de instrucciones: `.agents/rules/base.md`.
+Reglas locales siempre activas: [perfil Core](core_profile.md) · [mapa de carpetas](folder_structure.md).
 
-Consultar [Docs](../../../Docs/README.md) como fuente compartida. Seleccionar únicamente estándares, perfiles y skills pertinentes al encargo. Conservar las reglas específicas de este proyecto; su código y configuración vigentes determinan el comportamiento real.
+## 2. Identidad y alcance (local)
 
-# Reglas locales — DaVinci Flow
+- Producto: automatización para DaVinci Resolve 21; no es una aplicación independiente.
+- Autor: biglexj. Licencia: MIT.
+- Stack activo: CPython 3.13 de 64 bits, Flet 0.86.5, API de scripting de DaVinci Resolve 21 y servidor MCP propio sobre stdio.
+- Entorno único `.venv` gestionado con `uv`; no se mantienen entornos virtuales paralelos.
+- Las plantillas visuales usan exclusivamente los temas oficiales Ely y Aurora, con validación estricta de paleta y tipografía.
 
-## Identidad y alcance
+## 3. Arquitectura local
 
-- Proyecto: DaVinci Flow.
-- Autor: biglexj.
-- Licencia: MIT.
-- Producto actual: automatización para DaVinci Resolve 21, no aplicación independiente.
-- Stack activo: Python 3.13 de 64 bits y API de scripting de DaVinci Resolve 21.
-- Las plantillas visuales futuras usarán Fusion `.setting` y exclusivamente temas oficiales de Aurora o Ely.
+Mapa vigente y contratos por módulo: [docs/arquitectura.md](../../docs/arquitectura.md). Decisiones propias:
 
-## Arquitectura
+- Dos raíces: `src/davinci_flow/` (motor headless, sin dependencias de interfaz) y `src-flet/` (interfaz Flet: `app/`, `features/`, `shared/`).
+- La API de Resolve solo se alcanza desde adaptadores (`src/davinci_flow/resolve/`, `editorial/resolve_bridge.py`, `editorial/mcp_bridge.py`); la lógica reutilizable no depende de la interfaz.
+- No se crean módulos para capacidades todavía inactivas.
+- Límite de tamaño: evitar archivos de más de 900 líneas; 1200 es el máximo excepcional (ver [base de Python](../../../Docs/stacks/python/python-baseline.md)). Superar 1200 líneas convierte el archivo en deuda técnica activa y exige una tarea de refactorización en `ROADMAP.md`.
+- Temporales: `temp/` (borradores), `scratch/` (mantenimiento) y `test/` (pruebas temporales), en la raíz. Las pruebas permanentes viven en `tests/`.
 
-- Separar dominio, aplicación e infraestructura mediante responsabilidades reconocibles.
-- Encapsular la API de Resolve detrás de adaptadores comprobables con objetos simulados.
-- Mantener la lógica reutilizable fuera de las entradas de consola o interfaz.
-- No crear módulos para funciones todavía inactivas.
-- Evitar archivos de más de 900 líneas; 1200 líneas es el máximo excepcional.
-- Usar `temp/` para borradores, `scratch/` para mantenimiento y `test/` para pruebas temporales. Las pruebas permanentes viven en `tests/`.
+## 4. Flujo de trabajo local
 
-## Flujo de trabajo
+El ciclo y sus fases se rigen por el [flujo de procesos](../../../Docs/global/documentation/process-workflow.md). Decisiones propias:
 
-- Cada trabajo planificado vive en `process/active/YYYY-MM-DD_objetivo/` con `PLAN.md`, `TASKS.md`, `VALIDATION.md` y `APPROVAL.md`.
-- `ROADMAP.md` conserva el trabajo general; no crear `TASKS.md` en la raíz.
-- Registrar evidencia real en `VALIDATION.md`. Una prueba unitaria no sustituye la verificación dentro de Resolve.
-- No anunciar una versión como publicada sin comprobar el remoto cuando el usuario solicite un lanzamiento.
-- Mantener las reglas de `.agents/rules/` por debajo de 12 000 caracteres.
+- Cada trabajo planificado vive en `process/active/YYYY-MM-DD_objetivo/`; `ROADMAP.md` conserva los pendientes generales. No existe `TASKS.md` en la raíz.
+- La evidencia real se registra en `VALIDATION.md`. Una prueba unitaria no sustituye la verificación dentro de DaVinci Resolve.
+- No se anuncia una versión como publicada sin comprobar el remoto.
 
-## IA y secretos
+## 5. Comandos (Mise)
 
-- Desde el acuerdo del 2026-09-06, la LLM es central para la propuesta editorial de subtítulos, plantillas y sonidos. Seguir las tres fases enlazadas en ROADMAP.md; su ejecución y validación siguen pendientes. No sustituir silenciosamente el análisis LLM por reglas locales.
-- Usar adaptadores independientes del proveedor; no fijar catálogos de modelos actuales en reglas globales.
-- Mantener claves fuera del repositorio, los registros y la interfaz visible.
-- Crear `AI_MODELS.md` solo cuando la función de IA se active, siguiendo `Docs/features/ai-models`.
+Mise es la entrada principal de comandos: [estándar de comandos](../../../Docs/global/architecture/mise-command-standard.md). Tareas realmente expuestas por el proyecto:
 
-## Fuentes compartidas
+| Tarea | Efecto |
+|---|---|
+| `mise setup` | Prepara `.venv` con `uv` e instala el lanzador de Resolve. |
+| `mise dev` | Ejecuta la interfaz Flet en desarrollo. |
+| `mise build` | Verifica sintaxis y genera los paquetes Python en `dist/`, sin instalador. |
+| `mise check` | Comprueba sintaxis, importación y contratos de los scripts, sin artefactos. |
+| `mise test` | Ejecuta la suite unitaria. |
+| `mise release` | Prepara artefactos locales (instalador Windows y paquetes Python). No publica. |
+| `mise publish` | Publicación explícita en GitHub Releases; exige autorización explícita. |
 
-- Documentación base: `D:\Proyectos\biglexj\Docs`.
-- Perfil aplicable: `.agents/rules/core_profile.md`.
-- Instrucciones detalladas: `.agents/rules/base.md`.
-- Aurora es una referencia selectiva; sus configuraciones particulares no se copian automáticamente.
+`--plan` no ejecuta, no escribe y no consulta la red. `--check` solo verifica. Detalle operativo y ejemplos: [README](../../README.md) y `scripts/mise-task.ts`. Scripts de arranque directo: `scripts/setup-desktop.ps1` y `scripts/start-desktop.ps1`.
 
-## Reglas locales integradas desde .agents/rules/base.md
+## 6. IA y credenciales (local)
 
-# Agent Instructions - DaVinci Flow
+- El código y la configuración ejecutable son la fuente de verdad del modelo. `AI_MODELS.md` es el registro local explicativo: [modelos de IA](../../../Docs/features/ai-models/README.md).
+- Los proveedores se consumen tras el contrato `TextProvider`; no se fija un catálogo de modelos actuales en las reglas.
+- No se sustituye silenciosamente el análisis del LLM por reglas locales, ni se cambia de modelo o proveedor sin registrar compatibilidad y validación.
+- Credenciales: `~/.davinci_flow/config.json` (clave por proveedor), preferencias en `~/.davinci_flow/editorial_preferences.json` y voz en `~/.davinci_flow/voice/`. Variables admitidas: `GEMINI_API_KEY` y `MINIMAX_API_KEY`. Las claves no entran en el repositorio, los registros ni la interfaz visible.
 
-## Modelos de IA [CRÍTICO]
-- No fijes en este archivo una lista de modelos «actuales»: sus nombres, versiones y proveedores cambian con rapidez.
-- La configuración ejecutable del proyecto es la fuente de verdad. Si existe `AI_MODELS.md`, úsalo como registro explicativo y comprueba que coincida con dicha configuración.
-- Consulta `D:\Proyectos\biglexj\Docs\features\ai-models` para selección, migración y validación.
-- Selecciona modelos por función, calidad comprobada, latencia, coste, privacidad y capacidades; no solo por novedad.
-- Registra el proveedor, el identificador exacto, la fecha de verificación y una alternativa cuando la función sea crítica.
-- No cambies silenciosamente de modelo o proveedor. Valida compatibilidad y actualiza el registro local del proyecto.
+## 7. Contrato MCP propio (local)
 
-## Project License & Author
-- **License**: MIT
-- **Author**: biglexj (2026)
+- Transporte: JSON-RPC 2.0 sobre stdio (`python -m davinci_flow.mcp_server`). No hay servidor de red ni puertos abiertos.
+- Protocolo declarado: `2025-06-18`; se admiten `2025-03-26` y `2024-11-05`.
+- La propuesta editorial exige `reviewed: true` antes de aplicarse y una escritura que Resolve no confirma no se reintenta a ciegas.
+- Catálogo de herramientas y registro en clientes: [docs/MCP_SERVIDOR.md](../../docs/MCP_SERVIDOR.md).
 
-## Proyectos de Referencia & Red de Agentes del Ecosistema [CRÍTICO]
-Si necesitas referencias sobre la arquitectura, el lenguaje de diseño, los componentes de UI, el estilo de código, patrones de documentación o estándares entre agentes, consulta las reglas y proyectos líderes del ecosistema **biglexj**:
+## 8. Empaquetado y publicación (local)
 
-- **Central de Agentes y Ecosistema (`Agents`)**: `d:\Proyectos\biglexj\Docs/agents` (Normas centrales de arquitectura, personalidad e historia en [00 - CORE.md](file:///d:/Proyectos/biglexj/Docs/agents/core/behavior.md) y [03 - ECOSISTEMA.md](file:///d:/Proyectos/biglexj/Docs/agents/profiles/ecosystem.md)).
-- **Documentación Core (`Docs`)**: `D:\Proyectos\biglexj\Docs` (Fuente oficial de documentación, plantillas y estándares compartidos; consulta también `REFERENCES.md`).
-- **Aurora (Aurora Blog; Estándar Dorado Web & Docs)**: Cuando Biglex diga «Aurora», se refiere siempre a `D:\Proyectos\biglexj\Aurora---Blog`. Se consulta como referencia fullstack, de diseño, seguridad y documentación; se extraen principios reutilizables sin copiar configuraciones particulares.
-- **Luna Fetch (Estándar Auto-Updater, Single-Instance Lock & KMP)**: `d:\Proyectos\biglexj\Luna---Fetch` ([.agents/rules/base.md](file:///d:/Proyectos/biglexj/Luna---Fetch/.agents/rules/base.md) y reglas en [.agents/rules/](file:///d:/Proyectos/biglexj/Luna---Fetch/.agents/rules/)).
-- **LyraFlow (Estándar Transcripción & Asistente IA)**: `d:\Proyectos\biglexj\LyraFlow` ([.agents/rules/base.md](file:///d:/Proyectos/biglexj/LyraFlow/.agents/rules/base.md)).
-- **Ely-Tesia (Estándar Multi-instancia y Lectura)**: `d:\Proyectos\biglexj\Ely-Tesia` ([.agents/rules/base.md](file:///d:/Proyectos/biglexj/Ely-Tesia/.agents/rules/base.md)).
+- Instalador: Inno Setup con la plantilla oficial Biglex Modern, generado en `release/`; reglas en [instaladores](../../../Docs/features/installer/README.md) y [Windows](../../../Docs/platforms/windows/installer.md).
+- El empaquetado conserva el candado anti-binario obsoleto: el artefacto se compara con `src/`, `assets/` y `packaging/` antes de empaquetar y la compilación falla si está atrasado ([diagnóstico](../../../Docs/troubleshooting/tools/inno-stale-binary-packaging.md)).
+- `release` prepara y no publica; `publish` publica en GitHub Releases de forma explícita y requiere autorización. La sincronización con la ficha de Aurora no está automatizada en este proyecto: se realiza por el canal administrativo descrito en el [Release Message web](../../../Docs/global/releases/web-release-message-standard.md).
+- La versión tiene una única fuente de verdad: `pyproject.toml`, reflejada en `src/davinci_flow/__init__.py`.
 
-## Estructura de Carpetas & Lenguaje de Diseño [CRÍTICO]
-> La estructura base de los proyectos se consulta en `Docs\templates\project\folder_structure.md`. El lenguaje de diseño compartido se encuentra en `Docs\global\design\design_system.md`. La documentación de autoactualización está en `Docs\features\auto-updater`. Antes de aplicar una regla, verifica que corresponda al tipo, plataforma y stack del proyecto.
+## 9. Soporte oficial (local)
 
-- **Documentación Core (`D:\Proyectos\biglexj\Docs`)**: Fuente oficial de plantillas y estándares para proyectos. Consulta `README.md` y `ARCHITECTURE.md` antes de seleccionar reglas.
-- **Sincronización de Documentación Core [CRÍTICO]**: Al iniciar una nueva sesión de trabajo, el agente DEBE revisar la Documentación Core correspondiente al tipo, plataforma, stack y funciones del proyecto activo. No debe copiar reglas incompatibles ni propagar toda la biblioteca indiscriminadamente.
-- **Perfil Core del proyecto [CRÍTICO]**: Consulta `.agents/rules/core_profile.md`. Complétalo cuando esté pendiente y mantenlo alineado con el tipo, plataformas, stack y funciones reales. Una capacidad opcional no se aplica si no figura como activa.
-- **Problemas reutilizables**: Antes de repetir un diagnóstico, consulta `Docs\troubleshooting`. Si una investigación produce una causa o solución aplicable a otros proyectos, actualiza una entrada con síntoma, alcance, solución y validación, enlazando el proceso de origen.
-- **Uso de `temp/`**: Archivos temporales de trabajo, borradores o tareas puntuales no persistentes DEBEN colocarse en la carpeta `temp/` en la raíz del proyecto (ignorado en `.gitignore`).
-- **Convención de Procesos**: Todo trabajo planificado DEBE vivir en `process/active/YYYY-MM-DD_objetivo/` con `PLAN.md`, `TASKS.md`, `VALIDATION.md` y `APPROVAL.md`. No se crea un `TASKS.md` en la raíz.
-- **Sistema de Diseño (Material Expressive)**: Toda UI (Compose Multiplatform, Web, Android) DEBE utilizar el lenguaje **Material 3 Expressive** (colores tonales, micro-animaciones, contenedores elevados, sin estilos planos u obsoletos).
-- **Auto-Actualización & Sanitización**: Todos los proyectos de aplicación DEBEN soportar la comprobación silenciosa y descarga directa de versiones desde GitHub Releases (`UpdateChecker`). Las notas de versión deben sanitizarse limpiamente (`sanitizeReleaseNotes`) eliminando Markdown crudo. Si el usuario comprueba manualmente y ya posee la última versión, se debe mostrar un Toast flotante centrado en la parte superior (e.g. `✅ Estás en la última versión`).
-- **Protocolo de Pruebas Móviles & Iconos Adaptativos Nativos (Cero Anillos Blancos)**: En todo desarrollo de aplicación móvil (Android / Compose Multiplatform), tras probar en PC / Desktop, es **OBLIGATORIO** compilar e instalar en teléfono físico (`.\gradlew installDebug`) para validar la UI móvil táctil. Asimismo, todo proyecto Android DEBE usar la arquitectura de Icono Adaptativo de 2 capas en `mipmap-anydpi-v26/ic_launcher.xml`: Fondo sólido (`@color/ic_launcher_background`) que coincida con el tema base (e.g. `#0F172A`) y Primer Plano (`@drawable/ic_launcher_foreground`) con canal alfa 100% transparente para el emblema aislado. Queda estrictamente prohibido usar imágenes PNG cuadradas rígidas directamente en `AndroidManifest.xml` sin capa adaptativa, evitando que Android genere contenedores o marcos blancos alrededor del icono.
-- **Uso de `scratch/`**: Solo en la raíz del proyecto para scripts utilitarios de mantenimiento, organizados en subcategorías. **Prohibido** dentro de cualquier carpeta de código fuente (`frontend/`, `backend/`, `src/`).
-- **Uso de `test/`**: Scripts de prueba temporales en `test/` de la raíz. Ignorado en `.gitignore`.
+El diálogo «Acerca de» y su insignia en la barra lateral implementan la [base de soporte oficial](../../../Docs/features/official-support/official-support-baseline.md) con los cuatro enlaces canónicos (donaciones, Buy Me a Coffee, feedback y GitHub). No se sustituyen por destinos propios.
 
-## Estilo de Comunicación (Personalidad Científica y Elegante) [CRÍTICO]
-- **Tono Científico y Metódico**: Al concluir tareas, explicar resoluciones de código o cerrar turnos en el chat, el agente debe expresarse de manera altamente estructurada, metódica y elegante (inspirado en la filosofía de Dr. Xeno y Senku Ishigami de *Dr. Stone*).
-- **Terminología Científica**: Utiliza expresiones como *"Qué solución tan elegante"*, *"Cierre de ciclo elegante"* o *"Arquitectura de código sumamente elegante"*.
-- **Porcentaje de Precisión**: Ocasionalmente, para denotar certeza o entusiasmo matemático por el éxito de una tarea, utiliza la frase *"al 10,000 millones por ciento"* (o *"al 10 mil millones por ciento"*), haciendo eco del entusiasmo científico característico del proyecto.
+## 10. Referencias locales
 
-
-
-
-## Development Workflow & Planning (CRITICAL)
-- **Planning Mode**: Before executing complex changes, refactoring, or new features, the agent must open `process/active/YYYY-MM-DD_objetivo/`, redact the proposal in its `PLAN.md` and wait for approval when Biglex solicits a plan or the change requires an explicit decision. Do not create a parallel `implementation_plan.md`.
-- **Seguimiento del trabajo**: Usa el `TASKS.md` del proceso activo para la ejecución y `VALIDATION.md` para las comprobaciones. `ROADMAP.md` conserva los pendientes generales y el historial completado del producto.
-- **Checkpoint Commit Protocol (CRITICAL)**: En proyectos de **Aplicaciones** (Android, Compose Multiplatform, Desktop, etc. — no aplica a páginas web salvo solicitud explícita), tan pronto como se concluya un release o versión oficial y se comience a trabajar en una nueva versión/hiclo (desde el primer momento en que se pica código), el agente DEBE crear periódicamente commits de resguardo (ej. `checkpoint: session YYYY-MM-DD - [tarea/hito]`) para ir salvaguardando todos los avances y prevenir pérdidas imprevistas.
-- **Verification**: Always verify builds and run the relevant automated or manual checks. Record the evidence in the active process `VALIDATION.md` and the final decision in `APPROVAL.md`; do not create a parallel `walkthrough.md` unless the project explicitly requires it.
-
-## Customization Rules (.agents/rules/)
-- **Source of Truth for Agent Behavior**: Rules that strictly govern the agent's behavior, writing style, response constraints, code formats, or domain-specific rules MUST be defined inside the `.agents/rules/` directory (relative to the workspace root) as Markdown files (e.g., `base.md`, `writing.md`, etc.) containing frontmatter (like `trigger: always_on`).
-- **Character Limit (CRITICAL)**: Any custom rules file inside `.agents/rules/` must NOT exceed the **12,000 character limit** to prevent prompt bloat and warning errors in the environment.
-- **Rule Compression**: If a rules file is getting close to the limit, the agent must refactor the file, keeping rules highly synthesized (e.g., bulleted summaries) and moving detailed specifications to the `docs/` folder, referencing them via file links.
-- **Agent Hand-off**: The agent must look for existing rules in `.agents/rules/` at the start of any task, follow them strictly, and update them when requested by the user, keeping them clean, concise, and under the size cap.
-
-## Documentation Maintenance Rules
-The agent must keep documentation clean and updated according to the following guidelines:
-
-### 1. ROADMAP.md y procesos
-- **ROADMAP.md**: Hoja de ruta estratégica de producto con cuatro bloques obligatorios: pendientes activos arriba (`## 🔴 Pendientes activos`), ideas intermedias (`## 🟡 Intermedio`), descartados/en pausa (`## ⚪ Descartado / En Pausa`) e historial limpio de versiones completadas (`## 🟢 Completado` -> `- [x] **vX.X.X**`).
-- **Proceso activo**: `PLAN.md` define, `TASKS.md` ejecuta, `VALIDATION.md` comprueba y `APPROVAL.md` registra la decisión final.
-- **Flujo de cierre**: Un proceso validado y aprobado se mueve completo a `process/completed/YYYY/`. Un proceso cancelado, sustituido o cerrado incompleto se mueve a `process/archive/YYYY/` con el motivo registrado. No dejes copias duplicadas en `active`.
-
-### 2. RELEASE_NOTES.md
-- **Protocolo de Verificación de Versión en GitHub ("Lanzar actualización") [CRÍTICO]**: Al recibir la indicación del usuario de *"Lanzar actualización"* o iniciar un proceso de publicación:
-  1. El agente DEBE consultar obligatoriamente las versiones y tags publicados en GitHub / remoto (`gh release list` o `git ls-remote --tags`).
-  2. Si la versión local (`versionName` / `versionCode`) coincide con una versión que ya ha sido publicada de forma remota en GitHub o `biglexj.com` (sin importar si fue subida hace minutos o días), es **OBLIGATORIO Y DE LEY** incrementar a la siguiente versión de parche (ej. de `1.1.3` a `1.1.4` e incrementar `versionCode`).
-  3. **Prohibición de Sobrescritura**: NUNCA se debe sobrescribir, re-etiquetar (`git tag -f`) ni reemplazar una versión que ya ha sido publicada públicamente. Toda versión subida a la nube es inmutable y requiere avanzar de versión.
-- **Sanitización de Notas (CRÍTICO)**: Los mensajes de las notas de lanzamiento deben ser completamente limpios y profesionales. DEBEN eliminar cualquier referencia a rutas locales de archivos del entorno de desarrollo (ej. `d:\Proyectos\...`), nombres de variables o archivos de depuración internos, referencias a instrucciones del agente o volcados de consola técnicos. Deben estar redactados desde la perspectiva del usuario y del producto final.
-- **Extensión proporcional (CRÍTICO)**: La cantidad de párrafos debe responder al alcance real, no a una cuota fija: 1 para un hito pequeño, 2 cuando existen dos cambios relevantes, 3 como extensión habitual, 4 para hitos relativamente grandes y hasta 5 para lanzamientos de gran alcance. Cada párrafo debe agrupar un cambio principal y evitar listas detalladas de archivos.
-- **No duplicar versiones**: Si una versión ya está registrada localmente pero aún no se ha hecho push a Git, añadir los nuevos cambios bajo la misma versión activa en lugar de crear una nueva versión de parche.
-- **Límite de Parches (Regla del .9)**: Nunca pasar de una versión de parche `.9` (por ejemplo, de `1.0.9` pasar a `1.1.0` en lugar de `1.0.10`).
-
-### 3. RELEASE_MESSAGE.md
-- Usar un formato conciso, limpio y con emojis para anunciar el lanzamiento a usuarios o canales de chat.
-- Estructura:
-  - Título y Versión con emojis.
-  - Resumen rápido del lanzamiento.
-  - Novedades destacadas (lista corta con viñetas).
-
-## Official Support, Donation & About Rules [CRÍTICO]
-Toda aplicación del ecosistema (Compose Multiplatform, Web, Android, Desktop, etc.) DEBE incluir una sección o insignia de "Acerca de la Aplicación" con su correspondiente modal/diálogo informativo y botones de apoyo oficial adaptados al lenguaje de interfaz del proyecto:
-- **Badge / Enlace "Acerca de"**: Ubicado en el pie de página o barra lateral/configuración de la interfaz. Al pulsar, despliega información de versión, autoría (`biglexj`), licencia y un mensaje de agradecimiento al usuario.
-- **Botón Donación Directa (Principal / Local e Internacional)**: Apoyo directo en `https://www.biglexj.com/donaciones` (Yape, Plin, transferencias locales e internacionales).
-- **Botón Buy Me a Coffee (Internacional)**: Apoyo global mediante `https://buymeacoffee.com/biglexj`.
-- **Botón GitHub**: Enlace al perfil oficial `https://github.com/biglexj`.
-
-## Official Support & Donation Links
-- **Buy Me a Coffee**: `https://buymeacoffee.com/biglexj`
-- **Donaciones Oficiales (Yape / Plin / Transferencias / Web)**: `https://www.biglexj.com/donaciones`
-- **Perfil de GitHub**: `https://github.com/biglexj`
-
-
-## Referencias locales especializadas
-
-Consultar las que correspondan al encargo. La entrada de instrucciones del proyecto sigue siendo este archivo.
-
-- [core_profile](core_profile.md)
-- [folder_structure](folder_structure.md)
+- [core_profile.md](core_profile.md) — perfil de aplicabilidad de Core.
+- [folder_structure.md](folder_structure.md) — mapa de carpetas vigente.
+- [docs/arquitectura.md](../../docs/arquitectura.md) — arquitectura, contratos y mapa de módulos.
+- [docs/MCP_SERVIDOR.md](../../docs/MCP_SERVIDOR.md) — servidor MCP propio.
+- [docs/es/guides/](../../docs/es/guides/) — guías funcionales del producto.
+- `AI_MODELS.md`, `ROADMAP.md`, `RELEASE_NOTES.md` y `RELEASE_MESSAGE.md` son registros locales (producto, historial y notas); no son reglas normativas.

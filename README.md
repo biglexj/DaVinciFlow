@@ -18,6 +18,12 @@ El icono canónico de identidad se conserva en [`assets/branding/icons/icon-tran
 - **Clasificación semántica determinista**: Desglose en hasta 3 capas de texto (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`) e intención comunicativa (`statement`, `question`, `exclamation`, `emphasis`, `negation`).
 - **Brand Guard y temas oficiales**: Soporte estricto para los temas **Ely** y **Aurora** con validación de paletas HEX y fuentes tipográficas oficiales.
 - **Composiciones Fusion propias**: Cada capa se inserta con pista, inicio y duración verificados contra el `TimelineItem` devuelto por Resolve.
+- **Proveedores de IA intercambiables**: Capa `ai/providers` con adaptadores de **Google Gemini** y **Minimax** tras un contrato común; el proveedor se elige en Ajustes.
+- **Locución con Minimax**: Síntesis de voz con subtítulos alineados a la propia locución, lista para la pista nativa.
+- **Autocorrector auditable**: Normalización, glosario e IA por etapas separadas, con el diff de cada subtítulo.
+- **Efectos Fusion editables**: Composiciones y títulos nativos (`Text+`, `Fade On`, `Headline`) que se siguen editando en el Inspector, nunca renderizados.
+- **Subtítulos en la pista nativa**: Escritura de cues en la pista `subtitle` de Resolve, con verificación posterior.
+- **DaVinci Flow como herramienta MCP**: Las mismas operaciones publicadas como herramientas MCP para que cualquier agente pueda operarlo ([guía](docs/MCP_SERVIDOR.md)).
 - **Motor SFX funcional**: Propone y materializa WAV originales de DaVinci Flow, con control de densidad y soporte para `[SFX_OFF]`.
 - **Idempotencia**: Un mismo plan reutiliza sus clips identificados en vez de duplicarlos.
 - **Reversión selectiva**: El botón Deshacer retira únicamente la última ejecución registrada; no vacía todas las pistas DF.
@@ -26,11 +32,21 @@ El icono canónico de identidad se conserva en [`assets/branding/icons/icon-tran
 
 ## 🏛️ Arquitectura Modular
 
+El mapa completo de módulos, contratos y rutas de configuración está en [`docs/arquitectura.md`](docs/arquitectura.md).
+
 ```text
 src/davinci_flow/
 ├── __main__.py              Entrada CLI principal (planificación, generación, auditoría)
 ├── application.py           Coordinación de casos de uso del producto
 ├── errors.py                Jerarquía de errores controlados
+├── mcp_server.py            Servidor MCP que publica el producto como herramientas
+├── ai/                      Integraciones con proveedores de IA
+│   ├── client.py            Cliente de Google Gemini (histórico, sin cambios de contrato)
+│   ├── credentials.py       Claves por proveedor en ~/.davinci_flow/config.json
+│   ├── http.py              Reintentos, saneado de errores y extracción de JSON
+│   └── providers/           Contrato TextProvider + adaptadores Gemini y Minimax
+├── voice/                   Locución sintética
+│   └── tts.py               Cliente Minimax t2a_v2, voces de la cuenta y subtítulos alineados
 ├── generation/              Plan de generación, diffs, plantillas Fusion y registros
 │   ├── fusion_template.py   Generador de composiciones Fusion y conversión de color
 │   ├── carrier_media.py     AVI mínimo para duración exacta de composiciones Fusion
@@ -40,6 +56,8 @@ src/davinci_flow/
 ├── resolve/                 Adaptadores exclusivos para DaVinci Resolve API
 │   ├── client.py            Conexión segura y detección de sesión
 │   ├── subtitle_reader.py   Lector y normalizador de pistas
+│   ├── subtitle_writer.py   Escritura en la pista nativa de subtítulos
+│   ├── fusion_effects.py    Composiciones Fusion y títulos nativos editables
 │   ├── timeline_writer.py   Inserción y reversión en pistas dedicadas
 │   └── track_manager.py     Gestión de pistas DF_CONTEXT, DF_MAIN, DF_ACCENT, DF_SFX
 ├── sfx/                     Biblioteca y motor de efectos de sonido
@@ -51,6 +69,7 @@ src/davinci_flow/
 │   ├── classifier.py        Clasificador de capas semánticas en español
 │   ├── fingerprint.py       Huellas SHA-256 e identificadores estables
 │   ├── model.py             SubtitleCue nativo
+│   ├── autocorrect.py       Autocorrector por etapas con diff auditable
 │   └── normalizer.py        Normalizador ortográfico y de caracteres especiales
 └── themes/                  Tokens oficiales y Brand Guard
     └── tokens.py            ThemeTokens, temas Ely/Aurora y validación estricta
@@ -67,11 +86,32 @@ src/davinci_flow/
 - **Compatibilidad**: el auxiliar CPython 3.13 anterior sigue disponible para instalaciones compatibles con scripting externo. Los comandos clásicos de planificación/generación de la CLI conservan ese adaptador.
 - **Dependencias**: Flet y su cliente Flutter para la interfaz; el cliente MCP utiliza únicamente la biblioteca estándar.
 
-### Preparar y abrir la interfaz
+### Operación con Mise (Estándar Ecosistema)
+
+DaVinci Flow implementa la interfaz universal de tareas mediante Mise:
+
+| Tarea | Propósito |
+|---|---|
+| `mise setup` | Preparar `.venv` con `uv` e instalar el lanzador en DaVinci Resolve. |
+| `mise dev` | Iniciar entorno de desarrollo (Flet Desktop). |
+| `mise build` | Verificar sintaxis y generar los paquetes Python en `dist/`, sin instalador. |
+| `mise check` | Verificar sintaxis, importación y contratos de los scripts, sin artefactos. |
+| `mise test` | Ejecutar las pruebas unitarias. |
+| `mise release` | Generar el instalador de Windows en `release/` y los paquetes Python en `dist/`, sin publicar. |
+| `mise publish` | Publicar la release en GitHub Releases; exige autorización explícita (`--yes`). |
+
+Opciones de inspección y comprobación:
+- `--plan`: Muestra el comando y las operaciones planificadas sin ejecutar procesos ni modificar el sistema (`mise dev --plan`, `mise release --plan`, `mise publish --plan`).
+- `--check`: (para `publish`) Verifica el estado del repositorio, tags, notas y la presencia e integridad del instalador en `release/` sin publicar nada (`mise publish --check`).
+- `--yes`: (para `publish`) Autoriza de forma explícita la publicación en GitHub Releases (`mise publish --yes`). Sin esta opción la tarea no publica y muestra el plan.
+
+La publicación usa GitHub Releases como fuente de distribución. La sincronización de la ficha del producto en Aurora no está automatizada en este repositorio y se realiza por el canal administrativo descrito en el [estándar de release message web](../Docs/global/releases/web-release-message-standard.md).
+
+### Preparar y abrir la interfaz (Método Directo)
 
 ```powershell
-./scripts/setup-desktop.ps1
-./scripts/start-desktop.ps1
+mise setup     # equivalente a ./scripts/setup-desktop.ps1
+mise dev       # equivalente a ./scripts/start-desktop.ps1
 ```
 
 La preparación utiliza `.venv` y actualiza el acceso **Área de trabajo → Secuencias de comandos → DaVinci Flow**. El menú de Resolve, `--ui` y `--editorial-ui` abren la misma ventana Flet; una segunda apertura trae la primera al frente.
@@ -81,6 +121,19 @@ El editor, las plantillas, la biblioteca por categorías y los ajustes comparten
 Consulta la [guía del puente MCP](docs/es/guides/puente-mcp-resolve.md) para elegir transporte, diagnosticar la conexión y conocer el límite de 60 segundos por script. El puente no cambia el proveedor de IA ni elimina la revisión editorial. La integración no demuestra por sí sola una mejora de FPS o consumo de memoria.
 
 La biblioteca comparte únicamente nombres de los recursos elegidos con la IA. La inserción editorial de visuals, música y las dos capas de SFX sigue en las fases siguientes. Consulta la [validación de la migración](process/active/2026-09-07_interfaz-flet/VALIDATION.md).
+
+---
+
+## 🔌 DaVinci Flow como herramienta MCP
+
+Además de la interfaz, DaVinci Flow publica sus operaciones como un **servidor MCP por stdio**. Así cualquier agente puede capturar subtítulos, generar una propuesta, aplicarla revisada, insertar títulos nativos, crear efectos Fusion editables, generar voz, autocorregir y escribir en la pista nativa sin depender de la ventana abierta.
+
+```powershell
+$env:PYTHONPATH = "$PWD\src"
+uv run --python 3.13 python -m davinci_flow.mcp_server
+```
+
+La propuesta sigue exigiendo revisión explícita (`reviewed: true`) antes de aplicarse, y una escritura que Resolve no confirma no se reintenta a ciegas. Consulta la [guía del servidor MCP](docs/MCP_SERVIDOR.md) para el registro en un cliente y el catálogo completo de herramientas.
 
 ---
 
@@ -125,6 +178,12 @@ uv run --python 3.13 python -m davinci_flow --reconcile "temp/plan_generacion.js
 ---
 
 ## 🧪 Ejecución de Pruebas Automatizadas
+
+```powershell
+mise test
+```
+
+Equivalente directo:
 
 ```powershell
 $env:PYTHONPATH = "$PWD\src"

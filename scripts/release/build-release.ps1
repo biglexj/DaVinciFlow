@@ -99,11 +99,29 @@ $artifacts = Get-ChildItem -LiteralPath $distDir -File | Where-Object { $_.Name 
 if ($artifacts.Count -gt 0) {
     Write-Host "🔒 Generando SHA256SUMS.txt..." -ForegroundColor Yellow
     $checksums = foreach ($file in $artifacts) {
-        $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        $hash = Get-Sha256Hex -Path $file.FullName
         "$hash  $($file.Name)"
     }
     $checksumsPath = Join-Path $distDir "SHA256SUMS.txt"
     Set-Content -LiteralPath $checksumsPath -Value $checksums -Encoding UTF8
+}
+
+# 6 bis. Checksum del instalador de Windows (release/SHA256SUMS.txt)
+# La release de Windows publica el instalador .exe junto a su checksum:
+# Docs/global/releases/web-release-message-standard.md, sección 5.
+$releaseDir = Join-Path $root "release"
+$installerPath = Join-Path $releaseDir "DaVinciFlow-Setup-$Version.exe"
+$installerSumsPath = Join-Path $releaseDir "SHA256SUMS.txt"
+if (Test-Path -LiteralPath $installerPath) {
+    $installerHash = Get-Sha256Hex -Path $installerPath
+    Set-Content -LiteralPath $installerSumsPath -Value "$installerHash  $(Split-Path -Leaf $installerPath)" -Encoding UTF8
+    Write-Host "🔒 Checksum del instalador: $installerHash" -ForegroundColor Green
+}
+elseif (-not $LocalOnly) {
+    throw "No se encontró el instalador esperado: $installerPath. Ejecuta 'mise release' antes de publicar."
+}
+else {
+    Write-Host "ℹ️  No hay instalador en release/: solo se generan los checksums de dist/." -ForegroundColor Gray
 }
 
 # 7. Commit, Tag y Publicación en GitHub Releases
@@ -111,14 +129,24 @@ if (-not $LocalOnly) {
     Push-Location $root
     try {
         Write-Host "📤 Realizando commit y push de versión..." -ForegroundColor Yellow
-        git add pyproject.toml src/davinci_flow/__init__.py
-        git commit -m "release: $appName $tag"
+        $versionFiles = @("pyproject.toml", "src/davinci_flow/__init__.py")
+        git add -- $versionFiles
+        $pending = & git status --porcelain -- $versionFiles
+        if ($pending) {
+            git commit -m "release: $appName $tag"
+        }
+        else {
+            Write-Host "    No hay cambios de versión pendientes: se conserva el commit actual." -ForegroundColor Gray
+        }
         git tag -a $tag -m "$appName $tag"
         git push origin main --tags
 
         Write-Host "🌐 Publicando release en GitHub..." -ForegroundColor Yellow
-        $distFiles = Get-ChildItem -LiteralPath $distDir -File | ForEach-Object { $_.FullName }
-        $ghArgs = @("release", "create", $tag) + $distFiles + @("--title", "$appName $tag", "--notes-file", $releaseNotesPath)
+        $assets = @()
+        $assets += (Get-ChildItem -LiteralPath $distDir -File | ForEach-Object { $_.FullName })
+        if (Test-Path -LiteralPath $installerPath) { $assets += $installerPath }
+        if (Test-Path -LiteralPath $installerSumsPath) { $assets += $installerSumsPath }
+        $ghArgs = @("release", "create", $tag) + $assets + @("--title", "$appName $tag", "--notes-file", $releaseNotesPath)
         Invoke-Checked gh $ghArgs
 
         Write-Host "🎉 ¡Release $tag publicado exitosamente en GitHub!" -ForegroundColor Green
