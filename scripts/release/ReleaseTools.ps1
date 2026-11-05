@@ -23,6 +23,31 @@ function Invoke-Checked {
 
 <#
 .SYNOPSIS
+Calcula el SHA-256 de un archivo con la API de .NET.
+
+.DESCRIPTION
+Get-FileHash no está disponible en el módulo Microsoft.PowerShell.Utility
+cuando `powershell` se invoca con -NoProfile, que es como lo llama el pipeline
+de release. La API de .NET existe en ambos motores.
+Véase Docs/troubleshooting/tools/powershell-host-portability.md.
+#>
+function Get-Sha256Hex {
+    param([Parameter(Mandatory)] [string]$Path)
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $stream = $null
+    try {
+        $stream = [System.IO.File]::OpenRead($Path)
+        return ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        if ($stream) { $stream.Dispose() }
+        $sha256.Dispose()
+    }
+}
+
+<#
+.SYNOPSIS
 Valida que una cadena cumpla la especificación de versión semántica (X.Y.Z)
 y la Regla del .9 del ecosistema (el parche no debe ser mayor a 9).
 #>

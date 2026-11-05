@@ -32,6 +32,8 @@ El icono canónico de identidad se conserva en [`assets/branding/icons/icon-tran
 
 ## 🏛️ Arquitectura Modular
 
+El mapa completo de módulos, contratos y rutas de configuración está en [`docs/arquitectura.md`](docs/arquitectura.md).
+
 ```text
 src/davinci_flow/
 ├── __main__.py              Entrada CLI principal (planificación, generación, auditoría)
@@ -90,21 +92,26 @@ DaVinci Flow implementa la interfaz universal de tareas mediante Mise:
 
 | Tarea | Propósito |
 |---|---|
+| `mise setup` | Preparar `.venv` con `uv` e instalar el lanzador en DaVinci Resolve. |
 | `mise dev` | Iniciar entorno de desarrollo (Flet Desktop). |
-| `mise build` | Compilar y verificar sintaxis de Python sin generar instaladores. |
-| `mise release` | Generar instalador oficial Inno Setup en `release/` sin publicar. |
-| `mise publish` | Publicar en GitHub Releases y sincronizar ficha en Aurora (`--plan` y `--check` sin escritura). |
+| `mise build` | Verificar sintaxis y generar los paquetes Python en `dist/`, sin instalador. |
+| `mise check` | Verificar sintaxis, importación y contratos de los scripts, sin artefactos. |
+| `mise test` | Ejecutar las pruebas unitarias. |
+| `mise release` | Generar el instalador de Windows en `release/` y los paquetes Python en `dist/`, sin publicar. |
+| `mise publish` | Publicar la release en GitHub Releases; exige autorización explícita (`--yes`). |
 
 Opciones de inspección y comprobación:
 - `--plan`: Muestra el comando y las operaciones planificadas sin ejecutar procesos ni modificar el sistema (`mise dev --plan`, `mise release --plan`, `mise publish --plan`).
 - `--check`: (para `publish`) Verifica el estado del repositorio, tags, notas y la presencia e integridad del instalador en `release/` sin publicar nada (`mise publish --check`).
-- Canal explícito `github`: `mise publish github` (omite la sincronización con la web de Aurora).
+- `--yes`: (para `publish`) Autoriza de forma explícita la publicación en GitHub Releases (`mise publish --yes`). Sin esta opción la tarea no publica y muestra el plan.
+
+La publicación usa GitHub Releases como fuente de distribución. La sincronización de la ficha del producto en Aurora no está automatizada en este repositorio y se realiza por el canal administrativo descrito en el [estándar de release message web](../Docs/global/releases/web-release-message-standard.md).
 
 ### Preparar y abrir la interfaz (Método Directo)
 
 ```powershell
-./scripts/setup-desktop.ps1
-./scripts/start-desktop.ps1
+mise setup     # equivalente a ./scripts/setup-desktop.ps1
+mise dev       # equivalente a ./scripts/start-desktop.ps1
 ```
 
 La preparación utiliza `.venv` y actualiza el acceso **Área de trabajo → Secuencias de comandos → DaVinci Flow**. El menú de Resolve, `--ui` y `--editorial-ui` abren la misma ventana Flet; una segunda apertura trae la primera al frente.
@@ -171,6 +178,12 @@ uv run --python 3.13 python -m davinci_flow --reconcile "temp/plan_generacion.js
 ---
 
 ## 🧪 Ejecución de Pruebas Automatizadas
+
+```powershell
+mise test
+```
+
+Equivalente directo:
 
 ```powershell
 $env:PYTHONPATH = "$PWD\src"
