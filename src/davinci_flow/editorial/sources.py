@@ -79,7 +79,7 @@ def capture(session: Any, track: int = 1, first: int = 1, last: int = 120) -> Sn
     identifier = timeline.GetUniqueId()
     if not identifier:
         raise EditorialError("Resolve no confirmó la identidad de la secuencia.")
-    cuts = []
+    cut_records = []
     for track_type in ("video", "audio"):
         for index in range(1, int(timeline.GetTrackCount(track_type)) + 1):
             name = str(timeline.GetTrackName(track_type, index) or "")
@@ -91,28 +91,48 @@ def capture(session: Any, track: int = 1, first: int = 1, last: int = 120) -> Sn
                 items = items.values()
             for item in items:
                 # Huella del montaje, incluyendo sustituciones y desplazamiento de origen.
+                get_type = getattr(item, 'GetType', None)
+                try:
+                    item_type = str(get_type() if callable(get_type) else "").strip().lower()
+                except Exception:
+                    item_type = ""
+                item_name = str(item.GetName() or "")
+                get_media = getattr(item, 'GetMediaPoolItem', None)
+                try:
+                    media_item = get_media() if callable(get_media) else None
+                except Exception:
+                    media_item = None
+                get_media_id = getattr(media_item, 'GetUniqueId', None)
+                try:
+                    media_id = str(get_media_id() or "") if callable(get_media_id) else ""
+                except Exception:
+                    media_id = ""
+                source_ref = ("media:" + media_id if media_id else
+                              f"synthetic:{item_type}:{item_name}"
+                              if item_type in {'transition', 'generator', 'title', 'still', 'fusion'} else "")
                 left, right = item.GetLeftOffset(), item.GetRightOffset()
                 if left is None or right is None:
-                    get_type = getattr(item, 'GetType', None)
-                    item_type = str(get_type() if callable(get_type) else "").strip().lower()
-                    mpi = item.GetMediaPoolItem() if hasattr(item, 'GetMediaPoolItem') else None
-                    if item_type not in {'transition', 'generator', 'title', 'still', 'fusion'} and mpi is not None:
+                    if item_type not in {'transition', 'generator', 'title', 'still', 'fusion'} and media_item is not None:
                         raise EditorialError('Resolve no confirmó los offsets de un clip del montaje.')
                     # Elementos sintéticos, generadores y transiciones no tienen offsets de medios.
                     # Su identidad, nombre, tipo y tiempos forman parte de la huella del montaje.
-                    cuts.append((track_type, index, str(item.GetUniqueId()),
-                                 float(item.GetStart()), float(item.GetEnd()),
-                                 None, None, item_type or 'transition', str(item.GetName())))
+                    cut_records.append(((track_type, index, str(item.GetUniqueId()),
+                                         float(item.GetStart()), float(item.GetEnd()),
+                                         None, None, item_type or 'transition', item_name), source_ref))
                     continue
-                cuts.append((track_type, index, str(item.GetUniqueId()),
-                             float(item.GetStart()), float(item.GetEnd()),
-                             float(left), float(right)))
+                cut_records.append(((track_type, index, str(item.GetUniqueId()),
+                                     float(item.GetStart()), float(item.GetEnd()),
+                                     float(left), float(right)), source_ref))
+    cut_records.sort(key=lambda entry: entry[0])
+    cuts = tuple(cut for cut, _source_ref in cut_records)
+    cut_source_refs = tuple(source_ref for _cut, source_ref in cut_records)
     return Snapshot(str(session.project.GetName()), str(timeline.GetName()), str(identifier),
                     float(timeline.GetSetting("timelineFrameRate")),
                     int(timeline.GetSetting("timelineResolutionWidth")),
                     int(timeline.GetSetting("timelineResolutionHeight")),
-                    int(timeline.GetStartFrame()), track, tuple(cues), tuple(sorted(cuts)),
-                    first=first, last=last, project_id=str(session.project.GetUniqueId()))
+                    int(timeline.GetStartFrame()), track, tuple(cues), cuts,
+                    first=first, last=last, project_id=str(session.project.GetUniqueId()),
+                    cut_source_refs=cut_source_refs)
 
 
 def from_srt(path: str | Path, fps: float, width: int = 1920, height: int = 1080) -> Snapshot:

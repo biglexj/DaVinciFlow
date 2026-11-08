@@ -32,7 +32,7 @@ def request(executable, operation, parameters):
         'finally:',
         '    sys.path[:] = _flow_path',
     ])
-    writing = operation in {'apply', 'undo'}
+    writing = operation in {'apply', 'undo', 'fusion_effect', 'native_title', 'subtitles'}
     dispatched = False
     try:
         with ResolveMCP(executable) as client:

@@ -16,6 +16,7 @@ class CatalogView:
         self.query = field('Buscar títulos', expand=True, on_change=app.bind(self.search))
         self.source = select('Categoría / Fuente', {
             'all': 'Todas las plantillas',
+            'native': '✨ Nativos DaVinci Resolve',
             'shorts': '📱 Shorts & Reels (Bold)',
             'youtube': '🎬 YouTube Dinámico',
             'news': '📰 Noticiero & Editorial',
@@ -35,6 +36,7 @@ class CatalogView:
                     text('Packs de estilo rápido (1 clic para configurar las 3 capas):', size=13, weight=ft.FontWeight.W_600),
                 ], spacing=8),
                 ft.Row([
+                    button('✨ Nativos DaVinci', app.bind(self.apply_pack, 'native'), ft.Icons.AUTO_AWESOME),
                     button('📱 Shorts Bold', app.bind(self.apply_pack, 'shorts'), ft.Icons.PHONE_ANDROID),
                     button('🎬 YouTube Dinámico', app.bind(self.apply_pack, 'youtube'), ft.Icons.ONDEMAND_VIDEO),
                     button('📰 Noticiero TV', app.bind(self.apply_pack, 'news'), ft.Icons.NEWSPAPER),
@@ -143,6 +145,8 @@ class CatalogView:
                 continue
             if source == 'all':
                 items.append(t)
+            elif source == 'native' and (cat == 'native' or t.source == 'native' or 'templates.drfx' in t.locator.lower()):
+                items.append(t)
             elif source == 'shorts' and (cat == 'shorts' or 'short' in t.name.lower()):
                 items.append(t)
             elif source == 'youtube' and (cat == 'youtube' or 'youtube' in t.name.lower()):
@@ -165,6 +169,7 @@ class CatalogView:
         self.selected = {t.id for t in self.controller.templates}
         self.refresh()
         names = {
+            'native': '✨ Nativos DaVinci Resolve',
             'shorts': '📱 Shorts Bold (Viral / Alto Impacto)',
             'youtube': '🎬 YouTube Dinámico (Elegante)',
             'news': '📰 Noticiero TV (Informativo)',

@@ -355,6 +355,46 @@ class EditorialWriter(ResolveTimelineWriter):
     ) -> Any:
         template = self.assignments[native_name]
         duration = round(end_frame - start_frame)
+
+        # 1. Intentar inserción nativa sin carrier files si el título es nativo de Resolve
+        if template.source != "media_pool" and callable(getattr(self.timeline, "InsertFusionTitleIntoTimeline", None)):
+            try:
+                cat = self.kinetic_writer.catalog
+                if (template.name.lower() in cat._descriptors_by_template_name or 
+                    template.id.lower() in cat._descriptors_by_id or
+                    getattr(template, "category", "") == "native"):
+                    target_preset = template.name
+                    kinetic_item = self.kinetic_writer.insert_kinetic_subtitle(
+                        track_index=track_index,
+                        record_frame=self._resolve_record_frame(start_frame),
+                        duration_frames=duration,
+                        text=text,
+                        preset_id=target_preset,
+                        fps=fps,
+                        custom_name=native_name,
+                    )
+                    if kinetic_item is not None:
+                        target_y = self.target_y_by_native_name.get(native_name)
+                        if target_y is not None:
+                            try:
+                                comp = kinetic_item.GetFusionCompByIndex(1)
+                                if comp:
+                                    t = self.kinetic_writer._find_textplus_tool(comp)
+                                    if t and hasattr(t, "SetInput"):
+                                        t.SetInput("Center", [0.5, target_y])
+                            except Exception:
+                                pass
+                        self._verify_native_item(
+                            item=kinetic_item,
+                            track_type="video",
+                            track_index=track_index,
+                            record_frame=self._resolve_record_frame(start_frame),
+                            duration_frames=duration,
+                        )
+                        return kinetic_item
+            except Exception:
+                pass
+
         media = (self.handles[template.id] if template.source == "media_pool"
                  else self._get_carrier_media_item(self._plan_carrier_frames, fps=fps))
         item = self._append_media_item(media, 1, "video", track_index,

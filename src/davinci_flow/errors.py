@@ -41,6 +41,34 @@ class ScriptAlignmentError(GeminiError):
     """Error al procesar o alinear los subtítulos con el guion original."""
 
 
+class ProviderError(DaVinciFlowError):
+    """Error general de un proveedor de IA externo."""
+
+
+class MinimaxError(ProviderError):
+    """Error general en la integración con la API de Minimax."""
+
+
+class MinimaxCredentialsError(MinimaxError):
+    """La clave API de Minimax no está configurada o fue rechazada."""
+
+
+class VoiceSynthesisError(DaVinciFlowError):
+    """La locución no pudo sintetizarse o materializarse en disco."""
+
+
+class AutocorrectError(DaVinciFlowError):
+    """El autocorrector no pudo completar el lote de subtítulos."""
+
+
+class FusionEffectError(DaVinciFlowError):
+    """No se pudo generar, importar o insertar el efecto Fusion."""
+
+
+class MCPServerError(DaVinciFlowError):
+    """El servidor MCP de DaVinci Flow no pudo atender la solicitud."""
+
+
 class MarkerError(DaVinciFlowError):
     """Error al insertar o gestionar marcadores en la línea de tiempo."""
 

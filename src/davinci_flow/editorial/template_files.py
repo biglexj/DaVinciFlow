@@ -21,7 +21,9 @@ def descriptor(name: str, source: str, locator: str, content: bytes, category: s
         node, input_id = root[1], controls[0]
     if not category:
         nl = (name + " " + locator).lower()
-        if any(k in nl for k in ("short", "tiktok", "reel", "vertical")):
+        if "templates.drfx" in nl:
+            category = "native"
+        elif any(k in nl for k in ("short", "tiktok", "reel", "vertical")):
             category = "shorts"
         elif any(k in nl for k in ("youtube", "vlog", "horizontal")):
             category = "youtube"

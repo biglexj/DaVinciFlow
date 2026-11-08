@@ -1,6 +1,6 @@
 # Modelos de IA de DaVinci Flow
 
-Última actualización: 2026-09-08. Los identificadores de este registro describen el código local y las llamadas observadas; no garantizan disponibilidad futura del proveedor.
+Última actualización: 2026-10-21. Los identificadores de este registro describen el código local y las llamadas observadas; no garantizan disponibilidad futura del proveedor.
 
 | Función | Modelo configurado | Evidencia |
 |---|---|---|
@@ -28,3 +28,35 @@ Las peticiones editoriales envían texto de subtítulos, tiempos, contexto vecin
 El contrato 1.1.0 añade modo, formato, densidad, dirección creativa escrita por el usuario y nombres/categorías/IDs de hasta 80 recursos seleccionados. Los documentos se catalogan por nombre; su contenido no se lee automáticamente. El modelo compartido se persiste en `.davinci_flow/editorial_preferences.json`, separado de las credenciales. Cambiarlo afecta a propuestas nuevas, no modifica el modelo registrado en una revisión anterior.
 
 La propuesta registra el modelo y las decisiones originales. Las revisiones manuales quedan persistidas. Evidencia y límites: `process/active/2026-09-06_fase-1_textos-llm-y-plantillas/VALIDATION.md`.
+
+## Proveedores múltiples — 21 de octubre de 2026
+
+La capa `davinci_flow.ai.providers` separa el proveedor del producto: todo el
+código habla con el contrato `TextProvider` y ningún módulo depende de un proveedor
+concreto. La preferencia `provider` (`gemini` o `minimax`) se guarda en
+`.davinci_flow/editorial_preferences.json` junto al modelo.
+
+| Proveedor | Endpoint | Modelo por omisión | Alternativas |
+|---|---|---|---|
+| Google Gemini | `generativelanguage.googleapis.com/v1beta/models` | `gemini-3.5-flash` | Se descubren dinámicamente con «Escanear modelos». |
+| Minimax | `api.minimax.io/v1/text/chatcompletion_v2` | `MiniMax-M3.1-Flash` | `MiniMax-M3`, `MiniMax-M2.7`, `MiniMax-M2.5`, `MiniMax-M2.1`, `MiniMax-M2`, `MiniMax-Text-01`. |
+
+Reglas que se mantienen en los dos adaptadores:
+
+- El modelo elegido **no cambia de forma silenciosa**. Un fallo es un fallo; no se
+  sustituye el modelo ni se degrada la LLM a análisis local.
+- Tres intentos como máximo ante HTTP 500/502/503/504 y timeouts, con espera
+  progresiva y `Retry-After` acotado a 30 segundos. Los errores de cuota,
+  permisos y petición inválida no se reintentan.
+- La clave se resuelve en orden: argumento explícito, variable de entorno
+  (`GEMINI_API_KEY` / `MINIMAX_API_KEY`) y configuración local
+  (`~/.davinci_flow/config.json`). Nunca aparece en un mensaje de error.
+
+Minimax expone además **texto a voz** en `api.minimax.io/v1/t2a_v2`, con los modelos
+`speech-2.8-hd`, `speech-2.8-turbo`, `speech-2.6-hd`, `speech-2.6-turbo`,
+`speech-02-hd`, `speech-02-turbo`, `speech-01-hd` y `speech-01-turbo`. El audio vuelve
+como cadena hexadecimal y, con `subtitle_enable`, la API entrega además un archivo de
+subtítulos con las frases alineadas en milisegundos: la voz sirve para subtitular.
+El catálogo de voces de la cuenta se consulta en `api.minimax.io/v1/get_voice`.
+
+Evidencia y límites: `process/active/2026-10-21_integracion-mcp-minimax-y-capa-efectos/VALIDATION.md`.

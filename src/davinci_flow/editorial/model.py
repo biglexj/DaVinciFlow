@@ -56,7 +56,7 @@ class Template:
     category: str = "general"
 
     def __post_init__(self) -> None:
-        if self.source not in ("installed_file", "installed_archive", "media_pool") or not all(
+        if self.source not in ("installed_file", "installed_archive", "media_pool", "native") or not all(
             isinstance(v, str) and v.strip() for v in (self.id, self.name, self.locator)
         ):
             raise EditorialError("Descriptor de plantilla inválido.")
@@ -81,10 +81,14 @@ class Snapshot:
     first: int = 1
     last: int = 120
     project_id: str = ""
+    cut_source_refs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.source not in ("resolve", "srt") or not self.cues:
             raise EditorialError("La fuente debe contener subtítulos.")
+        if ((self.cut_source_refs and len(self.cut_source_refs) != len(self.cuts))
+                or any(not isinstance(ref, str) for ref in self.cut_source_refs)):
+            raise EditorialError("Las referencias de medios del montaje son inválidas.")
         if not math.isfinite(self.fps) or self.fps <= 0 or min(self.width, self.height, self.track) < 1:
             raise EditorialError("FPS, resolución o pista inválidos.")
         previous_end = -1.0
@@ -259,6 +263,7 @@ class Proposal:
             raw = data["snapshot"]
             raw["cues"] = tuple(SubtitleCue(**c) for c in raw["cues"])
             raw["cuts"] = tuple(tuple(c) for c in raw.get("cuts", []))
+            raw["cut_source_refs"] = tuple(raw.get("cut_source_refs", ()))
             result = cls(Snapshot(**raw), tuple(Template(**t) for t in data["templates"]),
                          tuple(Decision(**d) for d in data["decisions"]), data["model"], data["version"], options)
             result.validate()

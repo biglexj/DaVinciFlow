@@ -8,6 +8,10 @@ Plan de trabajo, objetivos de producto y hoja de ruta estratégica del proyecto.
 
 ## 🔴 Pendientes activos
 
+- [ ] **Plataforma integrada: Minimax, efectos Fusion editables, subtítulos nativos y DaVinci Flow como herramienta MCP** — `process/active/2026-10-21_integracion-mcp-minimax-y-capa-efectos/`
+  - Capa `ai/providers` con contrato `TextProvider` y adaptadores de Google Gemini y Minimax (`chatcompletion_v2`), selectable en Ajustes. Locución con Minimax (`t2a_v2`) que devuelve subtítulos alineados a la propia voz. Autocorrector por etapas (normalización, glosario, IA) con diff auditable. Capa de efectos Fusion que genera composiciones y títulos nativos **editables** en el Inspector, y escritura de cues en la pista nativa de subtítulos de Resolve. Servidor MCP propio que publica 13 herramientas para operar el producto desde cualquier agente.
+- [ ] **Títulos nativos integrados de DaVinci Resolve (Fusion .settings) sin dependencia de Media Pool** — `process/active/2026-10-11_titulos-nativos-integrados-davinci/`
+  - Inserción y configuración directa de títulos integrados (`Text+`, `Fade On`, `Text Box`, `Ribbon Text`, `Statement`, `Rise Fade`, etc.) mediante `InsertFusionTitleIntoTimeline` y escaneo de `Templates.drfx`. Eliminación de dependencias de importación de bandejas (`.drb` tipo SnapCaptions) manteniendo editabilidad total en el Inspector de DaVinci Resolve.
 - [ ] **Asignación configurable de pistas (1, 2 o 3 filas) para Fusion Titles frente al límite de SnapCaptions** — `process/active/2026-10-10_modos-de-pistas-multicapa-fusion/`
   - Selección dinámica de modo de pistas: `single` (1 fila única tipo SnapCaptions), `dual` (2 filas: Base + Énfasis) y `triple` (3 filas completas: Contexto + Principal + Énfasis). Enrutamiento flexible sin forzar pistas no requeridas y soporte de selección en UI de DaVinci Flow.
 - [ ] **Subtítulos cinéticos nativos (Statement en V3) y sincronización automática de SFX en Shorts** — `process/active/2026-09-24_subtitulos-cineticos-statement-y-sfx-shorts/`

@@ -1,6 +1,14 @@
 import asyncio
 import flet as ft
 
+from davinci_flow.ai.model_catalog import capability_for
+from davinci_flow.editorial.batch_run import (
+    BATCH_CHOICES,
+    EditorialBatchRun,
+    EditorialBatchStore,
+    capture_full_sequence,
+    generate_next_batch,
+)
 from davinci_flow.editorial.model import EditorialConflictError, EditorialError
 from davinci_flow.sfx.catalog import DEFAULT_SFX_ASSETS
 from shared.components import (
@@ -20,12 +28,21 @@ class EditorView:
         self.fps = field('FPS SRT', '24', 90)
         self.first = field('Desde', '1', 80)
         self.last = field('Hasta', '120', 80)
+        self.batch_size = select('Tamaño de tanda', {
+            '20': '20 subtítulos',
+            '50': '50 subtítulos',
+            '100': '100 subtítulos',
+            '500': '500 subtítulos',
+            'all': 'Todo en una petición',
+        }, getattr(p, 'batch_size', '20'), 190)
+        self.batch_run: EditorialBatchRun | None = None
+        self.batch_progress = text('Sin avance por tandas', color=MUTED)
         self.mode = select('Modo', MODES, p.mode, 190)
         self.format = select('Formato', FORMATS, p.format, 180)
         self.density = select('Densidad', DENSITIES, p.density, 160)
         self.track_mode = select('Pistas de texto', TRACK_MODES, getattr(p, 'track_mode', 'triple'), 220)
-        self.direction = field('Dirección creativa', p.direction, hint_text='Pocas palabras grandes; alternar con planos sin texto.',
-                               multiline=False, expand=True)
+        self.direction = field('Dirección creativa', p.direction, width=340,
+                               hint_text='Pocas palabras grandes; alternar con planos sin texto.', multiline=False)
 
         self.source_summary = text('Captura los subtítulos de tu montaje o abre un SRT.', color=MUTED)
         self.count = text('Sin fuente', color=MUTED)
@@ -34,6 +51,7 @@ class EditorView:
             ('Tiempo', 'Contexto', 'Principal', 'Énfasis', 'Sonido', 'Plantilla', 'Revisión')],
             rows=[], heading_row_height=38, data_row_min_height=40, data_row_max_height=44,
             column_spacing=18, horizontal_margin=14, show_checkbox_column=False,
+            bgcolor=CARD, data_row_color=CARD,
             heading_row_color='#242C30', divider_thickness=0.4)
         self.empty = card(ft.Column([ft.Icon(ft.Icons.SUBTITLES_OUTLINED, color=ACCENT, size=32),
             text('Las ideas empiezan con tu montaje', size=17, weight=ft.FontWeight.W_500),
@@ -86,6 +104,8 @@ class EditorView:
             card(ft.Column([
                 ft.Row([self.track, self.fps, self.first, self.last,
                     button('Capturar Resolve', app.bind(self.capture), ft.Icons.VIDEO_LIBRARY_OUTLINED),
+                    button('Capturar pista completa', app.bind(self.capture_full), ft.Icons.SUBTITLES_OUTLINED,
+                           tooltip='Captura todos los subtítulos de la pista activa y conserva propuestas previas compatibles'),
                     button('◀ Bloque ant.', app.bind(self.prev_block_range), ft.Icons.NAVIGATE_BEFORE_ROUNDED, tooltip='Retroceder y cargar el bloque anterior de subtítulos'),
                     button('Bloque sig. ▶', app.bind(self.next_block_range), ft.Icons.NAVIGATE_NEXT_ROUNDED, tooltip='Avanzar y capturar el siguiente bloque de subtítulos en Resolve'),
                     button('Cargar SRT', app.bind(self.open_srt), ft.Icons.UPLOAD_FILE_OUTLINED)], wrap=True, spacing=8, run_spacing=10),
@@ -94,14 +114,18 @@ class EditorView:
             ft.Row([self.mode, self.format, self.density, self.track_mode], wrap=True, spacing=10, run_spacing=10),
             ft.Row([
                 self.direction,
-                button('Proponer con IA', app.bind(self.generate), ft.Icons.AUTO_AWESOME, primary=True),
+                self.batch_size,
+                button('Generar tanda', app.bind(self.generate_batch), ft.Icons.AUTO_AWESOME, primary=True),
+                button('Completar secuencia', app.bind(self.generate_all), ft.Icons.PLAY_CIRCLE_OUTLINE_ROUNDED,
+                       tooltip='Procesa y guarda cada tanda hasta terminar todos los subtítulos'),
                 button('Abrir propuesta', app.bind(self.load), ft.Icons.FOLDER_OPEN),
                 button('Guardar', app.bind(self.save), ft.Icons.SAVE_OUTLINED),
                 button('Aprobar todo', app.bind(self.approve_all), ft.Icons.DONE_ALL,
                        tooltip='Aprobar todos los bloques de la propuesta actual'),
-            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ], spacing=8, run_spacing=8, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Row([
                 self.count,
+                self.batch_progress,
                 ft.Row([
                     button('Aplicar revisión', app.bind(self.apply), ft.Icons.PLAY_ARROW_ROUNDED, primary=True,
                            tooltip='Se aplica la revisión guardada, sin volver a llamar a la IA.'),
@@ -110,7 +134,8 @@ class EditorView:
                     button('Limpiar', app.bind(self.clean_tracks), ft.Icons.CLEANING_SERVICES_OUTLINED,
                            tooltip='Vaciar las pistas de DaVinci Flow (DF_CONTEXT, DF_MAIN, DF_ACCENT, DF_SFX) en Resolve'),
                 ], wrap=True, spacing=8, run_spacing=8),
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+               run_spacing=8, wrap=True),
             self.empty, self.initial_loading, self.table_view, self.review_card,
         ], spacing=10, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
 
@@ -164,6 +189,9 @@ class EditorView:
             if self.controller.snapshot is None:
                 self.app.notify('Captura primero una secuencia antes de aplicar.')
                 return
+            if self.batch_run is not None and not self.batch_run.complete:
+                self.app.notify('Completa todas las tandas antes de pasar a la aplicación en Resolve.')
+                return
             if self.controller.proposal is None:
                 self.app.notify('Genera o revisa una propuesta antes de aplicar en Resolve.')
                 return
@@ -175,6 +203,7 @@ class EditorView:
         p = self.controller.preferences
         p.mode, p.format, p.density, p.direction = self.mode.value, self.format.value, self.density.value, self.direction.value.strip()
         p.track_mode = self.track_mode.value or 'triple'
+        p.batch_size = self.batch_size.value if self.batch_size.value in BATCH_CHOICES else '20'
 
 
     def refresh(self):
@@ -202,7 +231,9 @@ class EditorView:
         cuts_count = len(snapshot.cuts) if snapshot.cuts else 0
         cuts_str = f" · {cuts_count} cortes" if cuts_count > 0 else ""
         montage_type = "Montaje avanzado" if cuts_count > 0 else "Secuencia"
-        self.source_summary.value = f'{montage_type}: {snapshot.timeline} · {len(snapshot.cues)} subtítulos{cuts_str} · {snapshot.width} × {snapshot.height} · {snapshot.fps:g} fps'
+        batch_suffix = (f' · avance de secuencia: {self.batch_run.processed}/{self.batch_run.total}'
+                        if self.batch_run is not None else '')
+        self.source_summary.value = f'{montage_type}: {snapshot.timeline} · {len(snapshot.cues)} subtítulos{cuts_str}{batch_suffix} · {snapshot.width} × {snapshot.height} · {snapshot.fps:g} fps'
         catalog = {t.id: t.name for t in proposal.templates} if proposal else {}
         sfx_names = {a.id: a.name for a in DEFAULT_SFX_ASSETS}
         if proposal and proposal.options and getattr(proposal.options, 'resources', None):
@@ -220,7 +251,7 @@ class EditorView:
                       sfx_label,
                       ', '.join(dict.fromkeys(catalog.get(t, '') for t in decision.templates.values())) if decision else 'Por elegir',
                       ('Revisado' if decision.reviewed else 'Pendiente') if decision else 'Fuente')
-            row_bg = '#3B1818' if conflict else ('#173A35' if i == self.selected else None)
+            row_bg = '#3B1818' if conflict else ('#173A35' if i == self.selected else CARD)
             text_color = '#EF4444' if conflict else (MUTED if decision and not decision.enabled else TEXT)
             cells = []
             for col_idx, (value, width) in enumerate(zip(values, (110, 130, 230, 130, 120, 170, 90))):
@@ -241,6 +272,14 @@ class EditorView:
         reviewed = sum(d.reviewed for d in proposal.decisions) if proposal else 0
         active = sum(d.enabled for d in proposal.decisions) if proposal else 0
         self.count.value = f'{active} rótulos · {reviewed}/{len(snapshot.cues)} revisados' if proposal else f'{len(snapshot.cues)} subtítulos originales'
+        if self.batch_run is None:
+            self.batch_progress.value = 'Sin avance por tandas'
+        else:
+            next_number = self.batch_run.next_subtitle_number
+            suffix = f' · siguiente #{next_number}' if next_number is not None else ' · secuencia completa'
+            self.batch_progress.value = (
+                f'{self.batch_run.processed}/{self.batch_run.total} subtítulos procesados{suffix}'
+            )
         self.app.refresh_identity()
 
     def form_changed(self):
@@ -264,11 +303,148 @@ class EditorView:
         track, first, last = int(self.track.value), int(self.first.value), int(self.last.value)
         result = await self.app.run('Leyendo subtítulos de Resolve…', lambda: self.controller.read_resolve(track, first, last))
         if result:
+            self.batch_run = None
             self.selected = None
             self.review_card.visible = False
             self.user_stage = None
             self.refresh()
             self.app.notify('Fuente capturada. Elige la dirección creativa y genera una propuesta.')
+
+    def _capture_or_reuse_batch(self, track: int):
+        source = self.controller.snapshot
+        seed = self.controller.proposal
+        templates = tuple(self.controller.templates)
+        if self.batch_run is not None and self.batch_run.snapshot.source == 'srt':
+            snapshot = self.batch_run.snapshot
+        elif source is None or source.source == 'resolve':
+            snapshot, captured_templates = capture_full_sequence(track)
+            if not templates:
+                templates = captured_templates
+        else:
+            snapshot = source
+        options = self.controller.options()
+        return EditorialBatchStore().create_or_resume(snapshot, templates, options, seed)
+
+    def _show_batch_run(self, run: EditorialBatchRun):
+        self.batch_run = run
+        prefix_end = run.next_index if run.next_index is not None else run.total
+        if run.complete:
+            proposal = run.proposal()
+            self.controller.snapshot = run.snapshot
+            self.controller.proposal = proposal
+        elif prefix_end:
+            proposal = run.batch_proposal(0, prefix_end, self.controller.preferences.model)
+            self.controller.snapshot = proposal.snapshot
+            self.controller.proposal = proposal
+        else:
+            self.controller.snapshot = run.snapshot
+            self.controller.proposal = None
+        self.controller.templates = run.templates
+        self.controller.dirty = self.controller.proposal is not None
+        self.selected = None
+        self.review_card.visible = False
+        self.user_stage = 2 if self.controller.proposal else 1
+        self.refresh()
+
+    def _persist_visible_batch_review(self):
+        if self.batch_run is not None and self.controller.proposal is not None:
+            self.batch_run.merge_visible_proposal(self.controller.proposal)
+            EditorialBatchStore().save(self.batch_run)
+
+    def _batch_generator_args(self):
+        preferences = self.controller.preferences
+        settings = getattr(self.app, 'settings', None)
+        capabilities = getattr(settings, 'capabilities', ()) if settings is not None else ()
+        long_context_enabled = bool(getattr(preferences, 'long_context_enabled', False))
+        capability = capability_for(preferences.provider, preferences.model, capabilities)
+        if long_context_enabled and not (capability.long_context and capability.supports_structured_output):
+            raise EditorialError(
+                'El modelo seleccionado no tiene un límite de contexto largo verificado y salida estructurada. '
+                'Elige otro modelo en Ajustes o desactiva esa opción.'
+            )
+        return (
+            preferences.batch_size,
+            preferences.provider,
+            preferences.model,
+            long_context_enabled,
+            capability,
+        )
+
+    async def capture_full(self):
+        if self.form_changed():
+            raise EditorialError('Guarda primero la revisión del bloque antes de capturar toda la pista.')
+        self.sync_preferences()
+        self.controller.save_preferences()
+        track = int(self.track.value)
+        result = await self.app.run('Capturando toda la pista de subtítulos y buscando avances…',
+                                    lambda: self._capture_or_reuse_batch(track), reraise=True)
+        if result:
+            run, message = result
+            self._show_batch_run(run)
+            self.app.notify(message or f'Pista completa capturada: {run.total} subtítulos.')
+
+    async def _prepare_batch(self):
+        if self.form_changed():
+            raise EditorialError('Guarda primero la revisión del bloque antes de procesar otra tanda.')
+        self.sync_preferences()
+        self.controller.save_preferences()
+        track = int(self.track.value)
+        result = await self.app.run('Capturando la secuencia completa y reanudando el avance…',
+                                    lambda: self._capture_or_reuse_batch(track), reraise=True)
+        if not result:
+            return False
+        run, message = result
+        self._show_batch_run(run)
+        if message:
+            self.app.notify(message)
+        return True
+
+    async def generate_batch(self):
+        if not await self._prepare_batch():
+            return
+        run = self.batch_run
+        if run is None:
+            return
+        batch_size, provider, model, long_context_enabled, capability = self._batch_generator_args()
+        next_number = run.next_subtitle_number
+        if next_number is None:
+            self.app.notify('La secuencia ya está completa; puedes revisar y aplicar la propuesta.')
+            return
+        result = await self.app.run(
+            f'Generando subtítulos desde #{next_number}…',
+            lambda: generate_next_batch(run, batch_size, provider, model,
+                                        long_context_enabled, capability),
+            reraise=True,
+        )
+        if result:
+            start, end, _ = result
+            self._show_batch_run(run)
+            self.app.notify(
+                f'Tanda guardada: subtítulos {run.snapshot.first + start}–{run.snapshot.first + end - 1}. '
+                f'Avance {run.processed}/{run.total}.'
+            )
+
+    async def generate_all(self):
+        if not await self._prepare_batch():
+            return
+        run = self.batch_run
+        if run is None:
+            return
+        batch_size, provider, model, long_context_enabled, capability = self._batch_generator_args()
+        while not run.complete:
+            next_number = run.next_subtitle_number
+            result = await self.app.run(
+                f'Procesando la secuencia: empieza en #{next_number}…',
+                lambda: generate_next_batch(run, batch_size, provider, model,
+                                            long_context_enabled, capability),
+                reraise=True,
+            )
+            if not result:
+                break
+            self._show_batch_run(run)
+            self.app.page.update()
+        if run.complete:
+            self.app.notify(f'Secuencia completa: {run.total} subtítulos procesados y guardados. Revisa la propuesta antes de aplicar.')
 
     async def next_block_range(self):
         if not await self.replacement_allowed():
@@ -309,6 +485,7 @@ class EditorView:
         path = await self.app.pick_file('Abrir subtítulos', ['srt'])
         if path:
             self.controller.read_srt(path, float(self.fps.value))
+            self.batch_run = None
             self.selected = None
             self.review_card.visible = False
             self.user_stage = None
@@ -372,6 +549,7 @@ class EditorView:
         self.controller.review(self.selected, **texts, templates=assigned,
                                resource_id=sfx_val,
                                enabled=bool(self.enabled.value), edit_note=self.note.value.strip())
+        self._persist_visible_batch_review()
         self.refresh()
         self.app.notify('Revisión del bloque guardada en la propuesta.')
 
@@ -393,6 +571,7 @@ class EditorView:
         path = await self.app.pick_file('Abrir propuesta editorial', ['json'])
         if path:
             self.controller.load_proposal(path)
+            self.batch_run = None
             p = self.controller.preferences
             self.mode.value, self.format.value, self.density.value = p.mode, p.format, p.density
             self.track_mode.value = getattr(p, 'track_mode', 'triple')
@@ -421,12 +600,19 @@ class EditorView:
         if self.form_changed():
             raise EditorialError('Guarda primero la revisión del bloque que estás editando.')
         self.controller.approve_all()
+        self._persist_visible_batch_review()
         self.refresh()
         self.app.notify('Todos los bloques han sido aprobados como revisados.')
 
     async def apply(self):
         if self.form_changed():
             raise EditorialError('Guarda primero la revisión del bloque.')
+        if self.batch_run is not None and not self.batch_run.complete:
+            remaining = self.batch_run.total - self.batch_run.processed
+            raise EditorialError(
+                f'La secuencia está incompleta: faltan {remaining} subtítulos. '
+                'Completa todas las tandas antes de aplicar en Resolve.'
+            )
         if self.controller.proposal is None:
             raise EditorialError('No hay una propuesta para aplicar.')
         unreviewed = [d for d in self.controller.proposal.decisions if not d.reviewed]

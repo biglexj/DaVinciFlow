@@ -24,7 +24,7 @@ Una propuesta SRT offline no se aplica a una secuencia sin identidad comprobada.
 6. Reproducir: verificar legibilidad, superposición de capas, animaciones y recursos externos. Las plantillas conservan su diseño; no se recolorean ni reposicionan automáticamente.
 7. Reaplicar sin duplicar y deshacer. Para otra revisión, deshacer la anterior primero; la regeneración selectiva pertenece a fase 2.
 
-Se rechazan cambios en la secuencia, archivos de plantilla modificados, pistas bloqueadas y clips ajenos solapados. Un texto generado editado manualmente tampoco se sobrescribe silenciosamente.
+Se rechazan cambios en el montaje que cubre la revisión o en sus subtítulos, archivos de plantilla modificados, pistas bloqueadas y clips ajenos solapados. Una copia duplicada dentro del mismo proyecto puede reutilizar la revisión si conserva los mismos subtítulos y los medios, posiciones y tiempos de ese intervalo; la ejecución queda ligada a la copia activa. Un texto generado editado manualmente tampoco se sobrescribe silenciosamente.
 
 ## Compatibilidad y límites
 

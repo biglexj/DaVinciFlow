@@ -433,8 +433,16 @@ class ResolveTimelineWriter:
         if template_media_item is None and callable(getattr(self.timeline, "InsertFusionTitleIntoTimeline", None)):
             try:
                 preset_id = animation_preset
-                if preset_id in ("kinetic_pulse", "pop_bounce", "none", "slide_up") or not self.kinetic_writer.catalog.get(preset_id):
-                    preset_id = "statement"
+                try:
+                    self.kinetic_writer.catalog.get(preset_id)
+                except Exception:
+                    # Mapear animaciones genéricas o presets abstractos a títulos nativos de Resolve
+                    if role == "accent":
+                        preset_id = "statement"
+                    elif role == "context":
+                        preset_id = "fade_on" if "fade_on" in self.kinetic_writer.catalog._descriptors_by_id else "statement"
+                    else:
+                        preset_id = "statement"
                 
                 font_name = (
                     theme.font_family_context

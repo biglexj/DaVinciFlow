@@ -30,6 +30,23 @@ class TestKineticTitleCatalog(unittest.TestCase):
         self.assertIn("lollipop", ids)
         self.assertIn("slide_in", ids)
 
+    def test_native_titles_registered(self) -> None:
+        titles = self.catalog.list_all()
+        ids = {t.id for t in titles}
+        self.assertIn("text_plus", ids)
+        self.assertIn("ribbon_text", ids)
+        self.assertIn("text_box", ids)
+        self.assertIn("fade_on", ids)
+        self.assertIn("rise_fade", ids)
+        self.assertIn("drop_in", ids)
+        self.assertIn("digital_glitch", ids)
+
+    def test_list_by_category(self) -> None:
+        natives = self.catalog.list_by_category("Native")
+        self.assertGreater(len(natives), 0)
+        animated = self.catalog.list_by_category("Animated")
+        self.assertGreater(len(animated), 0)
+
     def test_get_by_id_case_insensitive(self) -> None:
         desc = self.catalog.get("StAtEmEnT")
         self.assertEqual(desc.id, "statement")
@@ -195,6 +212,61 @@ class TestKineticTitleWriter(unittest.TestCase):
         mock_tool.SetInput.assert_any_call("Style", "Black")
         mock_tool.SetInput.assert_any_call("HBackR", 0.5)
         mock_tool.SetInput.assert_any_call("Roundness", 0.2)
+
+    def test_find_textplus_tool_nested_in_group(self) -> None:
+        mock_comp = MagicMock()
+        mock_comp.FindTool.return_value = None  # FindTool estándar no lo encuentra en raíz
+
+        mock_tool = MagicMock()
+        mock_tool.GetAttrs.return_value = {"TOOLS_RegID": "TextPlus"}
+
+        mock_comp.GetToolList.side_effect = lambda recursive=False: (
+            {"Text2_1": mock_tool} if recursive else {"RibbonTextGroup": MagicMock()}
+        )
+
+        found = self.writer._find_textplus_tool(mock_comp)
+        self.assertIs(found, mock_tool)
+
+    def test_update_fusion_text_fallback_to_input1(self) -> None:
+        mock_item = MagicMock()
+        mock_comp = MagicMock()
+        mock_tool = MagicMock()
+
+        mock_item.GetFusionCompByIndex.return_value = mock_comp
+        mock_comp.FindTool.return_value = mock_tool
+
+        def mock_set_input(key, val):
+            if key == "StyledText":
+                return False  # Rechaza StyledText directo en macros
+            return True
+
+        mock_tool.SetInput.side_effect = mock_set_input
+
+        success = self.writer.update_fusion_text_and_style(
+            item=mock_item,
+            text="Texto para Macro",
+        )
+
+        self.assertTrue(success)
+        mock_tool.SetInput.assert_any_call("StyledText", "Texto para Macro")
+        mock_tool.SetInput.assert_any_call("Input1", "Texto para Macro")
+
+    def test_insert_fallback_to_insert_title_into_timeline(self) -> None:
+        self.mock_timeline.GetTrackCount.return_value = 1
+        self.mock_timeline.InsertFusionTitleIntoTimeline.return_value = None
+        mock_item = MagicMock()
+        self.mock_timeline.InsertTitleIntoTimeline.return_value = mock_item
+
+        result = self.writer._insert_via_playhead_and_marks(
+            descriptor=self.writer.catalog.get("text_plus"),
+            track_index=1,
+            record_frame=100,
+            duration_frames=24,
+            fps=24.0,
+        )
+
+        self.assertIs(result, mock_item)
+        self.mock_timeline.InsertTitleIntoTimeline.assert_called_with("Text+")
 
 
 if __name__ == "__main__":

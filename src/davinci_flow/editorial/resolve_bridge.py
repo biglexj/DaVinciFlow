@@ -15,7 +15,8 @@ from davinci_flow.generation.record import GenerationExecutionRecord
 from davinci_flow.subtitles.model import SubtitleCue
 from davinci_flow.resolve.mcp_client import MCPError, ResolveMCP, find_mcp_executable
 
-OPERATIONS = {'capture', 'titles', 'apply', 'undo', 'clean_tracks'}
+OPERATIONS = {'capture', 'titles', 'apply', 'undo', 'clean_tracks', 'fusion_effect', 'native_title', 'subtitles'}
+WRITING_OPERATIONS = {'apply', 'undo', 'fusion_effect', 'native_title', 'subtitles'}
 RESULT_PREFIX = 'DAVINCI_FLOW_RESULT='
 SOURCE = Path(__file__).resolve().parents[2]
 
@@ -132,6 +133,7 @@ def read_resolve(track=1, first=1, last=120):
     raw = data['snapshot']
     raw['cues'] = tuple(SubtitleCue(**cue) for cue in raw['cues'])
     raw['cuts'] = tuple(tuple(cut) for cut in raw.get('cuts', ()))
+    raw['cut_source_refs'] = tuple(raw.get('cut_source_refs', ()))
     return Snapshot(**raw), tuple(Template(**t) for t in data['templates'])
 
 
@@ -194,9 +196,38 @@ def dispatch(operation, parameters, *, session=None):
         if proposal is None:
             raise EditorialError('No se proporcionó una propuesta válida para aplicar.')
         s = proposal.snapshot
-        project_id = s.project_id or str(session.project.GetUniqueId())
-        timeline_id = s.timeline_id or str(session.timeline.GetUniqueId())
+        project_id = str(session.project.GetUniqueId() or s.project_id)
+        timeline_id = str(session.timeline.GetUniqueId() or s.timeline_id)
         return apply_reviewed(proposal, session, record_path_for(project_id, timeline_id)).to_dict()
+    if operation == 'fusion_effect':
+        from davinci_flow.resolve.fusion_effects import FusionEffectSpec, FusionEffectWriter
+        spec = FusionEffectSpec(**parameters['spec'])
+        writer = FusionEffectWriter(session)
+        return writer.insert_composition(
+            spec,
+            float(parameters['start_frame']),
+            float(parameters['duration_frames']),
+            parameters.get('track_index'),
+        ).to_dict()
+    if operation == 'native_title':
+        from davinci_flow.resolve.fusion_effects import FusionEffectWriter
+        writer = FusionEffectWriter(session)
+        return writer.insert_native_title(
+            str(parameters['template_name']),
+            float(parameters['start_frame']),
+            float(parameters['duration_frames']),
+            parameters.get('track_index'),
+        ).to_dict()
+    if operation == 'subtitles':
+        from davinci_flow.resolve.subtitle_writer import SubtitleTrackWriter
+        cues = tuple(SubtitleCue(**cue) for cue in parameters['cues'])
+        writer = SubtitleTrackWriter(session)
+        written = writer.write(
+            cues,
+            parameters.get('track_index'),
+            str(parameters.get('file_name') or 'davinci-flow'),
+        )
+        return asdict(written)
     return undo_reviewed(session, record_path_for(str(session.project.GetUniqueId()),
                                                   str(session.timeline.GetUniqueId()))).to_dict()
 

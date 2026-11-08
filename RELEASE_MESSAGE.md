@@ -24,6 +24,9 @@ Nos complace presentar **DaVinci Flow v0.3.0**, una gran evolución arquitectón
 4. **🧪 Calidad y Robustez Verificada**:
    - 180 pruebas unitarias automatizadas superadas con éxito y scripts de lanzamiento directo (`scripts/start-desktop.ps1`).
 
+5. **📦 Instalador de Windows modernizado con Inno Setup**:
+   - Pantalla única de entrada, progreso y éxito nativos, tema claro/oscuro automático, instalación por usuario sin elevación y actualización sin instalación paralela.
+
 ---
 
 ### 📦 Instalación y Uso Rápido
@@ -39,6 +42,8 @@ Nos complace presentar **DaVinci Flow v0.3.0**, una gran evolución arquitectón
    ```
 3. O en **DaVinci Resolve**, accede desde el menú superior:
    **Área de trabajo -> Secuencias de comandos -> DaVinci Flow**.
+4. O descarga el instalador de Windows ya compilado:
+   **[DaVinciFlow-Setup-0.3.0.exe](https://github.com/biglexj/DaVinciFlow/releases/download/v0.3.0/DaVinciFlow-Setup-0.3.0.exe)** — instalación por usuario, sin elevación.
 
 ---
 

@@ -1,0 +1,81 @@
+[23:44:43] Lanzando el instalador: D:\Proyectos\biglexj\DaVinciFlow\dist\DaVinciFlow-Setup-0.3.0.exe
+[23:44:45] proceso propio del instalador: pid=19036
+[23:44:45] ventana del asistente: hwnd=6621886
+[23:44:45] controles -> edit=15733666 carpeta=17044502 instalar=15007924
+[23:44:45] foco inicial: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TEdit 'D:\Proyectos\biglexj\DaVinciFlow\packaging\windows\build\validation\instalacion-prueba' | caret=si
+[23:44:45] captura 01-entrada-oscuro.png
+[23:44:45] Escribiendo una ruta nueva en el campo: D:\Proyectos\biglexj\DaVinciFlow\packaging\windows\build\validation\instalacion-prueba-b
+[23:44:47] foco tras escribir: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TEdit 'D:\Proyectos\biglexj\DaVinciFlow\packaging\windows\build\validation\instalacion-prueba' | caret=si
+[23:44:48] captura 02-ruta-editable.png
+[23:44:48] Tab en el campo de ruta
+[23:44:49] foco tras Tab: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TBitmapButton 'Elegir carpeta de instalación' | caret=no
+[23:44:49] captura 03-foco-carpeta.png
+[23:44:49] Enter sobre el boton de carpeta
+[23:44:50] selector de carpeta ABIERTO: 'Selecciona la ubicación de instalación'
+[23:44:50] captura 04-selector-carpeta.png
+[23:44:52] el selector se cerro: True
+[23:44:52] Shift+Tab sobre el boton de carpeta (debe volver a la ruta)
+[23:44:53] foco tras Shift+Tab: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TEdit 'D:\Proyectos\biglexj\DaVinciFlow\packaging\windows\build\validation\instalacion-prueba' | caret=si
+[23:44:53] captura 05-shift-tab.png
+[23:44:53] Ciclo Tab completo: ruta -> carpeta -> instalar
+[23:44:54]   1: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TBitmapButton 'Elegir carpeta de instalación' | caret=no
+[23:44:56]   2: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TBitmapButton 'Instalar DaVinci Flow' | caret=no
+[23:44:57]   3: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TEdit 'D:\Proyectos\biglexj\DaVinciFlow\packaging\windows\build\validation\instalacion-prueba' | caret=si
+[23:44:58]   4 (vuelve al inicio): ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TEdit 'D:\Proyectos\biglexj\DaVinciFlow\packaging\windows\build\validation\instalacion-prueba' | caret=si
+[23:44:58] captura 06-ciclo-tab.png
+[23:44:58] Comprobando la cancelacion con la X del motor
+[23:44:58] boton Cancelar nativo presente: 0
+[23:57:19] Lanzando el instalador: D:\Proyectos\biglexj\DaVinciFlow\dist\DaVinciFlow-Setup-0.3.0.exe
+[23:57:23] proceso propio del instalador: pid=28032
+[23:57:23] ventana del asistente: hwnd=32967036
+[23:57:23] controles -> edit=15143520 carpeta=20059600 instalar=5246686
+[23:57:23] foco inicial: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TEdit 'C:\Users\biglexj\AppData\Local\Programs\DaVinciFlow' | caret=si
+[23:57:23] captura 01-entrada-oscuro.png
+[23:57:23] Enter sobre el boton Instalar
+[00:02:25] AVISO: no se pudo capturar la pantalla de progreso
+[00:02:25] AVISO: no se alcanzo la pantalla de exito
+[00:11:46] Lanzando el instalador: D:\Proyectos\biglexj\DaVinciFlow\dist\DaVinciFlow-Setup-0.3.0.exe
+[00:11:48] proceso propio del instalador: pid=21448
+[00:11:48] ventana del asistente: hwnd=5834298
+[00:11:48] controles -> edit=18416984 carpeta=19336876 instalar=8984096
+[00:11:48] foco inicial: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TEdit 'C:\Users\biglexj\AppData\Local\Programs\DaVinciFlow' | caret=si
+[00:11:48] captura 01-entrada-oscuro.png
+[00:11:48] Enter sobre el boton Instalar
+[00:11:50] captura 07-progreso.png
+[00:11:50] pantalla de PROGRESO capturada
+[00:11:52] captura 08-exito.png
+[00:11:52] pantalla de EXITO capturada
+[00:11:52] foco en la pantalla de exito: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TNewButton '&Finalizar' | caret=no
+[00:11:52] Enter sobre Finalizar
+[00:11:52] boton Finalizar: 0
+[00:11:55] el instalador sigue abierto tras Enter: True
+[00:17:58] Lanzando el instalador: D:\Proyectos\biglexj\DaVinciFlow\dist\DaVinciFlow-Setup-0.3.0.exe
+[00:18:00] proceso propio del instalador: pid=55896
+[00:18:00] ventana del asistente: hwnd=19012244
+[00:18:00] controles -> edit=57020486 carpeta=18617366 instalar=4785052
+[00:18:00] foco inicial: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=si | foco=TEdit 'C:\Users\biglexj\AppData\Local\Programs\DaVinciFlow' | caret=si
+[00:18:00] captura 01-entrada-oscuro.png
+[00:18:00] Enter sobre el boton Instalar
+[00:18:02] captura 07-progreso.png
+[00:18:02] pantalla de PROGRESO capturada
+[00:18:06] captura 08-exito.png
+[00:18:06] pantalla de EXITO capturada
+[00:18:06] foco en la pantalla de exito: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=si | foco=TNewButton '&Finalizar' | caret=no
+[00:18:06] Enter sobre Finalizar
+[00:18:06] boton Finalizar: 0
+[00:18:09] el instalador sigue abierto tras Enter: True
+[00:35:30] Lanzando el instalador: D:\Proyectos\biglexj\DaVinciFlow\dist\DaVinciFlow-Setup-0.3.0.exe
+[00:35:33] proceso propio del instalador: pid=58312
+[00:35:33] ventana del asistente: hwnd=3802570
+[00:35:33] controles -> edit=15860998 carpeta=62460074 instalar=14489176
+[00:35:33] foco inicial: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TEdit 'C:\Users\biglexj\AppData\Local\Programs\DaVinciFlow' | caret=si
+[00:35:33] captura 01-entrada-oscuro.png
+[00:35:33] Enter sobre el boton Instalar
+[00:35:35] captura 07-progreso.png
+[00:35:35] pantalla de PROGRESO capturada
+[00:35:37] captura 08-exito.png
+[00:35:37] pantalla de EXITO capturada
+[00:35:37] foco en la pantalla de exito: ventana='Instalar DaVinci Flow' (TWizardForm) primerPlano=no | foco=TNewButton '&Finalizar' | caret=no
+[00:35:37] Enter sobre Finalizar
+[00:35:37] boton Finalizar: 0
+[00:35:40] el instalador sigue abierto tras Enter: True

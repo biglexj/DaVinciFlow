@@ -99,6 +99,8 @@ class SubtitlesView:
             column_spacing=16,
             horizontal_margin=14,
             show_checkbox_column=False,
+            bgcolor=CARD,
+            data_row_color=CARD,
             heading_row_color='#242C30',
             divider_thickness=0.4,
         )
@@ -252,7 +254,7 @@ class SubtitlesView:
                 ft.DataRow(
                     cells=cells,
                     selected=i == self.selected_index,
-                    color='#173A35' if i == self.selected_index else None,
+                    color='#173A35' if i == self.selected_index else CARD,
                     on_select_change=self.app.bind(self.choose_cue, i),
                 )
             )

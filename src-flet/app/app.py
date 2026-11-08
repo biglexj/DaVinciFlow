@@ -8,7 +8,7 @@ from pathlib import Path
 import flet as ft
 
 from davinci_flow.editorial.controller import EditorialController
-from shared.components import ACCENT, BG, LINE, MUTED, SIDE, TEXT, button, text
+from shared.components import ACCENT, BG, CARD, FIELD, LINE, MUTED, SIDE, TEXT, button, text
 from shared.path_picker import WorkspaceFilePicker
 from app.instance import DesktopInstance
 from app.runtime import desktop_runtime
@@ -41,6 +41,44 @@ class DesktopApp:
             color_scheme_seed=ACCENT,
             font_family='Segoe UI',
             use_material3=True,
+            data_table_theme=ft.DataTableTheme(
+                decoration=ft.BoxDecoration(bgcolor=CARD),
+                data_row_color=CARD,
+                heading_row_color='#242C30',
+            ),
+            scrollbar_theme=ft.ScrollbarTheme(
+                thumb_visibility=False,
+                thickness=6,
+                radius=4,
+                thumb_color='#363E44',
+                interactive=True,
+            ),
+        )
+        page.dark_theme = ft.Theme(
+            color_scheme=ft.ColorScheme(
+                primary=ACCENT,
+                on_primary=SIDE,
+                surface=BG,
+                on_surface=TEXT,
+                on_surface_variant=MUTED,
+                outline=LINE,
+                outline_variant=LINE,
+                surface_bright=CARD,
+                surface_container=CARD,
+                surface_container_high='#242C30',
+                surface_container_highest='#242C30',
+                surface_container_low=FIELD,
+                surface_container_lowest=BG,
+                surface_dim=BG,
+                surface_tint=BG,
+            ),
+            font_family='Segoe UI',
+            use_material3=True,
+            data_table_theme=ft.DataTableTheme(
+                decoration=ft.BoxDecoration(bgcolor=CARD),
+                data_row_color=CARD,
+                heading_row_color='#242C30',
+            ),
             scrollbar_theme=ft.ScrollbarTheme(
                 thumb_visibility=False,
                 thickness=6,
@@ -140,7 +178,7 @@ class DesktopApp:
                 text('Tu espacio creativo', 11, color=MUTED), ft.Container(height=5), self.identity,
                 ft.Divider(color=LINE, height=18), *self.nav.values(),
                 ft.Container(expand=True), self.about_btn], spacing=4))
-        self.workspace = ft.Container(content=self.editor.content, expand=True, padding=ft.Padding.only(right=10))
+        self.workspace = ft.Container(content=self.editor.content, expand=True, padding=ft.Padding.only(right=10), bgcolor=BG)
         header = ft.Row([self.heading, ft.Container(expand=True),
             ft.Container(self.model, bgcolor='#153630', padding=ft.Padding.symmetric(horizontal=10, vertical=6), border_radius=7),
             ft.IconButton(icon=ft.Icons.PUSH_PIN_OUTLINED, icon_size=17, tooltip='Fijar al frente', on_click=self.bind(self.pin))], height=38)

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import re
 import sys
 from typing import Any, Mapping, Sequence
 import zipfile
@@ -36,8 +37,9 @@ class KineticTitleDescriptor:
     default_style: str = "Extrabold Italic"
 
 
-# Catálogo estándar de subtítulos cinéticos disponibles en Resolve
+# Catálogo estándar de subtítulos cinéticos y títulos nativos disponibles en Resolve
 BUILTIN_KINETIC_TITLES: Sequence[KineticTitleDescriptor] = (
+    # Subtítulos cinéticos de alto impacto
     KineticTitleDescriptor(
         id="statement",
         name="Statement",
@@ -93,6 +95,107 @@ BUILTIN_KINETIC_TITLES: Sequence[KineticTitleDescriptor] = (
         default_font="Open Sans",
         default_style="Bold",
     ),
+    # Títulos Fusion nativos integrados de DaVinci Resolve
+    KineticTitleDescriptor(
+        id="text_plus",
+        name="Text+",
+        resolve_template_name="Text+",
+        category="Native",
+        description="Generador base Text+ nativo y editable de DaVinci Resolve.",
+        drfx_rel_path="",
+        default_font="Montserrat",
+        default_style="Bold",
+    ),
+    KineticTitleDescriptor(
+        id="ribbon_text",
+        name="Ribbon Text",
+        resolve_template_name="Ribbon Text",
+        category="Native",
+        description="Texto con cinta horizontal de fondo y animación de recorte.",
+        drfx_rel_path="Edit/Titles/Ribbon Text.setting",
+        default_font="Montserrat",
+        default_style="Bold",
+    ),
+    KineticTitleDescriptor(
+        id="text_box",
+        name="Text Box",
+        resolve_template_name="Text Box",
+        category="Native",
+        description="Texto enmarcado en caja rectangular con bordes limpios.",
+        drfx_rel_path="Edit/Titles/Text Box.setting",
+        default_font="Montserrat",
+        default_style="Bold",
+    ),
+    KineticTitleDescriptor(
+        id="fade_on",
+        name="Fade On",
+        resolve_template_name="Fade On",
+        category="Native",
+        description="Entrada suave con fundido gradual de opacidad.",
+        drfx_rel_path="Edit/Titles/Fade On.setting",
+        default_font="Montserrat",
+        default_style="SemiBold",
+    ),
+    KineticTitleDescriptor(
+        id="rise_fade",
+        name="Rise Fade",
+        resolve_template_name="Rise Fade",
+        category="Native",
+        description="Elevación vertical combinada con desvanecimiento suave.",
+        drfx_rel_path="Edit/Titles/Rise Fade.setting",
+        default_font="Montserrat",
+        default_style="Bold",
+    ),
+    KineticTitleDescriptor(
+        id="drop_in",
+        name="Drop In",
+        resolve_template_name="Drop In",
+        category="Native",
+        description="Caída vertical dinámica con amortiguación elástica.",
+        drfx_rel_path="Edit/Titles/Drop In.setting",
+        default_font="Montserrat",
+        default_style="Bold",
+    ),
+    KineticTitleDescriptor(
+        id="digital_glitch",
+        name="Digital Glitch",
+        resolve_template_name="Digital Glitch",
+        category="Native",
+        description="Efecto de interferencia y glitch digital cibernético.",
+        drfx_rel_path="Edit/Titles/Digital Glitch.setting",
+        default_font="Montserrat",
+        default_style="Black",
+    ),
+    KineticTitleDescriptor(
+        id="headline",
+        name="Headline",
+        resolve_template_name="Headline",
+        category="Native",
+        description="Titular destacado de alto impacto para noticias y editoriales.",
+        drfx_rel_path="Edit/Titles/Headline.setting",
+        default_font="Montserrat",
+        default_style="ExtraBold",
+    ),
+    KineticTitleDescriptor(
+        id="clean_and_simple",
+        name="Clean and Simple",
+        resolve_template_name="Clean and Simple",
+        category="Native",
+        description="Tipografía limpia y minimalista sin distracciones.",
+        drfx_rel_path="Edit/Titles/Clean and Simple.setting",
+        default_font="Montserrat",
+        default_style="Medium",
+    ),
+    KineticTitleDescriptor(
+        id="simple_box_lower_third",
+        name="Simple Box 1 Line Lower Third",
+        resolve_template_name="Simple Box 1 Line Lower Third",
+        category="Native",
+        description="Tercio inferior con caja sólida para identificadores y créditos.",
+        drfx_rel_path="Edit/Titles/Simple Box 1 Line Lower Third.setting",
+        default_font="Montserrat",
+        default_style="SemiBold",
+    ),
 )
 
 
@@ -147,6 +250,7 @@ class KineticTitleCatalog:
         custom_descriptors: Sequence[KineticTitleDescriptor] | None = None,
         drfx_path: Path | None = None,
         drb_folder: Path | None = None,
+        auto_discover: bool = True,
     ) -> None:
         descriptors = list(custom_descriptors or BUILTIN_KINETIC_TITLES)
         self._descriptors_by_id: dict[str, KineticTitleDescriptor] = {
@@ -157,9 +261,55 @@ class KineticTitleCatalog:
         }
         self.drfx_path = drfx_path or get_default_drfx_path()
         self.drb_folder = drb_folder or get_snap_captions_drb_folder()
+        if auto_discover:
+            self.discover_resolve_titles()
+
+    def discover_resolve_titles(self) -> int:
+        """Descubre e indexa dinámicamente títulos .setting dentro de Templates.drfx y del sistema."""
+        candidates: list[Path] = []
+        if self.drfx_path and self.drfx_path.is_file():
+            candidates.append(self.drfx_path)
+        default_path = get_default_drfx_path()
+        if default_path and default_path.is_file() and default_path not in candidates:
+            candidates.append(default_path)
+
+        added = 0
+        for drfx in candidates:
+            try:
+                with zipfile.ZipFile(drfx, "r") as z:
+                    for name in z.namelist():
+                        if not name.endswith(".setting") or "/titles/" not in name.lower():
+                            continue
+                        stem = Path(name).stem
+                        key = stem.lower()
+                        if key in self._descriptors_by_template_name:
+                            continue
+                        slug = re.sub(r"[^a-z0-9]+", "_", key).strip("_")
+                        if not slug:
+                            slug = f"native_title_{len(self._descriptors_by_id)}"
+                        desc = KineticTitleDescriptor(
+                            id=slug,
+                            name=stem,
+                            resolve_template_name=stem,
+                            category="Native",
+                            description=f"Título Fusion nativo de DaVinci Resolve ({stem}).",
+                            drfx_rel_path=name,
+                            default_font="Montserrat",
+                            default_style="Bold",
+                        )
+                        self._descriptors_by_id[desc.id] = desc
+                        self._descriptors_by_template_name[key] = desc
+                        added += 1
+            except Exception:
+                continue
+        return added
 
     def list_all(self) -> tuple[KineticTitleDescriptor, ...]:
         return tuple(self._descriptors_by_id.values())
+
+    def list_by_category(self, category: str) -> tuple[KineticTitleDescriptor, ...]:
+        cat_lower = category.strip().lower()
+        return tuple(d for d in self._descriptors_by_id.values() if d.category.lower() == cat_lower)
 
     def get(self, identifier: str) -> KineticTitleDescriptor:
         key = identifier.strip().lower()
@@ -307,11 +457,23 @@ class KineticTitleWriter:
 
             set_inp = getattr(tool, "SetInput", None)
             if callable(set_inp):
-                set_inp("StyledText", text)
+                # Asignar texto a StyledText; si retorna False (ej. Group/MacroOperator con InstanceInput), probar Input1
+                res = set_inp("StyledText", text)
+                if res is False:
+                    try:
+                        set_inp("Input1", text)
+                    except Exception:
+                        pass
                 if font_name:
-                    set_inp("Font", font_name)
+                    try:
+                        set_inp("Font", font_name)
+                    except Exception:
+                        pass
                 if font_style:
-                    set_inp("Style", font_style)
+                    try:
+                        set_inp("Style", font_style)
+                    except Exception:
+                        pass
 
                 if style_overrides:
                     for input_name, input_val in style_overrides.items():
@@ -334,23 +496,47 @@ class KineticTitleWriter:
         """Localiza de forma robusta el operador TextPlus principal en la composición Fusion."""
         find_tool = getattr(comp, "FindTool", None)
         if callable(find_tool):
-            for candidate_name in ("Template", "Text1", "MacroTool1"):
+            for candidate_name in (
+                "Template",
+                "Text1",
+                "Text2_1",
+                "Text2",
+                "Text",
+                "Title",
+                "MacroTool1",
+                "TextBox",
+                "RibbonText",
+            ):
                 t = find_tool(candidate_name)
                 if t is not None:
                     return t
 
         get_tool_list = getattr(comp, "GetToolList", None)
         if callable(get_tool_list):
-            tools = get_tool_list() or {}
-            # Si tools es dict
+            tools = None
+            try:
+                # Búsqueda recursiva (True) para explorar dentro de GroupOperators
+                tools = get_tool_list(True)
+            except TypeError:
+                tools = get_tool_list()
+            if not tools:
+                tools = get_tool_list() or {}
             tool_values = tools.values() if isinstance(tools, dict) else tools
             for t in tool_values:
                 get_attrs = getattr(t, "GetAttrs", None)
                 if callable(get_attrs):
                     reg_id = get_attrs("TOOLS_RegID") or ""
-                    if "TextPlus" in reg_id:
+                    if any(target in reg_id for target in ("TextPlus", "Fuse.TextPlus", "Text3D")):
                         return t
-            # Si no encontró por RegID, devolver el primer tool disponible
+            # Si no encontró por RegID, comprobar si responde al input StyledText
+            for t in tool_values:
+                get_inp = getattr(t, "GetInput", None)
+                if callable(get_inp):
+                    try:
+                        if get_inp("StyledText") is not None:
+                            return t
+                    except Exception:
+                        pass
             if tool_values:
                 return next(iter(tool_values), None)
 
@@ -412,8 +598,11 @@ class KineticTitleWriter:
             if callable(set_marks):
                 set_marks(record_frame, record_frame + duration_frames)
 
-            # 4. Inserción
+            # 4. Inserción mediante API nativa de Resolve
             item = insert_fn(descriptor.resolve_template_name)
+            if item is None and descriptor.resolve_template_name == "Text+" and callable(getattr(self.timeline, "InsertTitleIntoTimeline", None)):
+                # Fallback para generador Text+ clásico de Resolve
+                item = self.timeline.InsertTitleIntoTimeline(descriptor.resolve_template_name)
             return item
 
         except Exception:

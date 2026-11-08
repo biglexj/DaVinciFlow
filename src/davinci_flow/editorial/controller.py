@@ -3,7 +3,7 @@
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from davinci_flow.ai.client import GeminiClient
+from davinci_flow.ai.providers.factory import build_text_provider
 from davinci_flow.assets.library import scan_library
 from davinci_flow.editorial.model import Decision, EditorialError, EditorialOptions, Proposal, Template
 from davinci_flow.editorial.planner import propose
@@ -105,7 +105,7 @@ class EditorialController:
             raise EditorialError('Captura la secuencia o abre un SRT primero.')
         self.save_preferences()
         result = propose(self.snapshot, self.templates,
-                         client or GeminiClient(model_name=self.preferences.model, strict_model=True),
+                         client or build_text_provider(self.preferences.provider, self.preferences.model),
                          options=self.options())
         # Un fallo conserva la propuesta anterior y todas sus revisiones.
         self.proposal = result
@@ -113,8 +113,8 @@ class EditorialController:
         return result
 
     def generate_text(self, prompt: str, system_instruction: str = "", temperature: float = 0.4, client=None) -> str:
-        """Genera una respuesta textual libre usando el modelo Gemini activo."""
-        ai_client = client or GeminiClient(model_name=self.preferences.model, strict_model=True)
+        """Genera una respuesta textual libre usando el proveedor de IA activo."""
+        ai_client = client or build_text_provider(self.preferences.provider, self.preferences.model)
         return ai_client.generate_text(prompt=prompt, system_instruction=system_instruction, temperature=temperature)
 
     def load_proposal(self, path):
@@ -168,10 +168,17 @@ class EditorialController:
 
     def choose_pack(self, pack_name: str):
         """Selecciona las plantillas que coincidan con la categoría o nombre de pack."""
-        matching = [t.id for t in self.catalog.values() if t.category == pack_name or pack_name.lower() in t.name.lower()]
+        if pack_name == "native":
+            matching = [t.id for t in self.catalog.values() if t.category == "native" or t.source == "native" or "templates.drfx" in t.locator.lower()]
+            if not matching:
+                self.scan_titles()
+                matching = [t.id for t in self.catalog.values() if t.category == "native" or t.source == "native" or "templates.drfx" in t.locator.lower()]
+        else:
+            matching = [t.id for t in self.catalog.values() if t.category == pack_name or pack_name.lower() in t.name.lower()]
         if matching:
-            self.choose_templates(matching)
-            return len(matching)
+            selected_subset = matching[:30]
+            self.choose_templates(selected_subset)
+            return len(selected_subset)
         return 0
 
 
