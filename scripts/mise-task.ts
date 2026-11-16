@@ -287,6 +287,10 @@ async function handlePublish(args: string[]): Promise<number> {
 
 export async function main(args = Bun.argv.slice(2)): Promise<number> {
     const [action, ...rest] = args;
+    if (action?.endsWith("-gpui")) {
+        const { runGpuiTask } = await import("./gpui-task.ts");
+        return runGpuiTask(action, rest, root);
+    }
     if (!action || action === "--help" || rest.includes("--help")) {
         console.log(help);
         return 0;
