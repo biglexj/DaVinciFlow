@@ -3,7 +3,7 @@
 //! La sesión conserva tres estados distintos: texto original, texto guardado en
 //! memoria y último estado cargado/exportado. Un borrador no sustituye al bloque
 //! hasta que se confirma; las operaciones por lote son transaccionales.
-use crate::subtitles::{self, Document};
+use crate::subtitles::{self, Document, TextEdit};
 use std::{
     collections::VecDeque,
     path::{Path, PathBuf},
@@ -11,15 +11,25 @@ use std::{
 };
 
 const HISTORY_LIMIT: usize = 32;
+const HISTORY_MEMORY_LIMIT: usize = 64 * 1024 * 1024;
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug)]
-struct TextChange {
-    index: usize,
-    before: String,
-    after: String,
+struct ChangeSet {
+    edits: Vec<TextEdit>,
+    bytes: usize,
 }
-type ChangeSet = Vec<TextChange>;
+
+impl ChangeSet {
+    fn new(edits: Vec<TextEdit>) -> Self {
+        let bytes = edits.capacity() * std::mem::size_of::<TextEdit>()
+            + edits
+                .iter()
+                .map(|edit| edit.before.capacity() + edit.after.capacity())
+                .sum::<usize>();
+        Self { edits, bytes }
+    }
+}
 
 #[derive(Debug)]
 pub struct SubtitleSession {
@@ -27,12 +37,14 @@ pub struct SubtitleSession {
     selected: Option<usize>,
     draft: String,
     saved_texts: Vec<String>,
-    dirty: bool,
+    unsaved_count: usize,
     undo: VecDeque<ChangeSet>,
     redo: Vec<ChangeSet>,
     document_id: u64,
     revision: u64,
     export_revision: u64,
+    history_bytes: usize,
+    history_memory_limit: usize,
 }
 
 impl Default for SubtitleSession {
@@ -42,12 +54,14 @@ impl Default for SubtitleSession {
             selected: None,
             draft: String::new(),
             saved_texts: vec![],
-            dirty: false,
+            unsaved_count: 0,
             undo: VecDeque::new(),
             redo: vec![],
             document_id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             revision: 0,
             export_revision: 0,
+            history_bytes: 0,
+            history_memory_limit: HISTORY_MEMORY_LIMIT,
         }
     }
 }
@@ -67,7 +81,7 @@ impl SubtitleSession {
             .is_some_and(|i| self.draft != self.document.cues[i].text)
     }
     pub fn is_dirty(&self) -> bool {
-        self.dirty
+        self.unsaved_count > 0
     }
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty() && !self.has_draft()
@@ -146,21 +160,22 @@ impl SubtitleSession {
         if text.is_empty() {
             return Err("El subtítulo no puede quedar vacío.".into());
         }
-        let mut texts = self.texts();
-        texts[index] = text;
-        Ok(self.apply_texts(texts))
+        let edits = if text == self.document.cues[index].text {
+            vec![]
+        } else {
+            vec![TextEdit {
+                index,
+                before: self.document.cues[index].text.clone(),
+                after: text,
+            }]
+        };
+        self.apply_edits(edits)
     }
 
     pub fn normalize(&mut self) -> Result<usize, String> {
         self.require_document()?;
         self.require_saved_draft()?;
-        let texts = self
-            .document
-            .cues
-            .iter()
-            .map(|c| subtitles::normalize(&c.text))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(self.apply_texts(texts))
+        self.apply_edits(self.document.plan_normalization()?)
     }
 
     pub fn replace(
@@ -171,22 +186,38 @@ impl SubtitleSession {
     ) -> Result<usize, String> {
         self.require_document()?;
         self.require_saved_draft()?;
-        let mut candidate = self.document.clone();
-        candidate.replace(find, replacement, case_sensitive)?;
-        validate_export_texts(&candidate)?;
-        Ok(self.apply_texts(candidate.cues.into_iter().map(|c| c.text).collect()))
+        let edits = self
+            .document
+            .plan_replace(find, replacement, case_sensitive)?;
+        // Validar la vista resultante sin clonar el documento entero.
+        let mut pending = edits.iter().peekable();
+        for (index, cue) in self.document.cues.iter().enumerate() {
+            let text = if pending.peek().is_some_and(|edit| edit.index == index) {
+                pending.next().unwrap().after.as_str()
+            } else {
+                cue.text.as_str()
+            };
+            validate_export_text(index, text)?;
+        }
+        self.apply_edits(edits)
     }
 
     pub fn restore_all(&mut self) -> Result<usize, String> {
         self.require_document()?;
         self.require_saved_draft()?;
-        let texts = self
+        let edits = self
             .document
             .cues
             .iter()
-            .map(|c| c.original.clone())
+            .enumerate()
+            .filter(|(_, cue)| cue.text != cue.original)
+            .map(|(index, cue)| TextEdit {
+                index,
+                before: cue.text.clone(),
+                after: cue.original.clone(),
+            })
             .collect();
-        Ok(self.apply_texts(texts))
+        self.apply_edits(edits)
     }
 
     pub fn undo(&mut self) -> Result<(), String> {
@@ -195,8 +226,8 @@ impl SubtitleSession {
             .undo
             .pop_back()
             .ok_or("No hay cambios para deshacer.")?;
-        for change in &changes {
-            self.document.cues[change.index].text = change.before.clone();
+        for change in &changes.edits {
+            self.update_text(change.index, &change.before);
         }
         self.redo.push(changes);
         self.changed();
@@ -206,8 +237,8 @@ impl SubtitleSession {
     pub fn redo(&mut self) -> Result<(), String> {
         self.require_saved_draft()?;
         let changes = self.redo.pop().ok_or("No hay cambios para rehacer.")?;
-        for change in &changes {
-            self.document.cues[change.index].text = change.after.clone();
+        for change in &changes.edits {
+            self.update_text(change.index, &change.after);
         }
         self.undo.push_back(changes);
         self.changed();
@@ -235,7 +266,7 @@ impl SubtitleSession {
         }
         self.saved_texts = receipt.texts;
         self.export_revision = receipt.revision;
-        self.refresh_dirty();
+        self.refresh_unsaved();
         Ok(())
     }
 
@@ -262,49 +293,56 @@ impl SubtitleSession {
     fn texts(&self) -> Vec<String> {
         self.document.cues.iter().map(|c| c.text.clone()).collect()
     }
-    fn refresh_dirty(&mut self) {
-        self.dirty = self
+    fn refresh_unsaved(&mut self) {
+        self.unsaved_count = self
             .document
             .cues
             .iter()
             .map(|c| &c.text)
-            .ne(self.saved_texts.iter());
+            .zip(&self.saved_texts)
+            .filter(|(current, saved)| current != saved)
+            .count();
     }
     fn changed(&mut self) {
         self.revision += 1;
-        self.refresh_dirty();
         self.sync_draft();
     }
-    fn apply_texts(&mut self, texts: Vec<String>) -> usize {
-        debug_assert_eq!(texts.len(), self.document.cues.len());
-        let changes: ChangeSet = self
-            .document
-            .cues
-            .iter()
-            .zip(texts)
-            .enumerate()
-            .filter(|(_, (cue, text))| cue.text != *text)
-            .map(|(index, (cue, after))| TextChange {
-                index,
-                before: cue.text.clone(),
-                after,
-            })
-            .collect();
-        let count = changes.len();
-        if count > 0 {
-            for change in &changes {
-                self.document.cues[change.index].text = change.after.clone();
-            }
-            self.undo.push_back(changes);
-            if self.undo.len() > HISTORY_LIMIT {
-                self.undo.pop_front();
-            }
-            self.redo.clear();
-            self.changed();
-        } else {
+    fn update_text(&mut self, index: usize, text: &str) {
+        let cue = &mut self.document.cues[index];
+        let saved = &self.saved_texts[index];
+        self.unsaved_count -= usize::from(cue.text != *saved);
+        self.unsaved_count += usize::from(text != saved);
+        cue.text = text.to_owned();
+    }
+    fn apply_edits(&mut self, edits: Vec<TextEdit>) -> Result<usize, String> {
+        let count = edits.len();
+        if count == 0 {
             self.sync_draft();
+            return Ok(0);
         }
-        count
+        let changes = ChangeSet::new(edits);
+        if changes.bytes > self.history_memory_limit {
+            return Err("El cambio supera el presupuesto de memoria del historial. Divide la operación en cambios más pequeños; los subtítulos se han conservado.".into());
+        }
+        // Rechazar antes de borrar redo o tocar el documento mantiene la operación atómica.
+        self.history_bytes -= self.redo.iter().map(|set| set.bytes).sum::<usize>();
+        self.redo.clear();
+        while self.undo.len() >= HISTORY_LIMIT
+            || self.history_bytes + changes.bytes > self.history_memory_limit
+        {
+            if let Some(old) = self.undo.pop_front() {
+                self.history_bytes -= old.bytes;
+            } else {
+                break;
+            }
+        }
+        for change in &changes.edits {
+            self.update_text(change.index, &change.after);
+        }
+        self.history_bytes += changes.bytes;
+        self.undo.push_back(changes);
+        self.changed();
+        Ok(count)
     }
 }
 
@@ -331,15 +369,20 @@ fn validate_document(document: &Document) -> Result<(), String> {
 
 fn validate_export_texts(document: &Document) -> Result<(), String> {
     for (index, cue) in document.cues.iter().enumerate() {
-        if cue.text.trim().is_empty() {
-            return Err(format!("El bloque {} está vacío.", index + 1));
-        }
-        if cue.text.contains('\r') || cue.text.lines().any(|line| line.trim().is_empty()) {
-            return Err(format!(
-                "El bloque {} contiene saltos de línea que romperían el SRT. Normalízalo o guarda una edición sin líneas vacías.",
-                index + 1
-            ));
-        }
+        validate_export_text(index, &cue.text)?;
+    }
+    Ok(())
+}
+
+fn validate_export_text(index: usize, text: &str) -> Result<(), String> {
+    if text.trim().is_empty() {
+        return Err(format!("El bloque {} está vacío.", index + 1));
+    }
+    if text.contains('\r') || text.lines().any(|line| line.trim().is_empty()) {
+        return Err(format!(
+            "El bloque {} contiene saltos de línea que romperían el SRT. Normalízalo o guarda una edición sin líneas vacías.",
+            index + 1
+        ));
     }
     Ok(())
 }

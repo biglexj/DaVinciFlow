@@ -45,3 +45,15 @@ No se ejecutó la suite Python completa: no se cambió el motor ni la interfaz F
 - [x] Observación final: la aplicación comunica la ruta exportada y deja de mostrar cambios sin exportar. Se conservan paleta, tipografía, navegación, tres pestañas y disposición lista/editor; Deshacer/Rehacer se añaden junto al contador.
 
 La demo quedó ejecutándose con la copia de revisión en memoria. La captura en Resolve abierto y la aceptación de Biglex continúan pendientes; este incremento no las sustituye.
+
+## Tercer incremento: mejoras del backend sin traducción literal
+
+- [x] Proceso de diseño ampliado a todas las áreas Flet y preparado para la agencia que Biglex asigne. El agente de este chat conserva lógica/backend.
+- [x] `Document` genera planes transaccionales con los bloques cambiados. La sesión reutiliza esos planes para normalizar/reemplazar sin clonar el documento entero.
+- [x] Guardar un bloque construye un cambio individual. El número de bloques pendientes se actualiza por los índices afectados; solo se recalcula completo al registrar una exportación.
+- [x] Historial limitado por 32 operaciones y 64 MiB de textos/reservas de vectores retenidos. Undo/Redo mueve las mismas entradas sin contar dos veces su memoria. Un cambio individual excesivo se rechaza antes de alterar el documento o borrar la rama Rehacer.
+- [x] `mise test-gpui`: **32 pruebas correctas**, incluidas seis nuevas de planes por bloque, presupuesto de historial, rechazo atómico, contabilidad Undo/Redo y cambios pendientes frente al último exportado.
+- [x] `mise check-gpui`: formato y Clippy de todos los targets correctos, sin advertencias. Las firmas públicas del controlador no cambian y el frontend existente sigue pasando la comprobación.
+- [x] En este incremento no se modifican `app.rs`, `app/views.rs`, `ui.rs` ni `main.rs`.
+
+No se midió aceleración temporal ni se afirma un límite global de RAM: el presupuesto se aplica al historial retenido. La demo abierta conserva el binario del incremento anterior; las nuevas optimizaciones están comprobadas en las pruebas compiladas del motor y requieren recompilar la demo para ejecutarlas en la ventana. No se intervino de nuevo en el diseño.

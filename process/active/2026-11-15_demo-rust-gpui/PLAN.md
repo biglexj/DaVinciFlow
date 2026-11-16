@@ -20,6 +20,12 @@ Biglex asigna al agente principal la lógica/backend y delega diseño/frontend r
 
 Segundo incremento: extraer del estado GPUI el ciclo de edición de subtítulos, validar cambios pendientes, mantener un historial de texto y registrar exportaciones por estado inmutable. La interfaz consume el motor sin duplicar sus reglas.
 
+### Corrección de alcance y criterio de implementación
+
+Biglex precisó que la migración completa del diseño corresponde a otra agencia. El agente de este chat mantiene exclusivamente lógica/backend y deja preparado el proceso de diseño para esa asignación; la integración frontend anterior queda como antecedente parcial.
+
+El backend se migra con criterio, no por traducción literal. Se aplican mejoras pequeñas o compatibles de eficiencia y coherencia; se comunican los cambios de dirección importantes. Siguiente mejora concreta: planes de edición por deltas y presupuesto de memoria del historial, manteniendo contratos, tiempos y protección de borradores/exportaciones.
+
 Portar el dominio que no requiere Resolve a Rust. Mantener su adaptador de scripting y MCP en Python al inicio. La interfaz consume resultados tipados y comunica errores reales; no crea datos de ejemplo para simular éxito.
 GPUI Kit se fija a 0.9.1 para disponer de controles de edición, foco y accesibilidad sobre su snapshot GPUI compatible.
 

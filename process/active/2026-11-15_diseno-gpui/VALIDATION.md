@@ -1,5 +1,7 @@
 # Validación del frontend · 2026-11-15
 
+> Esta evidencia corresponde a la integración parcial anterior. La migración completa del diseño se encarga a otra agencia y sus pendientes figuran en `TASKS.md`. Las comprobaciones siguientes no acreditan paridad total con Flet.
+
 ## Referencias y conservación visual
 
 - [x] Revisadas las referencias vigentes `src-flet/shared/components.py`, `src-flet/features/subtitles/subtitles_view.py` y la demo GPUI existente.

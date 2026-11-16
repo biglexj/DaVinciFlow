@@ -33,6 +33,8 @@ La exportación crea un archivo nuevo y rechaza destinos existentes; no sobreesc
 
 `SubtitleSession` mantiene el documento, borrador, selección, historial y estado de exportación en el motor Rust. Una exportación registra exactamente la copia que escribió: una respuesta tardía conserva las ediciones posteriores y un recibo de otra carga se rechaza. Restaurar el original después de exportar una corrección vuelve a contar como cambio pendiente.
 
+Las ediciones se planifican por bloques cambiados, sin clonar el documento completo. El historial conserva hasta 32 operaciones con un presupuesto de 64 MiB para sus textos y reservas de vectores; puede retirar entradas antiguas antes de llegar a 32. Una operación que por sí sola supera ese presupuesto se rechaza antes de cambiar el documento o eliminar Rehacer. Este presupuesto limita el historial retenido, no toda la memoria temporal de la aplicación.
+
 La normalización determinista no inventa tildes ni corrige semántica. Los tiempos SRT permanecen en milisegundos; al capturar Resolve se resta el origen de la secuencia para exportar tiempos relativos. Los bloques SRT inválidos causan un error explícito, en vez de desaparecer del documento. Los solapamientos válidos se conservan con aviso.
 
 ## Continuar por pestañas
@@ -61,4 +63,4 @@ No se muestran pestañas vacías para capacidades pendientes. No se han migrado 
 
 GPUI Kit se fija a `0.9.1`; `Cargo.lock` registra sus dependencias. El proceso y la evidencia viven en `process/active/2026-11-15_demo-rust-gpui/`.
 
-El diseño/frontend se delega por separado en `process/active/2026-11-15_diseno-gpui/`, con la instrucción de conservar la identidad, distribución y flujos actuales. El contrato entre motor e interfaz está en `process/active/2026-11-15_demo-rust-gpui/BACKEND_CONTRACT.md`.
+El encargo completo de diseño/frontend queda preparado para la otra agencia que Biglex asigne en `process/active/2026-11-15_diseno-gpui/`, conservando identidad, distribución y flujos. El agente de este chat mantiene el backend. El contrato entre motor e interfaz está en `process/active/2026-11-15_demo-rust-gpui/BACKEND_CONTRACT.md`.

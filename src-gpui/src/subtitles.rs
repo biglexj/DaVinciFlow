@@ -61,6 +61,14 @@ pub struct Document {
     pub warnings: Vec<String>,
 }
 
+/// Un plan solo retiene los bloques que cambian; se valida antes de aplicarse.
+#[derive(Debug)]
+pub(crate) struct TextEdit {
+    pub index: usize,
+    pub before: String,
+    pub after: String,
+}
+
 impl Document {
     pub fn changed(&self) -> usize {
         self.cues.iter().filter(|c| c.changed()).count()
@@ -68,12 +76,8 @@ impl Document {
 
     // Mutaciones por lote transaccionales: un error nunca deja una edición parcial.
     pub fn normalize(&mut self) -> Result<usize, String> {
-        let texts = self
-            .cues
-            .iter()
-            .map(|c| normalize(&c.text))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(self.set_texts(texts))
+        let edits = self.plan_normalization()?;
+        Ok(self.apply_edits(edits))
     }
 
     pub fn replace(
@@ -82,6 +86,31 @@ impl Document {
         replacement: &str,
         case_sensitive: bool,
     ) -> Result<usize, String> {
+        let edits = self.plan_replace(find, replacement, case_sensitive)?;
+        Ok(self.apply_edits(edits))
+    }
+
+    pub(crate) fn plan_normalization(&self) -> Result<Vec<TextEdit>, String> {
+        let mut edits = Vec::new();
+        for (index, cue) in self.cues.iter().enumerate() {
+            let after = normalize(&cue.text)?;
+            if after != cue.text {
+                edits.push(TextEdit {
+                    index,
+                    before: cue.text.clone(),
+                    after,
+                });
+            }
+        }
+        Ok(edits)
+    }
+
+    pub(crate) fn plan_replace(
+        &self,
+        find: &str,
+        replacement: &str,
+        case_sensitive: bool,
+    ) -> Result<Vec<TextEdit>, String> {
         if find.is_empty() {
             return Err("Escribe el texto que quieres buscar.".into());
         }
@@ -89,30 +118,27 @@ impl Document {
             .case_insensitive(!case_sensitive)
             .build()
             .map_err(|e| e.to_string())?;
-        let texts = self
-            .cues
-            .iter()
-            .map(|cue| {
-                let value = pattern
-                    .replace_all(&cue.text, regex::NoExpand(replacement))
-                    .into_owned();
-                if value.trim().is_empty() {
-                    Err("El reemplazo dejaría un subtítulo vacío.".into())
-                } else {
-                    Ok(value)
-                }
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        Ok(self.set_texts(texts))
+        let mut edits = Vec::new();
+        for (index, cue) in self.cues.iter().enumerate() {
+            let after = pattern.replace_all(&cue.text, regex::NoExpand(replacement));
+            if after.trim().is_empty() {
+                return Err("El reemplazo dejaría un subtítulo vacío.".into());
+            }
+            if after != cue.text {
+                edits.push(TextEdit {
+                    index,
+                    before: cue.text.clone(),
+                    after: after.into_owned(),
+                });
+            }
+        }
+        Ok(edits)
     }
 
-    fn set_texts(&mut self, texts: Vec<String>) -> usize {
-        let mut count = 0;
-        for (cue, text) in self.cues.iter_mut().zip(texts) {
-            if cue.text != text {
-                cue.text = text;
-                count += 1;
-            }
+    fn apply_edits(&mut self, edits: Vec<TextEdit>) -> usize {
+        let count = edits.len();
+        for edit in edits {
+            self.cues[edit.index].text = edit.after;
         }
         count
     }

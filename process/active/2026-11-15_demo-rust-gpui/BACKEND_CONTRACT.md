@@ -1,6 +1,6 @@
 # Contrato de sesión Rust para el frontend
 
-Acuerdo de integración del 2026-11-15. El agente principal implementa `davinci_flow_gpui::session::SubtitleSession`; el agente de frontend lo consume desde `app.rs`. Las vistas no duplican sus reglas.
+Acuerdo de integración del 2026-11-15. El agente de este chat mantiene `davinci_flow_gpui::session::SubtitleSession`; la agencia encargada del frontend lo consume desde `app.rs`. Las vistas no duplican sus reglas.
 
 ## Lectura
 
@@ -13,7 +13,7 @@ Acuerdo de integración del 2026-11-15. El agente principal implementa `davinci_
 - `filtered_indices(&self, query: &str) -> Vec<usize>`: búsqueda sin distinguir mayúsculas en original y texto actual.
 - `can_undo(&self) -> bool`, `can_redo(&self) -> bool`: disponibilidad del historial.
 
-El historial conserva hasta 32 operaciones por deltas de texto. No conserva copias de los tiempos ni modifica Resolve.
+El historial conserva hasta 32 operaciones por deltas de texto, con un presupuesto de 64 MiB para los textos y las reservas de los vectores retenidos. Las entradas antiguas pueden caducar antes por memoria. Una operación que supera por sí sola el presupuesto falla sin modificar el documento ni borrar Rehacer. No conserva copias de los tiempos ni modifica Resolve.
 
 ## Acciones
 

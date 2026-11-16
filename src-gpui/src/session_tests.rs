@@ -240,3 +240,115 @@ fn export_snapshot_is_sendable_and_produces_a_receipt_only_after_disk_write() {
     assert!(s.export_snapshot().unwrap().save_new(&path).is_err());
     std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn memory_budget_evicts_oldest_history_without_losing_the_latest_change() {
+    let mut s = session();
+    s.history_memory_limit = 256;
+    for i in 0..12 {
+        edit(&mut s, &format!("Cambio {i:02}"));
+    }
+    assert!(s.history_bytes <= 256);
+    assert!(s.undo.len() < 12);
+    assert_eq!(s.draft(), "Cambio 11");
+    s.undo().unwrap();
+    assert_eq!(s.draft(), "Cambio 10");
+    s.redo().unwrap();
+    assert_eq!(s.draft(), "Cambio 11");
+    assert!(s.history_bytes <= 256);
+}
+
+#[test]
+fn oversized_change_is_rejected_before_touching_document_or_redo() {
+    let mut s = session();
+    s.history_memory_limit = 256;
+    edit(&mut s, "Previo");
+    s.undo().unwrap();
+    let bytes_before = s.history_bytes;
+    let before = s.document().cues.clone();
+    s.set_draft("x".repeat(1000));
+    assert!(
+        s.save_draft()
+            .unwrap_err()
+            .contains("presupuesto de memoria")
+    );
+    assert_eq!(s.document().cues, before);
+    assert_eq!(s.history_bytes, bytes_before);
+    assert_eq!(s.draft().len(), 1000);
+    assert!(!s.is_dirty());
+    s.discard_draft();
+    assert!(s.can_redo());
+    s.redo().unwrap();
+    assert_eq!(s.draft(), "Previo");
+}
+
+#[test]
+fn undo_redo_move_history_without_double_counting_its_memory() {
+    let mut s = session();
+    edit(&mut s, "A");
+    edit(&mut s, "B");
+    let before = s.history_bytes;
+    s.undo().unwrap();
+    assert_eq!(s.history_bytes, before);
+    s.redo().unwrap();
+    assert_eq!(s.history_bytes, before);
+    s.undo().unwrap();
+    edit(&mut s, "C");
+    assert!(s.redo.is_empty());
+    assert_eq!(
+        s.history_bytes,
+        s.undo.iter().map(|set| set.bytes).sum::<usize>()
+    );
+}
+
+#[test]
+fn dirty_counter_tracks_multiple_blocks_against_the_last_export() {
+    let mut s = session();
+    edit(&mut s, "Primero");
+    s.select(1).unwrap();
+    edit(&mut s, "Segundo");
+    assert_eq!(s.unsaved_count, 2);
+    s.accept_export(receipt(s.export_snapshot().unwrap()))
+        .unwrap();
+    assert_eq!(s.unsaved_count, 0);
+    s.restore_all().unwrap();
+    assert_eq!(s.unsaved_count, 2);
+    s.undo().unwrap();
+    assert_eq!(s.unsaved_count, 0);
+    s.undo().unwrap();
+    assert_eq!(s.unsaved_count, 1);
+    s.redo().unwrap();
+    assert_eq!(s.unsaved_count, 0);
+}
+
+#[test]
+fn replacement_plan_is_sparse_and_does_not_mutate_the_document() {
+    let document = document();
+    let before = document.cues.clone();
+    let edits = document
+        .plan_replace("ELY", "Ely corregida", false)
+        .unwrap();
+    assert_eq!(edits.len(), 1);
+    assert_eq!(edits[0].index, 0);
+    assert_eq!(edits[0].before, "Hola, Ely");
+    assert_eq!(edits[0].after, "Hola, Ely corregida");
+    assert_eq!(document.cues, before);
+    assert!(
+        document
+            .plan_replace("inexistente", "irrelevante", false)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn normalization_plan_records_only_changed_text_and_preserves_source() {
+    let mut document = document();
+    document.cues[1].text = " ¡ Qué   tal ! ".into();
+    let before = document.cues.clone();
+    let edits = document.plan_normalization().unwrap();
+    assert_eq!(edits.len(), 1);
+    assert_eq!(edits[0].index, 1);
+    assert_eq!(edits[0].after, "¡Qué tal!");
+    assert_eq!(document.cues, before);
+}
