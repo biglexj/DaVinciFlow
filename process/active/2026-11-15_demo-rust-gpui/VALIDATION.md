@@ -31,3 +31,17 @@
 - [ ] Aceptación visual y funcional de Biglex. La revisión del agente no la sustituye.
 
 No se ejecutó la suite Python completa: no se cambió el motor ni la interfaz Flet. La validación de compatibilidad se centró en el parser existente y la consulta real del puente. No se generó instalador ni se publicó una versión.
+
+## Segundo incremento: separación de responsabilidades y sesión Rust
+
+- [x] Un único proceso adicional para diseño/frontend, delegado a otro agente con propiedad de archivos explícita y preservación de identidad/flujos. El motor continúa en este proceso.
+- [x] `cargo test --manifest-path src-gpui/Cargo.toml --locked --lib -j 4`: **26 pruebas correctas**. Las 16 nuevas comprueban borradores pendientes, carga inválida/otras fuentes, edición sin cambios de tiempos, operaciones transaccionales, undo/redo, límites del historial, búsqueda, restauración después de exportar y recibos tardíos/de otra carga/fuera de orden.
+- [x] Escritura real de snapshot/recibo en prueba: SRT UTF-8 legible, rechazo de sobrescritura y estado pendiente conservado ante fallos.
+- [x] El agente delegado comprobó check de todos los targets, formato y Clippy `-D warnings`, sin advertencias.
+- [x] `mise build-gpui`: compilación final de la integración correcta.
+- [x] Antes de actualizar el ejecutable se observó la demo anterior con 0 bloques editados y sin borrador pendiente; se cerró normalmente, sin descartar cambios del usuario.
+- [x] Prueba en la ventana integrada: editar el primer bloque, guardar, **Deshacer** (vuelve al original), **Rehacer** (recupera la edición) y exportar mediante el diálogo nativo a `temp/gpui-qa/exportado-sesion-ui.srt`.
+- [x] Verificación independiente del archivo anterior mediante el parser Python vigente: **20 cues**, todos los tiempos iguales a `captura-local-20.srt`, solo cambia el primer texto. La fuente original permanece intacta.
+- [x] Observación final: la aplicación comunica la ruta exportada y deja de mostrar cambios sin exportar. Se conservan paleta, tipografía, navegación, tres pestañas y disposición lista/editor; Deshacer/Rehacer se añaden junto al contador.
+
+La demo quedó ejecutándose con la copia de revisión en memoria. La captura en Resolve abierto y la aceptación de Biglex continúan pendientes; este incremento no las sustituye.

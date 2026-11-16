@@ -27,6 +27,9 @@ impl FlowApp {
             )
             .child(
                 column()
+                    .id("navigation-tabs")
+                    .role(Role::TabList)
+                    .aria_label("Navegación principal")
                     .gap_2()
                     .children(entries.into_iter().map(|(tab, number, title)| {
                         let active = self.tab == tab;
@@ -74,8 +77,8 @@ impl FlowApp {
     }
 
     fn subtitles_view(&self, cx: &mut Context<Self>) -> Div {
-        let disabled = self.busy || self.document.cues.is_empty();
-        let draft = self.has_draft(cx);
+        let disabled = self.busy || self.session.document().cues.is_empty();
+        let draft = self.session.has_draft();
         let entity = cx.entity().downgrade();
         let mut view = column()
             .size_full()
@@ -111,10 +114,10 @@ impl FlowApp {
                             .min_w_0()
                             .text_ellipsis()
                             .text_color(rgb(MUTED))
-                            .child(if self.document.source.is_empty() {
+                            .child(if self.session.document().source.is_empty() {
                                 "Sin fuente cargada".to_string()
                             } else {
-                                self.document.source.clone()
+                                self.session.document().source.clone()
                             }),
                     )
                     .child(
@@ -122,7 +125,7 @@ impl FlowApp {
                             .on_click(cx.listener(|this, _, w, cx| this.capture(w, cx))),
                     ),
             );
-        if self.document.cues.is_empty() {
+        if self.session.document().cues.is_empty() {
             return view.child(empty(
                 "Tu transcripción, lista para revisar",
                 "Abre un archivo SRT o lee la pista de subtítulos de Resolve.",
@@ -168,33 +171,104 @@ impl FlowApp {
                         ),
                 ),
         );
-        let list=uniform_list("subtitle-list",self.filtered_cues.len(),move |range,_,cx| {
-            let Some(entity)=entity.upgrade() else {return vec![];};
-            let this=entity.read(cx);
-            range.filter_map(|i|this.filtered_cues.get(i).copied()).map(|index| {
-                let cue=&this.document.cues[index];
-                let selected=this.selected==Some(index);
-                let weak=entity.downgrade();
-                row().id(("cue",index)).role(Role::Button)
-                    .aria_label(format!("Subtítulo {}: {}",index+1,cue.text))
-                    .w_full().h(px(66.)).px_4().gap_4().border_b_1().border_color(rgb(LINE))
-                    .bg(rgb(if selected {0x19312E}else{CARD})).cursor_pointer().hover(|s|s.bg(rgb(0x242C30)))
-                    .child(div().w(px(34.)).text_color(rgb(MUTED)).child(format!("{:02}",index+1)))
-                    .child(column().w(px(116.)).gap_1().text_size(px(11.)).text_color(rgb(MUTED))
-                        .child(subtitles::timecode(cue.start_ms)).child(subtitles::timecode(cue.end_ms)))
-                    .child(column().flex_1().min_w_0().gap_1()
-                        .child(div().text_ellipsis().child(cue.text.clone()))
-                        .when(cue.changed(),|d|d.child(div().text_size(px(11.)).text_color(rgb(MUTED)).text_ellipsis().child(cue.original.clone()))))
-                    .child(div().w(px(68.)).text_size(px(11.)).text_color(rgb(if cue.changed(){ACCENT}else{MUTED}))
-                        .child(if cue.changed(){"Editado"}else{"Original"}))
-                    .on_click(move |_,window,cx| {if let Some(entity)=weak.upgrade(){entity.update(cx,|this,cx|{
-                        if this.busy {return;}
-                        if this.edit.read(cx).value().as_ref()!=this.selected.map(|j|this.document.cues[j].text.as_str()).unwrap_or("") {
-                            this.notify(Err("Guarda o descarta la edición antes de cambiar de bloque.".into()),cx);
-                        } else {this.select_cue(index,window,cx);}
-                    });}})
-            }).collect::<Vec<_>>()
-        }).w_full().flex_1().min_h_0();
+        let list = uniform_list(
+            "subtitle-list",
+            self.filtered_cues.len(),
+            move |range, _, cx| {
+                let Some(entity) = entity.upgrade() else {
+                    return vec![];
+                };
+                let this = entity.read(cx);
+                range
+                    .filter_map(|i| this.filtered_cues.get(i).copied())
+                    .map(|index| {
+                        let cue = &this.session.document().cues[index];
+                        let selected = this.session.selected() == Some(index);
+                        let weak = entity.downgrade();
+                        row()
+                            .id(("cue", index))
+                            .role(Role::Button)
+                            .focusable()
+                            .tab_index(0)
+                            .aria_label(format!("Subtítulo {}: {}", index + 1, cue.text))
+                            .w_full()
+                            .h(px(66.))
+                            .px_4()
+                            .gap_4()
+                            .border_b_1()
+                            .border_color(rgb(LINE))
+                            .bg(rgb(if selected { 0x19312E } else { CARD }))
+                            .cursor_pointer()
+                            .hover(|s| s.bg(rgb(0x242C30)))
+                            .child(
+                                div()
+                                    .w(px(34.))
+                                    .text_color(rgb(MUTED))
+                                    .child(format!("{:02}", index + 1)),
+                            )
+                            .child(
+                                column()
+                                    .w(px(116.))
+                                    .gap_1()
+                                    .text_size(px(11.))
+                                    .text_color(rgb(MUTED))
+                                    .child(subtitles::timecode(cue.start_ms))
+                                    .child(subtitles::timecode(cue.end_ms)),
+                            )
+                            .child(
+                                column()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .gap_1()
+                                    .child(div().text_ellipsis().child(cue.text.clone()))
+                                    .when(cue.changed(), |d| {
+                                        d.child(
+                                            div()
+                                                .text_size(px(11.))
+                                                .text_color(rgb(MUTED))
+                                                .text_ellipsis()
+                                                .child(cue.original.clone()),
+                                        )
+                                    }),
+                            )
+                            .child(
+                                div()
+                                    .w(px(68.))
+                                    .text_size(px(11.))
+                                    .text_color(rgb(if cue.changed() { ACCENT } else { MUTED }))
+                                    .child(if cue.changed() { "Editado" } else { "Original" }),
+                            )
+                            .on_click(move |_, window, cx| {
+                                if let Some(entity) = weak.upgrade() {
+                                    entity.update(cx, |this, cx| {
+                                        if this.busy {
+                                            return;
+                                        }
+                                        this.select_cue(index, window, cx);
+                                    });
+                                }
+                            })
+                            .on_key_down({
+                                let weak = entity.downgrade();
+                                move |event: &KeyDownEvent, window, cx| {
+                                    if matches!(event.keystroke.key.as_str(), "enter" | "space")
+                                        && let Some(entity) = weak.upgrade()
+                                    {
+                                        entity.update(cx, |this, cx| {
+                                            if !this.busy {
+                                                this.select_cue(index, window, cx);
+                                            }
+                                        });
+                                    }
+                                }
+                            })
+                    })
+                    .collect::<Vec<_>>()
+            },
+        )
+        .w_full()
+        .flex_1()
+        .min_h_0();
         view = view
             .child(
                 row()
@@ -202,16 +276,45 @@ impl FlowApp {
                     .child(label(format!(
                         "{} de {} subtítulos",
                         self.filtered_cues.len(),
-                        self.document.cues.len()
+                        self.session.document().cues.len()
                     )))
+                    .child(
+                        row()
+                            .child(
+                                button(
+                                    "undo-text",
+                                    "Deshacer",
+                                    disabled || draft || !self.session.can_undo(),
+                                )
+                                .on_click(cx.listener(
+                                    |this, _, window, cx| this.history(false, window, cx),
+                                )),
+                            )
+                            .child(
+                                button(
+                                    "redo-text",
+                                    "Rehacer",
+                                    disabled || draft || !self.session.can_redo(),
+                                )
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| {
+                                        this.history(true, window, cx)
+                                    }),
+                                ),
+                            ),
+                    )
                     .child(
                         div()
                             .text_color(rgb(ACCENT))
                             .text_size(px(12.))
                             .child(format!(
                                 "{} editados{}",
-                                self.document.changed(),
-                                if self.dirty { " · sin exportar" } else { "" }
+                                self.session.document().changed(),
+                                if self.session.is_dirty() {
+                                    " · sin exportar"
+                                } else {
+                                    ""
+                                }
                             )),
                     ),
             )
@@ -225,7 +328,7 @@ impl FlowApp {
                     .overflow_hidden()
                     .child(list),
             );
-        if let Some(i) = self.selected {
+        if let Some(i) = self.session.selected() {
             view = view.child(
                 panel()
                     .gap_2()
@@ -235,8 +338,8 @@ impl FlowApp {
                             .child(label(format!(
                                 "BLOQUE {} · {} — {}",
                                 i + 1,
-                                subtitles::timecode(self.document.cues[i].start_ms),
-                                subtitles::timecode(self.document.cues[i].end_ms)
+                                subtitles::timecode(self.session.document().cues[i].start_ms),
+                                subtitles::timecode(self.session.document().cues[i].end_ms)
                             )))
                             .child(label(if draft {
                                 "Edición pendiente de guardar"
@@ -254,9 +357,7 @@ impl FlowApp {
                             .child(
                                 button("cancel-edit", "Descartar edición", self.busy || !draft)
                                     .on_click(
-                                        cx.listener(move |this, _, w, cx| {
-                                            this.select_cue(i, w, cx)
-                                        }),
+                                        cx.listener(|this, _, w, cx| this.discard_edit(w, cx)),
                                     ),
                             )
                             .child(div().flex_1())
@@ -339,6 +440,8 @@ impl FlowApp {
                         row()
                             .id(("resource", i))
                             .role(Role::Button)
+                            .focusable()
+                            .tab_index(0)
                             .aria_label(format!("Mostrar {}", resource.name))
                             .w_full()
                             .h(px(58.))
@@ -362,11 +465,20 @@ impl FlowApp {
                                     .child(resource.name.clone()),
                             )
                             .child(label(format!("{:.1} KB", resource.bytes as f64 / 1024.)))
-                            .on_click(move |_, _, cx| cx.reveal_path(&path))
+                            .on_click({
+                                let path = path.clone();
+                                move |_, _, cx| cx.reveal_path(&path)
+                            })
+                            .on_key_down(move |event: &KeyDownEvent, _, cx| {
+                                if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                                    cx.reveal_path(&path);
+                                }
+                            })
                     })
                     .collect::<Vec<_>>()
             },
         )
+        .w_full()
         .flex_1()
         .min_h_0();
         view.child(
@@ -441,6 +553,9 @@ impl Render for FlowApp {
                             })))
                             .child(
                                 div()
+                                    .id("status-message")
+                                    .role(Role::Status)
+                                    .aria_label(self.message.clone())
                                     .flex_1()
                                     .min_w_0()
                                     .text_ellipsis()

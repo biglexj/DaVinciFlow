@@ -3,6 +3,7 @@ use crate::{
     subtitles::{self, Document},
     ui::*,
 };
+use davinci_flow_gpui::session::SubtitleSession;
 use gpui_kit::component::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use gpui_kit::{prelude::*, *};
 use std::path::PathBuf;
@@ -16,9 +17,7 @@ enum Tab {
 
 pub struct FlowApp {
     tab: Tab,
-    document: Document,
-    dirty: bool,
-    selected: Option<usize>,
+    session: SubtitleSession,
     filtered_cues: Vec<usize>,
     inventory: library::Inventory,
     filtered_resources: Vec<usize>,
@@ -49,7 +48,12 @@ impl FlowApp {
                     this.refilter(cx);
                 }
             }),
-            cx.subscribe(&edit, |_, _, _: &InputEvent, cx| cx.notify()),
+            cx.subscribe(&edit, |this, state, event: &InputEvent, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.session.set_draft(state.read(cx).value().to_string());
+                }
+                cx.notify();
+            }),
         ];
         let weak = cx.entity().downgrade();
         window.on_window_should_close(cx, move |window, cx| {
@@ -58,9 +62,7 @@ impl FlowApp {
         });
         let mut app = Self {
             tab: Tab::Subtitles,
-            document: Document::default(),
-            dirty: false,
-            selected: None,
+            session: SubtitleSession::default(),
             filtered_cues: vec![],
             inventory: Default::default(),
             filtered_resources: vec![],
@@ -89,9 +91,11 @@ impl FlowApp {
         app
     }
 
-    fn has_draft(&self, cx: &App) -> bool {
-        self.selected
-            .is_some_and(|i| self.edit.read(cx).value().as_ref() != self.document.cues[i].text)
+    fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let text = self.session.draft().to_owned();
+        self.edit
+            .update(cx, |state, cx| state.set_value(text, window, cx));
+        cx.notify();
     }
 
     fn request_close(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
@@ -102,7 +106,7 @@ impl FlowApp {
             );
             return false;
         }
-        if !self.dirty && !self.has_draft(cx) {
+        if !self.session.is_dirty() && !self.session.has_draft() {
             return true;
         }
         if self.close_prompt {
@@ -146,18 +150,7 @@ impl FlowApp {
 
     fn refilter(&mut self, cx: &mut Context<Self>) {
         let query = self.filter.read(cx).value().to_lowercase();
-        self.filtered_cues = self
-            .document
-            .cues
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| {
-                query.is_empty()
-                    || c.text.to_lowercase().contains(&query)
-                    || c.original.to_lowercase().contains(&query)
-            })
-            .map(|(i, _)| i)
-            .collect();
+        self.filtered_cues = self.session.filtered_indices(&query);
         self.filtered_resources = self
             .inventory
             .resources
@@ -174,27 +167,26 @@ impl FlowApp {
     }
 
     fn select_cue(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
-        self.selected = Some(index);
-        let text = self.document.cues[index].text.clone();
-        self.edit
-            .update(cx, |state, cx| state.set_value(text, window, cx));
-        cx.notify();
+        match self.session.select(index) {
+            Ok(()) => self.sync_editor(window, cx),
+            Err(error) => self.notify(Err(error), cx),
+        }
     }
 
     fn install_document(&mut self, doc: Document, window: &mut Window, cx: &mut Context<Self>) {
-        self.document = doc;
-        self.dirty = false;
-        self.selected = None;
+        if let Err(error) = self.session.load(doc) {
+            self.notify(Err(error), cx);
+            return;
+        }
         self.filter.update(cx, |s, cx| s.set_value("", window, cx));
         self.refilter(cx);
-        if !self.document.cues.is_empty() {
-            self.select_cue(0, window, cx);
-        }
-        let warnings = self.document.warnings.join(" ");
+        self.sync_editor(window, cx);
+        let document = self.session.document();
+        let warnings = document.warnings.join(" ");
         self.notify(
             Ok(format!(
                 "{} subtítulos cargados. {warnings}",
-                self.document.cues.len()
+                document.cues.len()
             )),
             cx,
         );
@@ -233,9 +225,9 @@ impl FlowApp {
         if self.busy {
             return;
         }
-        if self.dirty || self.has_draft(cx) {
+        if self.session.is_dirty() || self.session.has_draft() {
             self.notify(
-                Err("Exporta o restaura los cambios antes de abrir otra fuente.".into()),
+                Err("Guarda o descarta la edición pendiente y exporta o deshaz los cambios antes de abrir otra fuente.".into()),
                 cx,
             );
             return;
@@ -268,14 +260,20 @@ impl FlowApp {
     }
 
     fn export(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.busy || self.document.cues.is_empty() {
+        if self.busy || self.session.document().cues.is_empty() {
             return;
         }
+        let snapshot = match self.session.export_snapshot() {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                self.notify(Err(error), cx);
+                return;
+            }
+        };
         let directory = std::env::var_os("USERPROFILE")
             .map(PathBuf::from)
             .unwrap_or_else(bridge::root);
         let receiver = cx.prompt_for_new_path(&directory, Some("subtitulos-corregidos.srt"));
-        let content = self.document.export();
         cx.spawn_in(window, async move |this, cx| {
             let selection = receiver.await;
             let _ = this.update_in(cx, |this, window, cx| match selection {
@@ -295,12 +293,15 @@ impl FlowApp {
                         window,
                         cx,
                         move || {
-                            subtitles::save_new(&path, &content)?;
-                            Ok(path)
+                            let receipt = snapshot.save_new(&path)?;
+                            Ok((path, receipt))
                         },
-                        |this, path, _, cx| {
-                            this.dirty = false;
-                            this.notify(Ok(format!("SRT exportado: {}", path.display())), cx);
+                        |this, (path, receipt), _, cx| {
+                            let result = this
+                                .session
+                                .accept_export(receipt)
+                                .map(|()| format!("SRT exportado: {}", path.display()));
+                            this.notify(result, cx);
                         },
                     );
                 }
@@ -315,9 +316,9 @@ impl FlowApp {
     }
 
     fn capture(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.dirty || self.has_draft(cx) {
+        if self.session.is_dirty() || self.session.has_draft() {
             self.notify(
-                Err("Exporta o restaura los cambios antes de capturar otra fuente.".into()),
+                Err("Guarda o descarta la edición pendiente y exporta o deshaz los cambios antes de capturar otra fuente.".into()),
                 cx,
             );
             return;
@@ -389,7 +390,7 @@ impl FlowApp {
     }
 
     fn normalize(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let result = self.document.normalize();
+        let result = self.session.normalize();
         self.after_batch(result, window, cx);
     }
 
@@ -397,7 +398,7 @@ impl FlowApp {
         let find = self.find.read(cx).value();
         let replacement = self.replacement.read(cx).value();
         let result = self
-            .document
+            .session
             .replace(&find, &replacement, self.case_sensitive);
         self.after_batch(result, window, cx);
     }
@@ -408,13 +409,10 @@ impl FlowApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Ok(count) = &result {
-            self.dirty |= *count > 0;
+        if result.is_ok() {
+            self.sync_editor(window, cx);
+            self.refilter(cx);
         }
-        if let Some(i) = self.selected {
-            self.select_cue(i, window, cx);
-        }
-        self.refilter(cx);
         self.notify(
             result.map(|n| format!("{n} subtítulos modificados. Los tiempos se conservan.")),
             cx,
@@ -422,47 +420,45 @@ impl FlowApp {
     }
 
     fn save_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(i) = self.selected {
-            let value = self
-                .edit
-                .read(cx)
-                .value()
-                .lines()
-                .map(str::trim)
-                .filter(|line| !line.is_empty())
-                .collect::<Vec<_>>()
-                .join("\n");
-            if value.trim().is_empty() {
-                self.notify(Err("El subtítulo no puede quedar vacío.".into()), cx);
-                return;
-            }
-            if self.document.cues[i].text != value {
-                self.document.cues[i].text = value;
-                self.dirty = true;
-            }
+        let result = self.session.save_draft();
+        if result.is_ok() {
+            self.sync_editor(window, cx);
             self.refilter(cx);
-            self.notify(
-                Ok(format!(
-                    "Cambio guardado en el bloque {}. Exporta el SRT para conservarlo en disco.",
-                    i + 1
-                )),
-                cx,
-            );
-            self.select_cue(i, window, cx);
         }
+        self.notify(
+            result.map(|_| "Cambio guardado. Exporta el SRT para conservarlo en disco.".into()),
+            cx,
+        );
+    }
+
+    fn discard_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.session.discard_draft();
+        self.sync_editor(window, cx);
     }
 
     fn restore_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        for cue in &mut self.document.cues {
-            cue.text = cue.original.clone();
+        let result = self.session.restore_all();
+        self.after_batch(result, window, cx);
+    }
+
+    fn history(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let result = if redo {
+            self.session.redo()
+        } else {
+            self.session.undo()
+        };
+        if result.is_ok() {
+            self.sync_editor(window, cx);
+            self.refilter(cx);
         }
-        self.dirty = false;
-        if let Some(i) = self.selected {
-            self.select_cue(i, window, cx);
-        }
-        self.refilter(cx);
         self.notify(
-            Ok("Se han restaurado los textos de la fuente original.".into()),
+            result.map(|()| {
+                if redo {
+                    "Cambio rehecho.".into()
+                } else {
+                    "Cambio deshecho.".into()
+                }
+            }),
             cx,
         );
     }
