@@ -2,7 +2,7 @@ use crate::subtitles::{Document, ResolveSnapshot};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{
-    io::Read,
+    io::{Read, Write},
     path::PathBuf,
     process::{Command, Stdio},
     time::{Duration, Instant},
@@ -19,6 +19,8 @@ pub fn root() -> PathBuf {
 pub struct ResolveStatus {
     pub running: bool,
     pub description: String,
+    pub project: String,
+    pub timeline: String,
 }
 
 #[derive(Deserialize)]
@@ -28,7 +30,7 @@ struct Envelope {
     error: Option<String>,
 }
 
-fn decode(output: &str) -> Result<Value, String> {
+pub(crate) fn decode(output: &str) -> Result<Value, String> {
     let records: Vec<_> = output
         .lines()
         .filter_map(|line| line.strip_prefix("DAVINCI_FLOW_GPUI="))
@@ -48,7 +50,50 @@ fn decode(output: &str) -> Result<Value, String> {
         .ok_or_else(|| "Falta el resultado de Resolve.".into())
 }
 
-fn request(operation: &str) -> Result<Value, String> {
+fn request(operation: &str, arguments: &[(&str, &str)]) -> Result<Value, String> {
+    invoke("read_resolve.py", operation, arguments)
+}
+
+/// Ejecuta un adaptador de Python y devuelve su sobre JSON ya validado.
+pub(crate) fn invoke(
+    script: &str,
+    operation: &str,
+    arguments: &[(&str, &str)],
+) -> Result<Value, String> {
+    let arguments: serde_json::Map<String, Value> = arguments
+        .iter()
+        .map(|(key, value)| (key.to_string(), Value::String(value.to_string())))
+        .collect();
+    invoke_json(script, operation, Value::Object(arguments))
+}
+
+pub(crate) fn invoke_json(
+    script: &str,
+    operation: &str,
+    arguments: Value,
+) -> Result<Value, String> {
+    if !matches!(
+        script,
+        "read_resolve.py" | "services.py" | "editorial.py" | "media.py"
+    ) {
+        return Err("Adaptador local no admitido.".into());
+    }
+    let input =
+        serde_json::to_vec(&serde_json::json!({"operation":operation,"arguments":arguments}))
+            .map_err(|e| e.to_string())?;
+    if input.len() > 32 * 1024 * 1024 {
+        return Err("La petición supera el límite de 32 MB.".into());
+    }
+    let writing = matches!(
+        operation,
+        "apply"
+            | "undo"
+            | "import_media"
+            | "fetch_download"
+            | "voice_generate"
+            | "voice_recover"
+            | "insert_markers"
+    );
     let root = root();
     let python = std::env::var_os("DAVINCIFLOW_GPUI_PYTHON")
         .map(PathBuf::from)
@@ -67,16 +112,15 @@ fn request(operation: &str) -> Result<Value, String> {
         paths.extend(std::env::split_paths(&existing));
     }
     let mut command = Command::new(python);
+    command.arg(root.join("src-gpui/bridge").join(script));
     command
-        .arg(root.join("src-gpui/bridge/read_resolve.py"))
-        .arg(operation)
         .env(
             "PYTHONPATH",
             std::env::join_paths(paths).map_err(|e| e.to_string())?,
         )
         .env("PYTHONUTF8", "1")
         .current_dir(&root)
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(windows)]
@@ -89,32 +133,25 @@ fn request(operation: &str) -> Result<Value, String> {
         .map_err(|e| format!("No se pudo iniciar el puente de Resolve: {e}"))?;
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let send = std::thread::spawn(move || stdin.write_all(&input));
     // Drenar ambos tubos mientras el hijo se ejecuta evita bloqueos con secuencias grandes.
-    let out = std::thread::spawn(move || {
-        let mut value = Vec::new();
-        stdout
-            .take(32 * 1024 * 1024)
-            .read_to_end(&mut value)
-            .map(|_| value)
-    });
-    let err = std::thread::spawn(move || {
-        let mut value = Vec::new();
-        stderr
-            .take(1024 * 1024)
-            .read_to_end(&mut value)
-            .map(|_| value)
-    });
+    let out = std::thread::spawn(move || drain_bounded(stdout, 32 * 1024 * 1024));
+    let err = std::thread::spawn(move || drain_bounded(stderr, 1024 * 1024));
     let start = Instant::now();
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break Ok(status),
-            Ok(None) if start.elapsed() < Duration::from_secs(110) => {
+            Ok(None) if writing || start.elapsed() < Duration::from_secs(180) => {
                 std::thread::sleep(Duration::from_millis(50))
             }
             Ok(None) => {
                 let _ = child.kill();
                 let _ = child.wait();
-                break Err("Resolve no respondió a la lectura en 110 segundos.".to_string());
+                break Err(
+                    "El servicio no respondió en 180 segundos. No se ha reintentado la operación."
+                        .to_string(),
+                );
             }
             Err(e) => {
                 let _ = child.kill();
@@ -128,18 +165,40 @@ fn request(operation: &str) -> Result<Value, String> {
         .map_err(|_| "Falló la lectura de la respuesta de Resolve.")?
         .map_err(|e| e.to_string())?;
     let _ = err.join();
+    let sent = send
+        .join()
+        .map_err(|_| "Falló el envío al servicio local.")?;
     let status = status?;
+    sent.map_err(|_| "No se pudo enviar la petición al servicio local.")?;
     if !status.success() {
         return Err(format!(
             "El puente terminó sin completar la lectura ({}).",
             status
         ));
     }
-    decode(&String::from_utf8(bytes).map_err(|_| "El puente devolvió texto que no es UTF-8.")?)
+    let result =
+        decode(&String::from_utf8(bytes).map_err(|_| "El puente devolvió texto que no es UTF-8.")?);
+    result.map_err(|error| if writing {format!("{error} No se ha reintentado. Comprueba el resultado o recupera la operación pendiente antes de repetirla.")}else{error})
+}
+
+// Seguir drenando incluso al superar el presupuesto evita bloquear o cortar al hijo
+// durante una escritura. Solo se conserva una cantidad acotada de salida.
+fn drain_bounded(mut stream: impl Read, limit: usize) -> std::io::Result<Vec<u8>> {
+    let mut retained = Vec::new();
+    let mut buffer = [0u8; 8192];
+    loop {
+        let count = stream.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        let keep = count.min(limit.saturating_sub(retained.len()));
+        retained.extend_from_slice(&buffer[..keep]);
+    }
+    Ok(retained)
 }
 
 pub fn status() -> Result<ResolveStatus, String> {
-    let value = request("status")?;
+    let value = request("status", &[])?;
     let running = value
         .get("running")
         .and_then(Value::as_bool)
@@ -153,16 +212,37 @@ pub fn status() -> Result<ResolveStatus, String> {
             .unwrap_or("Resolve no está abierto. Ábrelo con un proyecto para capturar subtítulos.")
             .to_string()
     };
+    let text = |key: &str| {
+        value
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
     Ok(ResolveStatus {
         running,
         description,
+        project: text("project"),
+        timeline: text("timeline"),
     })
 }
 
-pub fn subtitles() -> Result<Document, String> {
-    let snapshot: ResolveSnapshot = serde_json::from_value(request("subtitles")?)
+/// Lee la pista indicada de Resolve dentro del rango de subtítulos pedido.
+pub fn subtitles(track: u32, first: u32, last: u32) -> Result<Document, String> {
+    capture(track, first, last).map(|(document, _)| document)
+}
+
+pub fn capture(track: u32, first: u32, last: u32) -> Result<(Document, Value), String> {
+    let track = track.to_string();
+    let first = first.to_string();
+    let last = last.to_string();
+    let value = request(
+        "subtitles",
+        &[("track", &track), ("first", &first), ("last", &last)],
+    )?;
+    let snapshot: ResolveSnapshot = serde_json::from_value(value.clone())
         .map_err(|_| "Resolve devolvió una captura de subtítulos inválida.")?;
-    snapshot.try_into()
+    Ok((snapshot.try_into()?, value))
 }
 
 #[cfg(test)]

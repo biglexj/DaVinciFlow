@@ -5,6 +5,14 @@ Rama: `codex/gpui-demo`. La rama se creó desde `main`; los cambios previos del 
 
 ## Primer incremento
 
+### Alcance vigente: continuación del 2026-11-17
+
+Biglex pide continuar toda la migración, incluido el diseño. Esta instrucción sustituye la separación de responsabilidades descrita más abajo como antecedente del 15 de noviembre. El agente principal asume lógica y presentación, conserva el sidebar y compacta las áreas de trabajo con criterio propio.
+
+El incremento conecta Editor (propuesta/revisión/JSON/aplicación), Voz y Fetch; consolida las otras vistas nativas ya presentes y sus servicios. Mantiene adaptadores transitorios para el motor Python existente, con datos por stdin y validaciones de revisión/identidad. La matriz vigente y los pendientes están en `src-gpui/README.md`; no se declara migración íntegra a Rust ni autorización de publicación.
+
+La captura original se conserva separada del texto corregido: sirve como identidad del montaje, mientras la propuesta lleva las correcciones y su nota. La IA consume el texto corregido y su resultado vuelve a vincularse a la captura original antes de validar.
+
 - Aplicación independiente en `src-gpui/`, sin sustituir Flet ni modificar la instalación estable.
 - Base nativa: ventana, tema actual, navegación, estados de error y operaciones fuera del hilo de interfaz.
 - Corrección: importar SRT real, listado virtualizado, edición, búsqueda/reemplazo, normalización Unicode, restauración y exportación UTF-8.

@@ -1,6 +1,6 @@
 # Contrato de sesión Rust para el frontend
 
-Acuerdo de integración del 2026-11-15. El agente de este chat mantiene `davinci_flow_gpui::session::SubtitleSession`; la agencia encargada del frontend lo consume desde `app.rs`. Las vistas no duplican sus reglas.
+Acuerdo de integración iniciado el 2026-11-15. Desde la instrucción del 2026-11-17 el agente principal asume tanto lógica como presentación. `davinci_flow_gpui::session::SubtitleSession` conserva el dominio de corrección; las vistas lo consumen sin duplicar sus reglas.
 
 ## Lectura
 
@@ -25,6 +25,9 @@ Todas las acciones que pueden fallar devuelven `Result<_, String>` con un mensaj
 - `discard_draft(&mut self)`: vuelve al texto guardado del bloque.
 - `save_draft(&mut self) -> Result<usize, String>`: guarda un texto no vacío, elimina líneas vacías internas que romperían SRT y conserva los tiempos; devuelve 0 o 1 bloques modificados.
 - `normalize(&mut self) -> Result<usize, String>` y `replace(&mut self, find: &str, replacement: &str, case_sensitive: bool) -> Result<usize, String>`: operaciones por lote transaccionales.
+- `apply_glossary(&mut self, glossary: &str) -> Result<usize, String>` (2026-11-15): interpreta pares «término: Reemplazo» o «término -> Reemplazo», sustituye palabras completas sin distinguir mayúsculas y rechaza entradas inválidas.
+- `restore_cue(&mut self, index: usize) -> Result<usize, String>` (2026-11-15): restaura el texto original de un bloque concreto, conserva el resto y se puede deshacer.
+- `apply_texts(&mut self, texts: Vec<String>) -> Result<usize, String>` (2026-11-17): sustituye el texto de todos los bloques de forma transaccional; rechaza textos vacíos, líneas en blanco y listas que no correspondan a los bloques cargados, y conserva los tiempos.
 - `restore_all(&mut self) -> Result<usize, String>`: restaura los originales y recalcula los cambios respecto al último guardado/exportación. Se puede deshacer.
 - `undo(&mut self) -> Result<(), String>` / `redo(&mut self) -> Result<(), String>`: historial de texto de la sesión, sin modificar tiempos ni Resolve.
 
@@ -42,4 +45,10 @@ No se usa `dirty = false` en la vista como sustituto de este registro. El recibo
 
 El editor visual mantiene su `TextareaState`; al recibir `InputEvent::Change` llama a `set_draft(value)`. Después de seleccionar, cargar, guardar, restaurar o deshacer, sincroniza el control desde `draft()`. Los cambios programáticos del control pueden emitir `Change`; asignar el mismo texto debe ser inocuo.
 
-`Document`, `Cue`, `library::Inventory` y las funciones de lectura de `bridge` conservan su API inicial. El agente principal avisará cuando el módulo esté listo para compilar. La integración GPUI y la incorporación visible de deshacer/rehacer pertenecen al agente de frontend.
+`Document`, `Cue`, `library::Inventory` y las funciones de lectura de `bridge` conservan su API inicial. La integración GPUI pertenece al agente principal desde la reasignación del 2026-11-17.
+
+## Propuesta editorial (2026-11-17)
+
+`editorial::Proposal` valida el contrato JSON 1.1 y exige revisión antes de aplicar. `direct` conserva la captura original y coloca los textos corregidos en decisiones con nota; `document_revision` vincula la propuesta a los textos y tiempos revisados. La interfaz rechaza aplicar si la fuente volvió a cambiar. Guardar JSON utiliza creación exclusiva y no sobrescribe una revisión previa.
+
+`SubtitleSession::apply_texts` valida el lote semántico antes de registrar deltas y conserva tiempos, original e historial. El adaptador de IA utiliza el proveedor configurado explícitamente. Los resultados tardíos no sustituyen una edición posterior. Los marcadores requieren captura identificada, comprobación del contenido y confirmación del proyecto/montaje antes de insertar.

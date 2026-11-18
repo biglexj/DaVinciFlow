@@ -15,5 +15,24 @@
 - [x] Sustituir copias completas por planes de edición por bloque, con conteo incremental de cambios pendientes.
 - [x] Acotar el historial a 64 MiB y 32 operaciones, preservando documento/borrador/redo si un cambio excede el presupuesto.
 - [x] Verificar 32 pruebas y Clippy de todos los targets, sin modificar frontend.
-- [ ] Validar captura con Resolve abierto y una pista de subtítulos real.
-- [ ] Siguiente incremento: acordar el flujo de Editor/Plantillas y migrar su primer caso de uso completo.
+- [x] Validar captura con Resolve abierto: la pista 1 del montaje «¿POR QUÉ TERMINAR
+      UNA HISTORIA NOS DEJA VACÍOS / Voz + B-Roll · 24 fps» devolvió 120 subtítulos.
+- [x] Motor ampliado para el diseño migrado: glosario por términos, restauración de un
+      bloque, categorías y extensiones de biblioteca y preferencias propias de la
+      ventana nativa.
+- [x] Primer flujo de Editor/Plantillas: propuesta directa, revisión por bloque, selección de plantilla por capa y exportación JSON.
+
+## Continuación del 2026-11-17
+
+- [x] Asumir también diseño según la nueva instrucción; conservar sidebar y compactar tarjetas/formularios.
+- [x] Contrato editorial Rust con validación, revisión, notas y protección de la captura original.
+- [x] Conectar generación de propuesta, aplicación y deshacer al motor Python actual sin reintentos de escritura.
+- [x] Añadir Voz y Luna Fetch con contratos tipados y acciones reales; cuenta en Ajustes.
+- [x] Listas compactas de medios con vista previa de imagen/fotograma, reproductor externo e importación explícita.
+- [x] JSON por stdin, clave enmascarada, validación de tarifa/saldo y preferencias dañadas protegidas.
+- [x] Integrar guion/IA de Corrección con deltas atómicos y proveedor explícito; rechazar marcadores sin captura identificada o con montaje diferente.
+- [x] Verificar apertura real de 20 subtítulos y propuesta directa en la mesa nativa.
+- [ ] Verificar guardado/reapertura del JSON completo desde el diálogo nativo; el contrato Rust/Python sí dispone de prueba de integración.
+- [ ] Validar aplicación/deshacer reales sobre una secuencia de prueba de Resolve.
+- [ ] Validar acceso/retorno y generación remota de Aurora con el usuario.
+- [ ] Paridad avanzada, multimedia integrada, adaptadores restantes e instalador: ver matriz `src-gpui/README.md`.

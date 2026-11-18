@@ -352,3 +352,66 @@ fn normalization_plan_records_only_changed_text_and_preserves_source() {
     assert_eq!(edits[0].after, "¡Qué tal!");
     assert_eq!(document.cues, before);
 }
+
+#[test]
+fn glossary_replaces_whole_terms_and_rejects_invalid_entries() {
+    let mut s = session();
+    assert!(s.apply_glossary("   ").is_err());
+    assert!(s.apply_glossary("sin separador").is_err());
+    let changed = s.apply_glossary("Ely: Elena, Qué -> Como").unwrap();
+    assert_eq!(changed, 2);
+    assert_eq!(s.document().cues[0].text, "Hola, Elena");
+    assert_eq!(s.document().cues[1].text, "¡Como tal!");
+    // Los tiempos no se tocan y el cambio se puede deshacer.
+    assert_eq!(s.document().cues[0].start_ms, 1001);
+    s.undo().unwrap();
+    assert_eq!(s.document().cues[0].text, "Hola, Ely");
+}
+
+#[test]
+fn glossary_does_not_replace_partial_words() {
+    let mut s = session();
+    edit(&mut s, "Hola, Elynas");
+    let changed = s.apply_glossary("Ely: Elena").unwrap();
+    assert_eq!(changed, 0);
+    assert_eq!(s.document().cues[0].text, "Hola, Elynas");
+}
+
+#[test]
+fn corrected_texts_are_applied_atomically_and_keep_the_times() {
+    let mut s = session();
+    let texts = vec![
+        "Primera corregida".to_string(),
+        "Segunda corregida".to_string(),
+    ];
+    assert_eq!(s.apply_texts(texts).unwrap(), 2);
+    assert_eq!(s.document().cues[0].text, "Primera corregida");
+    assert_eq!(s.document().cues[0].start_ms, 1001);
+    // Un texto vacío o con líneas en blanco rechaza el cambio completo.
+    let before = s.document().cues.clone();
+    assert!(
+        s.apply_texts(vec!["Correcta".to_string(), "   ".to_string()])
+            .is_err()
+    );
+    assert_eq!(s.document().cues, before);
+    // Una lista que no corresponde a los bloques cargados también se rechaza.
+    assert!(s.apply_texts(vec!["Una".to_string()]).is_err());
+    assert_eq!(s.document().cues, before);
+    s.undo().unwrap();
+    assert_eq!(s.document().cues[0].text, "Hola, Ely");
+}
+
+#[test]
+fn restoring_one_cue_keeps_the_other_edits_and_can_be_undone() {
+    let mut s = session();
+    edit(&mut s, "Hola, Ely corregida");
+    s.select(1).unwrap();
+    edit(&mut s, "¡Qué tal, Ely!");
+    s.select(0).unwrap();
+    assert_eq!(s.restore_cue(0).unwrap(), 1);
+    assert_eq!(s.document().cues[0].text, "Hola, Ely");
+    assert_eq!(s.document().cues[1].text, "¡Qué tal, Ely!");
+    assert!(s.restore_cue(99).is_err());
+    s.undo().unwrap();
+    assert_eq!(s.document().cues[0].text, "Hola, Ely corregida");
+}

@@ -1,10 +1,14 @@
-# Migración completa del diseño a GPUI · encargo para otra agencia
+# Migración completa del diseño a GPUI
+
+> Alcance vigente, 2026-11-17: Biglex asigna al agente principal la continuación completa, incluido el diseño. Se conserva el sidebar; se reducen espaciado, tarjetas vacías y expansión innecesaria. Estado actual por pestaña: `src-gpui/README.md`. El proceso permanece activo hasta completar paridad y aceptación visual.
 
 ## TAREA
 
-Migrar **todo el diseño y frontend** de DaVinci Flow desde Flet a Rust + GPUI, pestaña por pestaña, conservando en gran medida la identidad, distribución, textos y flujos actuales. La ejecución corresponde a la otra agencia que Biglex asigne.
+Migrar **todo el diseño y frontend** de DaVinci Flow desde Flet a Rust + GPUI, pestaña por pestaña, conservando en gran medida la identidad, distribución, textos y flujos actuales.
 
-El agente de este chat se encarga exclusivamente del backend/motor, sus adaptadores y contratos. La integración parcial anterior es un antecedente, no la ejecución ni la aprobación de la migración completa del diseño. Esta separación responde a la corrección explícita de Biglex del 2026-11-15.
+Biglex asignó la ejecución a la sesión del agente principal el 2026-11-15 («tomalo y ejecuta»), tras la corrección de alcance que reservaba la migración completa para otra agencia. El agente principal conserva además el backend/motor, sus adaptadores y contratos; la separación por áreas se mantiene en la práctica: las vistas no duplican reglas del motor.
+
+La integración parcial anterior es un antecedente, no la aprobación de la migración completa del diseño.
 
 ## CONTEXTO
 
@@ -52,9 +56,9 @@ También incluye selectores, diálogos, formularios, tablas/listas, estados vac�
 
 ## PROPIEDAD
 
-- **Otra agencia, por asignar por Biglex:** `src-gpui/src/app.rs`, `src-gpui/src/app/`, `src-gpui/src/ui.rs`, `src-gpui/src/main.rs`, recursos visuales derivados necesarios y este proceso.
-- **Agente de este chat:** dominio Rust, adaptadores, contratos, pruebas del motor y proceso de migración existente.
+- **Frontend de esta sesión:** `src-gpui/src/app.rs`, `src-gpui/src/app/`, `src-gpui/src/ui.rs`, `src-gpui/src/main.rs`, recursos visuales derivados necesarios y este proceso.
+- **Motor y adaptadores:** `src-gpui/src/lib.rs`, módulos de dominio, pruebas y el proceso de migración existente. Los cambios de dominio de este incremento (glosario y restauración de un bloque) se registran en el proceso de migración.
 
 ## ENTREGA
 
-El alcance se completa cuando todas las áreas estén contrastadas con Flet, las acciones disponibles estén conectadas a contratos reales y los límites pendientes queden explícitos. La aceptación visual corresponde a Biglex. Este documento prepara el encargo; no supone que una agencia externa ya haya recibido o aceptado la asignación.
+El alcance se completa cuando todas las áreas estén contrastadas con Flet, las acciones disponibles estén conectadas a contratos reales y los límites pendientes queden explícitos. La aceptación visual corresponde a Biglex. El estado actual de cada área figura en `TASKS.md` y la evidencia en `VALIDATION.md`.

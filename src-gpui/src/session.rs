@@ -202,6 +202,90 @@ impl SubtitleSession {
         self.apply_edits(edits)
     }
 
+    /// Restaura el texto original de un bloque concreto.
+    pub fn restore_cue(&mut self, index: usize) -> Result<usize, String> {
+        self.require_document()?;
+        self.require_saved_draft()?;
+        let Some(cue) = self.document.cues.get(index) else {
+            return Err("Ese bloque de subtítulos ya no está disponible.".into());
+        };
+        if cue.text == cue.original {
+            return Ok(0);
+        }
+        let edit = TextEdit {
+            index,
+            before: cue.text.clone(),
+            after: cue.original.clone(),
+        };
+        self.apply_edits(vec![edit])
+    }
+
+    /// Aplica un glosario de términos; la operación es transaccional.
+    pub fn apply_glossary(&mut self, glossary: &str) -> Result<usize, String> {
+        self.require_document()?;
+        self.require_saved_draft()?;
+        if glossary.trim().is_empty() {
+            return Err("Ingresa términos de glosario (ej: término: Reemplazo).".into());
+        }
+        let terms = parse_glossary(glossary);
+        if terms.is_empty() {
+            return Err("Formato de glosario inválido. Usa: término: Reemplazo".into());
+        }
+        let mut edits = Vec::new();
+        for (index, cue) in self.document.cues.iter().enumerate() {
+            let mut text = cue.text.clone();
+            for (term, replacement) in &terms {
+                text = replace_word(&text, term, replacement)?;
+            }
+            if text != cue.text {
+                validate_export_text(index, &text)?;
+                edits.push(TextEdit {
+                    index,
+                    before: cue.text.clone(),
+                    after: text,
+                });
+            }
+        }
+        self.apply_edits(edits)
+    }
+
+    /// Sustituye el texto de todos los bloques de forma transaccional.
+    ///
+    /// Los tiempos no se tocan y un texto vacío o con líneas en blanco rechaza el
+    /// cambio completo, igual que el resto de operaciones por lote.
+    pub fn apply_texts(&mut self, texts: Vec<String>) -> Result<usize, String> {
+        self.require_document()?;
+        self.require_saved_draft()?;
+        if texts.len() != self.document.cues.len() {
+            return Err("La corrección recibida no corresponde a los subtítulos cargados.".into());
+        }
+        let mut edits = Vec::new();
+        for (index, text) in texts.iter().enumerate() {
+            let text = text.trim();
+            if text.is_empty() {
+                return Err(format!(
+                    "El bloque {} quedó vacío tras la corrección.",
+                    index + 1
+                ));
+            }
+            if text.contains('\r') || text.lines().any(|line| line.trim().is_empty()) {
+                return Err(format!(
+                    "El bloque {} contiene saltos de línea que romperían el SRT.",
+                    index + 1
+                ));
+            }
+            let cue = &self.document.cues[index];
+            if cue.text != text {
+                edits.push(TextEdit {
+                    index,
+                    before: cue.text.clone(),
+                    after: text.to_owned(),
+                });
+            }
+        }
+        self.apply_edits(edits)
+    }
+
     pub fn restore_all(&mut self) -> Result<usize, String> {
         self.require_document()?;
         self.require_saved_draft()?;
@@ -344,6 +428,51 @@ impl SubtitleSession {
         self.changed();
         Ok(count)
     }
+}
+
+/// Interpreta un glosario: «término: Reemplazo» o «término -> Reemplazo».
+fn parse_glossary(text: &str) -> Vec<(String, String)> {
+    let mut terms = Vec::new();
+    for item in text.split(['\n', ',']) {
+        let item = item.trim();
+        if item.is_empty() {
+            continue;
+        }
+        let pair = if let Some((term, replacement)) = item.split_once(':') {
+            Some((term, replacement))
+        } else {
+            item.split_once("->")
+        };
+        let Some((term, replacement)) = pair else {
+            continue;
+        };
+        let term = term.trim();
+        let replacement = replacement.trim();
+        if term.is_empty() || replacement.is_empty() {
+            continue;
+        }
+        terms.push((term.to_owned(), replacement.to_owned()));
+    }
+    terms
+}
+
+/// Sustituye un término completo sin distinguir mayúsculas, como el glosario vigente.
+fn replace_word(text: &str, term: &str, replacement: &str) -> Result<String, String> {
+    let escaped = regex::escape(term);
+    let word = |value: char| value.is_alphanumeric() || value == '_';
+    let prefix = term.starts_with(word);
+    let suffix = term.ends_with(word);
+    let pattern = regex::RegexBuilder::new(&format!(
+        "{}{escaped}{}",
+        if prefix { r"\b" } else { "" },
+        if suffix { r"\b" } else { "" }
+    ))
+    .case_insensitive(true)
+    .build()
+    .map_err(|e| format!("El término del glosario no es válido: {e}"))?;
+    Ok(pattern
+        .replace_all(text, regex::NoExpand(replacement))
+        .into_owned())
 }
 
 fn validate_document(document: &Document) -> Result<(), String> {

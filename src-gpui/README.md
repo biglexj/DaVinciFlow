@@ -1,66 +1,70 @@
-# DaVinci Flow · demo Rust + GPUI
+# DaVinci Flow · Rust + GPUI
 
-Migración incremental en la rama `codex/gpui-demo`. Se ejecuta desde el checkout; no sustituye el ejecutable instalado ni cambia la versión de DaVinci Flow.
+Migración incremental en `codex/gpui-demo`. Estado: 2026-11-17. Aplicación de desarrollo desde el checkout; todavía no reemplaza la versión instalada. El agente principal vuelve a encargarse tanto del diseño como de la lógica por instrucción de Biglex del 17 de noviembre.
 
-## Abrir
+## Ejecutar
 
-Desde la raíz del repositorio:
+Desde la raíz:
 
 ```powershell
 mise dev-gpui
-# Opcional: abrir un SRT real al iniciar
 mise dev-gpui "ruta/al/archivo.srt"
-```
-
-Requisitos: Rust estable con herramientas de compilación para Windows. La lectura de Resolve reutiliza `.venv` y su puente actual; SRT y biblioteca funcionan íntegramente en Rust sin Python. Para un intérprete diferente se admite `DAVINCIFLOW_GPUI_PYTHON`.
-
-```powershell
 mise build-gpui
 mise test-gpui
 mise check-gpui
-mise dev-gpui --plan
 ```
 
-Las cuatro tareas admiten `--plan`, que muestra los comandos sin ejecutarlos. El binario de desarrollo queda en `src-gpui/target/debug/davinci-flow-gpui.exe`. La demo no dispone de tareas de release o publicación.
+Las cuatro tareas admiten `--plan`. El binario es `src-gpui/target/debug/davinci-flow-gpui.exe`; ciérralo antes de recompilar porque Windows bloquea el ejecutable en uso. Requiere Rust y herramientas Windows; los servicios que conservan adaptador usan `.venv` o `DAVINCIFLOW_GPUI_PYTHON`. Las pruebas puras de Rust no requieren Python.
 
-## Qué funciona
+## Estado por área
 
-- **Corrección**: importar SRT UTF-8/BOM o Latin-1; listado virtualizado; filtrar; editar y guardar un bloque; buscar/reemplazar literal con opción de mayúsculas; normalizar NFC, espacios y puntuación; restaurar la fuente; deshacer/rehacer hasta 32 operaciones de texto; exportar una copia SRT UTF-8.
-- **Biblioteca**: seleccionar una carpeta, inventariar vídeo/audio/imágenes/títulos/documentos, filtrar, actualizar y mostrar un archivo en el Explorador. No sigue enlaces simbólicos ni recorre carpetas ocultas. Informa errores y limita el inventario a 2000 recursos.
-- **Conexión**: consultar disponibilidad real de Resolve mediante su MCP oficial y capturar la pista 1 a través del adaptador existente. Una consulta fallida no genera una captura de sustitución.
+«Nativa» describe la interfaz y el dominio señalado; no implica paridad completa con Flet.
 
-La exportación crea un archivo nuevo y rechaza destinos existentes; no sobreescribe la fuente. Los cambios se guardan en memoria hasta exportarlos. La ventana advierte antes de cerrar con cambios. Una edición pendiente debe guardarse o descartarse antes de cambiar de bloque o exportar.
-
-`SubtitleSession` mantiene el documento, borrador, selección, historial y estado de exportación en el motor Rust. Una exportación registra exactamente la copia que escribió: una respuesta tardía conserva las ediciones posteriores y un recibo de otra carga se rechaza. Restaurar el original después de exportar una corrección vuelve a contar como cambio pendiente.
-
-Las ediciones se planifican por bloques cambiados, sin clonar el documento completo. El historial conserva hasta 32 operaciones con un presupuesto de 64 MiB para sus textos y reservas de vectores; puede retirar entradas antiguas antes de llegar a 32. Una operación que por sí sola supera ese presupuesto se rechaza antes de cambiar el documento o eliminar Rehacer. Este presupuesto limita el historial retenido, no toda la memoria temporal de la aplicación.
-
-La normalización determinista no inventa tildes ni corrige semántica. Los tiempos SRT permanecen en milisegundos; al capturar Resolve se resta el origen de la secuencia para exportar tiempos relativos. Los bloques SRT inválidos causan un error explícito, en vez de desaparecer del documento. Los solapamientos válidos se conservan con aviso.
-
-## Continuar por pestañas
-
-| Base / pestaña | Primer incremento | Pendiente |
+| Área | Implementado | Integración y límites |
 |---|---|---|
-| Base | Ventana, tema vigente, navegación, errores, trabajo en segundo plano | Preferencias de ventana y accesibilidad completa |
-| Corrección | SRT y edición local en Rust; captura por puente | Glosario, corrección IA, sincronización al Editor |
-| Biblioteca | Inventario local en Rust | Rutas por categoría, carátulas, reproducción, importación a Resolve |
-| Conexión | Estado y captura | Selección de pista/rango y controles de escritura revisada |
-| Editor / Plantillas | Motor Python conservado | Propuesta, revisión, presets, aplicación y deshacer |
-| Voz / SFX / B-Rolls / Música / Luna Fetch | Implementaciones actuales conservadas | Migración y reproducción multimedia |
-| Ajustes / actualizaciones / Acerca de | Implementación actual conservada | Contratos nativos y empaquetado |
+| Base | Sidebar conservado, controles compactos, ancho de contenido acotado y ventana inicial 1180 × 800 | Revisión visual final de Biglex pendiente; tamaño mínimo 900 × 640 |
+| Editor | Captura por pista/rango, SRT, opciones de formato/densidad/pistas, propuesta directa, revisión por bloque, buscador de plantillas, JSON, aplicar y deshacer | Estado, validación y revisión en Rust; IA y escritor de Resolve por adaptador Python |
+| Corrección | SRT, búsqueda/reemplazo, normalización Unicode, glosario, edición, historial, exportación y panel IA/guion | Edición Rust; alineación por proveedor configurado vía Python. Marcadores vinculados a captura identificada; escritura real pendiente de validar |
+| Biblioteca | Carpetas por categoría, inventario y filtros, selección de hasta 80 recursos para propuestas | Rust; hasta 2000 recursos por listado. Preferencias propias de GPUI; no sigue enlaces ni carpetas ocultas |
+| B-Rolls | Lista compacta, selección para IA, imágenes y fotograma de vídeo, importación explícita | Fotograma por FFmpeg; reproducción con la aplicación del sistema |
+| Música | Inventario por categoría y escucha en el reproductor del sistema | Reproductor integrado y controles de audio pendientes |
+| SFX | Catálogo real y escucha de WAV del catálogo | Adaptador a los servicios existentes; sin reproducción integrada |
+| Plantillas | Catálogo instalado con diagnósticos; selección por capa desde revisión | Presets, edición del catálogo y previsualización de títulos pendientes |
+| Asistente | Consultas con el proveedor configurado y transferencia de dirección al Editor | Servicio Python; no sustituye errores por respuestas locales |
+| Voz | Voces del sistema/Aurora, cálculo y confirmación de consumo, generación, recuperación e importación | Servicio existente, protección de solicitudes pendientes; prueba real de acceso y generación remota pendiente |
+| Luna Fetch | Analizar URL, vídeo MP4/audio MP3, destino, descarga e importación opcional | yt-dlp/FFmpeg por adaptador; progreso numérico y cancelación pendientes |
+| Ajustes | Proveedor/modelo, clave enmascarada y cuenta de Aurora con acceso/retorno/cierre de sesión | Misma configuración del checkout Python; no copia sesiones de otras aplicaciones |
+| Acerca de | Información y consulta de publicaciones oficiales | No instala actualizaciones ni produce un instalador GPUI |
 
-No se muestran pestañas vacías para capacidades pendientes. No se han migrado las credenciales ni las sesiones de Aurora a un almacenamiento nuevo.
+## Contratos y protección del trabajo
 
-## Código
+- Los tiempos SRT se conservan en milisegundos. La captura original de Resolve permanece intacta; las correcciones pertenecen a las decisiones de la propuesta y llevan nota de edición.
+- La propuesta exige revisión explícita antes de aplicar. Cambiar textos o tiempos después de prepararla exige generar otra; Resolve vuelve a comprobar la identidad del montaje.
+- SRT y JSON se exportan a archivos nuevos, rechazando sobrescrituras. Los borradores bloquean cambios de fuente y la ventana avisa al cerrar con trabajo sin guardar.
+- `SubtitleSession` conserva original, texto, borrador, selección, deltas y recibos de exportación; historial de hasta 32 operaciones y 64 MiB retenidos. Una respuesta tardía no limpia ediciones posteriores.
+- La normalización determinista no inventa tildes ni cambios de significado.
+- El inventario se reconstruye desde las carpetas guardadas al entrar en una categoría. Una respuesta de otra categoría se descarta. Preferencias dañadas se notifican y no se sobrescriben.
+- Las peticiones locales llevan JSON por stdin; las claves y textos no se pasan en la línea de comandos. Las escrituras y generaciones con cobro no se reintentan automáticamente.
+- La voz verifica tarifa y saldo antes de generar. Si Aurora falla, conserva las voces locales realmente instaladas y muestra el error; no inventa saldo ni una sesión válida.
 
-- `src/subtitles.rs`: dominio SRT y corrección; sin controles GPUI.
-- `src/session.rs`: ciclo de edición, historial, validaciones y seguimiento de exportaciones; independiente de GPUI.
-- `src/session_tests.rs`: pruebas del ciclo completo y de respuestas tardías/otras sesiones.
-- `src/library.rs`: inventario local; sin decodificación multimedia.
-- `src/bridge.rs` y `bridge/read_resolve.py`: proceso de solo lectura, resultado JSON tipado y tiempo límite.
-- `src/app.rs`: estado y coordinación de acciones.
-- `src/app/views.rs` y `src/ui.rs`: vistas y primitivas con los colores actuales de Flet.
+## Qué falta para cerrar la migración
 
-GPUI Kit se fija a `0.9.1`; `Cargo.lock` registra sus dependencias. El proceso y la evidencia viven en `process/active/2026-11-15_demo-rust-gpui/`.
+1. Paridad avanzada: tandas reanudables y presets/previsualización de títulos; validación real de alineación semántica/guion/marcadores.
+2. Multimedia integrada y progreso/cancelación de descargas.
+3. Validación real del ciclo revisado en Resolve, acceso/retorno de Aurora y voz remota; aceptación visual en distintos tamaños.
+4. Reducir los adaptadores Python restantes a la frontera que realmente requiere Resolve, migrando los servicios de IA, descarga y autenticación de forma separada.
+5. Empaquetado, actualización e instalación de la aplicación GPUI. No hay publicación autorizada ni preparada por estas tareas.
 
-El encargo completo de diseño/frontend queda preparado para la otra agencia que Biglex asigne en `process/active/2026-11-15_diseno-gpui/`, conservando identidad, distribución y flujos. El agente de este chat mantiene el backend. El contrato entre motor e interfaz está en `process/active/2026-11-15_demo-rust-gpui/BACKEND_CONTRACT.md`.
+El estado verificable y las pruebas se registran en `process/active/2026-11-15_demo-rust-gpui/VALIDATION.md`. El proceso de diseño se conserva en `process/active/2026-11-15_diseno-gpui/`.
+
+## Organización
+
+- `src/subtitles.rs`, `src/session.rs`: SRT y ciclo de edición.
+- `src/editorial.rs`: contrato de propuesta, validación, revisión y vinculación a la fuente.
+- `src/library.rs`, `src/preferences.rs`: inventario y persistencia nativos.
+- `src/services.rs`, `src/media.rs`, `src/bridge.rs`: contratos tipados y ejecución fuera de la interfaz.
+- `src/app/*.rs`: vistas y acciones por área; `src/ui.rs`: primitivas visuales.
+- `bridge/*.py`: adaptadores transitorios y retorno de autenticación.
+- `tests/test_gpui_bridge.py` en la raíz: pruebas de contratos sin red ni cobros.
+
+GPUI Kit está fijado a `0.9.1`; `Cargo.lock` registra las dependencias. Este incremento aprovecha el motor Python presente en el árbol de trabajo; el checkpoint GPUI no empaqueta ni publica ese motor.

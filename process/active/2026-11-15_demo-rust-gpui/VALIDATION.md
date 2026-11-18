@@ -57,3 +57,47 @@ La demo quedó ejecutándose con la copia de revisión en memoria. La captura en
 - [x] En este incremento no se modifican `app.rs`, `app/views.rs`, `ui.rs` ni `main.rs`.
 
 No se midió aceleración temporal ni se afirma un límite global de RAM: el presupuesto se aplica al historial retenido. La demo abierta conserva el binario del incremento anterior; las nuevas optimizaciones están comprobadas en las pruebas compiladas del motor y requieren recompilar la demo para ejecutarlas en la ventana. No se intervino de nuevo en el diseño.
+
+## Cuarto incremento: motor al servicio del diseño migrado
+
+Ejecutado junto con el [proceso de diseño](../2026-11-15_diseno-gpui/PLAN.md), que Biglex asignó a esta sesión el 2026-11-15.
+
+- [x] `SubtitleSession::apply_glossary`: interpreta «término: Reemplazo» y «término -> Reemplazo», sustituye palabras completas sin distinguir mayúsculas, rechaza entradas inválidas y es transaccional.
+- [x] `SubtitleSession::restore_cue`: restaura el texto original de un bloque concreto, conserva los demás cambios y se puede deshacer.
+- [x] `library`: categorías y extensiones vigentes (B-rolls, Efectos, Música, Títulos y Fusion, Textos y documentos), índice estable por recurso y avisos por carpeta inexistente.
+- [x] `preferences`: preferencias propias de la ventana nativa en `~/.davinci_flow/gpui/library.json`, escritura atómica y límite de 80 recursos compartidos. No se toca el archivo de preferencias de Flet.
+- [x] Puente de Resolve: la lectura admite pista y rango (`subtitles track=… first=… last=…`), valida los argumentos y devuelve un error utilizable.
+- [x] `cargo test --manifest-path src-gpui/Cargo.toml --locked`: **37 pruebas correctas** (cuatro nuevas: glosario, glosario sin palabras parciales y restauración de un bloque).
+- [x] `cargo clippy --manifest-path src-gpui/Cargo.toml --locked --all-targets -- -D warnings`: correcto.
+- [x] Consulta real al puente con Resolve abierto: `status` devuelve `running: false` con transporte MCP disponible y `subtitles` devuelve 120 cues de la pista 1 del montaje abierto.
+
+La captura en la ventana nativa, la exportación y la aceptación visual de Biglex quedan registradas en el proceso de diseño. No se modificó la interfaz Flet ni el motor compartido con Python, salvo el adaptador de lectura ya descrito.
+
+## Continuación del 2026-11-17: lógica y diseño
+
+- Alcance: agente principal asume también presentación. Sidebar conservado, tarjetas/formularios compactados, anchos acotados y listas virtualizadas. Todas las entradas tienen vistas conectadas; no se declara paridad completa.
+- Editor: propuesta directa, revisión por bloque/capa y buscador de plantillas; JSON sin sobrescritura; generación IA, aplicar y deshacer conectados. La captura original conserva la identidad de Resolve; las correcciones pertenecen a decisiones con nota. La IA consume el texto corregido y su resultado vuelve a vincularse al original.
+- Voz/Fetch: contratos tipados y vistas nativas sobre los servicios Python actuales. Cuenta en Ajustes, clave enmascarada, solicitudes por stdin, consumo confirmado y recuperación sin reintentos facturables automáticos.
+- Corrección semántica: guion/IA integrado con proveedor explícito y lote de textos atómico. Marcadores rechazados sin captura o si cambia el montaje; posición/inserción reales pendientes.
+- Biblioteca: reconstrucción por categoría fuera del render, descarte de respuestas de otra categoría y navegación pendiente retomada al terminar un trabajo. Preferencias dañadas notificadas sin sobrescritura.
+
+### Verificación técnica final
+
+- `mise check-gpui`: formato y Clippy de todos los targets con `-D warnings`, correcto.
+- `mise test-gpui`: **45 pruebas Rust correctas**, 1 integración excluida por defecto.
+- `cargo test --manifest-path src-gpui/Cargo.toml --locked --lib native_proposals -- --ignored`: **1 integración correcta**. El contrato Python rechaza aplicar sin revisión y acepta la propuesta aprobada. Sin llamadas IA ni escritura en Resolve.
+- `PYTHONPATH=src;tests .venv/Scripts/python.exe -m unittest tests.test_gpui_bridge tests.test_fetch tests.test_system_tts tests.test_voice_catalog tests.test_voice_media tests.test_aurora_voice`: **47 pruebas correctas**, sin cobros ni escritura real en Resolve.
+- `mise build-gpui` pasó durante el incremento. El último intento no pudo reemplazar el ejecutable estándar porque estaba abierto (Windows, acceso denegado). El estado final compiló con `cargo rustc --manifest-path src-gpui/Cargo.toml --locked --bin davinci-flow-gpui -- -o temp/gpui-qa/davinci-flow-gpui-preview.exe`. Sus dos avisos se deben al uso de `-o` junto con las salidas de Cargo; el chequeo estricto ordinario no tiene advertencias.
+- Copia final: `temp/gpui-qa/DaVinciFlow-GPUI-preview-2026-11-17.exe`; SHA-256 `2FFA4DBC4F28E8DEAA2DD2168836C172A6A656E1D19C440D7E01DD3AD24557E3`.
+- Se antepuso la toolchain estable al PATH de las verificaciones porque los shims iniciales no respondían; no se cambió la configuración del usuario.
+
+### Verificación funcional y visual
+
+- Instancia GPUI aislada: abrió `temp/gpui-qa/captura-local-20.srt` con **20 bloques**. «Preparar revisión directa» abrió la mesa con **0 de 20 revisados**, texto real y plantillas instaladas.
+- Se observó Editor/revisión en ventana de 1180 × 800. Los últimos ajustes de buscador/cuenta/espaciado se compilaron; no se volvió a completar toda la navegación visual. La aceptación corresponde a Biglex.
+- «Guardar JSON» abrió su diálogo nativo; el guardado completo por ese diálogo quedó sin confirmar durante el uso concurrente/captura de pantalla. La prueba Rust de exportación/reapertura y rechazo de sobrescritura sí pasó.
+- Voz local real: **4 voces instaladas**, un WAV generado y **55 645 fotogramas** validados. Archivo `~/.davinci_flow/development/5e4f2d1334263063/gpui/voice/330d2ebf-463b-45a7-b953-d1659366765c.wav`. No se probó la escucha.
+
+### Límites
+
+No se ejecutaron aplicación/deshacer ni marcadores reales en Resolve, acceso/retorno de Aurora, voz remota con créditos o descarga real de un enlace elegido por el usuario. No hay migración íntegra del motor a Rust, instalador GPUI ni publicación. El checkpoint GPUI utiliza el motor Python presente en el árbol, que conserva cambios previos ajenos a este incremento.
