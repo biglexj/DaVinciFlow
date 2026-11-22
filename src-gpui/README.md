@@ -4,7 +4,7 @@ Interfaz nativa de escritorio en `main`, versión 1.0.0.
 
 ## Ejecutar
 
-`mise dev` abre GPUI desde `DaVinciFlow`. `mise dev py` abre Flet desde la rama `Python`, en la carpeta de trabajo hermana `DaVinciFlow-Flet`. Cada carpeta usa su propio entorno Python. Los adaptadores de GPUI siguen usando `src/davinci_flow/` para Resolve, IA, voz y descargas.
+`mise dev` abre GPUI desde `DaVinciFlow`. `mise dev py` abre Flet 1.0.0 desde la rama `v-python`, en la carpeta de trabajo hermana `DaVinciFlow-Flet`. La edición Python queda como alternativa y el desarrollo continúa en Rust. Los adaptadores de GPUI siguen usando `src/davinci_flow/` para Resolve, IA, voz y descargas.
 
 Desde la raíz del repositorio:
 

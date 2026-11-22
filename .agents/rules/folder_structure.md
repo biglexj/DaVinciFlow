@@ -8,7 +8,7 @@ trigger: always_on
 
 ## Raíz del repositorio
 
-`DaVinciFlow` usa `main` y `mise dev` para GPUI. `DaVinciFlow-Flet` usa `Python` y `mise dev py` para Flet. `mise dev py` también funciona desde `main` y dirige el arranque a la carpeta de trabajo de `Python`.
+`DaVinciFlow` usa `main` y `mise dev` para GPUI. `DaVinciFlow-Flet` usa `v-python` y `mise dev py` para la edición Flet 1.0.0. El desarrollo continúa en Rust. `mise dev py` también funciona desde `main` y dirige el arranque a la carpeta de trabajo de `v-python`.
 
 GPUI tiene su interfaz y lógica nativa en `src-gpui/`. Sus adaptadores aún cargan `src/davinci_flow/` para Resolve y varios servicios. Los cambios de interfaz Flet se hacen en su propia carpeta de trabajo. Los cambios del motor compartido se incorporan explícitamente a cada rama que los necesite.
 

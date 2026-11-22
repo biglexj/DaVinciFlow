@@ -1,6 +1,6 @@
 # DaVinci Flow
 
-En `main`, `mise dev` abre DaVinci Flow en Rust + GPUI. `mise dev py` abre la edición Python/Flet de la rama `Python` en su propia carpeta de trabajo. Si todavía no existe, el comando la prepara junto al repositorio. El código Rust vive en `src-gpui/` y sus adaptadores usan el motor de `src/davinci_flow/`. [Guía de GPUI](src-gpui/README.md).
+En `main`, `mise dev` abre DaVinci Flow en Rust + GPUI, donde continúa el desarrollo. `mise dev py` abre la edición Python/Flet 1.0.0 conservada en `v-python`. Si falta su carpeta de trabajo, el comando la prepara junto al repositorio. [Guía de GPUI](src-gpui/README.md).
 
 DaVinci Flow es una aplicación para automatizar la edición en DaVinci Resolve 21. Su flujo editorial va de la transcripción a la propuesta, la revisión y la aplicación de títulos Text+ editables. Luna Fetch incorpora medios al Media Pool.
 

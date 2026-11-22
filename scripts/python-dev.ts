@@ -6,7 +6,7 @@ export async function runPythonDev(root: string, args: string[]): Promise<number
         throw new Error("Uso: mise dev py [--plan]");
     }
     const plan = args.includes("--plan");
-    const branch = "Python";
+    const branch = "v-python";
     const localRef = `refs/heads/${branch}`;
     const remoteRef = `refs/remotes/origin/${branch}`;
 
