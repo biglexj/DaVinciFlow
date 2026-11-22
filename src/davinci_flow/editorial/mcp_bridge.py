@@ -19,20 +19,25 @@ def request(executable, operation, parameters):
     script = '\n'.join([
         'import sys, json',
         '_flow_path = sys.path[:]',
+        "_flow_modules = {k: v for k, v in sys.modules.copy().items() if k == 'davinci_flow' or k.startswith('davinci_flow.')}",
+        'for _flow_key in _flow_modules: sys.modules.pop(_flow_key, None)',
         'try:',
         f'    sys.path.insert(0, {source!r})',
         '    from davinci_flow.editorial.resolve_bridge import dispatch',
         '    from davinci_flow.resolve.client import connect_to_resolve',
         f'    _flow_payload = json.loads({payload!r})',
-        '    _flow_session = connect_to_resolve(resolve)',
+        "    _flow_session = connect_to_resolve(resolve, require_timeline=_flow_payload['operation'] not in {'titles', 'import_media', 'capture_title_preview'})",
         "    result = {'ok': True, 'result': dispatch(_flow_payload['operation'],",
         "              _flow_payload['parameters'], session=_flow_session)}",
         'except Exception as error:',
         "    result = {'ok': False, 'error': str(error)}",
         'finally:',
+        "    for _flow_key in list(sys.modules):",
+        "        if _flow_key == 'davinci_flow' or _flow_key.startswith('davinci_flow.'): sys.modules.pop(_flow_key, None)",
+        '    sys.modules.update(_flow_modules)',
         '    sys.path[:] = _flow_path',
     ])
-    writing = operation in {'apply', 'undo', 'fusion_effect', 'native_title', 'subtitles'}
+    writing = operation in {'apply', 'undo', 'fusion_effect', 'native_title', 'subtitles', 'import_media', 'capture_title_preview'}
     dispatched = False
     try:
         with ResolveMCP(executable) as client:

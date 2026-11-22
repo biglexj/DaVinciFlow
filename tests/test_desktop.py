@@ -157,6 +157,40 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
                                     pop_dialog=Mock(), launch_url=Mock())
         self.app = DesktopApp(self.page, self.controller)
         self.addCleanup(self.app.executor.shutdown)
+        self.addCleanup(self.app.media_executor.shutdown)
+
+    async def test_voice_import_is_explicit_and_failed_import_preserves_selected_audio(self):
+        from unittest.mock import AsyncMock
+        audio = Path(self.temp.name) / 'Voice Studio.wav'
+        audio.write_bytes(b'generated-audio')
+        self.app.pick_file = AsyncMock(return_value=str(audio))
+        with patch('features.voice.voice_view.import_voice_file', side_effect=EditorialError('Sin conexión')) as importer:
+            await self.app.voice.pick_audio()
+            importer.assert_not_called()
+            self.assertFalse(self.app.voice.import_button.disabled)
+            await self.app.voice.import_audio()
+        importer.assert_called_once_with(audio.resolve())
+        self.assertEqual(self.app.voice.audio_path, audio.resolve())
+        self.assertEqual(audio.read_bytes(), b'generated-audio')
+
+    async def test_voice_studio_opens_canonical_web_route_and_awaits_launcher(self):
+        from unittest.mock import AsyncMock
+        self.page.launch_url = AsyncMock()
+        await self.app.voice.open_studio()
+        self.page.launch_url.assert_awaited_once_with('https://biglexj.com/creator-suite/audio?tab=voice_studio')
+
+    async def test_voice_logout_clears_private_draft_and_selection(self):
+        self.app.voice.narration.value = 'Guion privado de la cuenta anterior'
+        self.app.voice.voice.value = 'old-voice'
+        self.app.voice.client = SimpleNamespace(account=SimpleNamespace(user=None), access=None, pending_id=None, logout=Mock(return_value=True))
+        await self.app.voice.logout()
+        self.assertEqual(self.app.voice.narration.value, '')
+        self.assertIsNone(self.app.voice.voice.value)
+        self.assertEqual(self.app.voice.voice.options, [])
+        self.assertIsNone(self.app.voice.engine.value)
+        self.assertEqual(self.app.voice.engine.options, [])
+        self.assertTrue(self.app.voice.engine.disabled)
+        self.assertTrue(self.app.voice.import_button.disabled)
 
     async def test_routes_keep_same_review_and_errors_centered(self):
         import flet as ft
@@ -170,6 +204,24 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(self.app.workspace.content, self.app.editor.content)
         self.app.show_error('Error completo')
         self.assertEqual(self.page.show_dialog.call_args.args[0].alignment, ft.Alignment.CENTER)
+
+    async def test_opening_catalog_loads_animation_previews_once_after_restart(self):
+        from davinci_flow.editorial.model import Template
+        source = Path(self.temp.name) / 'Kinetic Pop In.drb'
+        source.write_bytes(b'bin')
+        source.with_suffix('.mp4').write_bytes(b'original-preview')
+        template = Template('local_animation', 'Kinetic Pop In', 'installed_bin', str(source))
+        def scan():
+            self.controller.catalog[template.id] = template
+            return 1, []
+        with patch.object(self.controller, 'scan_titles', side_effect=scan) as scanner:
+            await self.app.navigate('catalog')
+            self.assertEqual(self.app.catalog.source.value, 'all')
+            self.assertIn(template.id, self.app.catalog.grid_images)
+            await self.app.navigate('editor')
+            await self.app.navigate('catalog')
+        scanner.assert_called_once()
+        self.assertIs(self.app.workspace.content, self.app.catalog.content)
 
     async def test_background_failure_unlocks_ui_and_keeps_proposal(self):
         self.controller.proposal = sample()
@@ -236,6 +288,22 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await asyncio.wait_for(job, 2))
         self.assertIs(self.controller.snapshot, original)
 
+    async def test_dismissing_picker_or_confirmation_resolves_as_cancelled(self):
+        shown = asyncio.Event()
+        self.page.show_dialog.side_effect = lambda dialog: shown.set()
+        for operation, expected in (
+            (self.app.picker.get_directory_path(initial_directory=self.temp.name), None),
+            (self.app.confirm('Reemplazar archivo', '¿Deseas reemplazarlo?'), False),
+        ):
+            shown.clear()
+            job = asyncio.create_task(operation)
+            await asyncio.wait_for(shown.wait(), 5)
+            dialog = self.page.show_dialog.call_args.args[0]
+            self.assertFalse(dialog.modal)
+            await dialog.on_dismiss(None)
+            self.assertIs(await asyncio.wait_for(job, 2), expected)
+        self.page.pop_dialog.assert_not_called()
+
     async def test_editor_layout_buttons_and_expanded_table(self):
         self.assertTrue(self.app.editor.table_view.expand)
         first_card_row = self.app.editor.content.controls[1].content.controls[0]
@@ -250,6 +318,14 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertIn('Aplicar revisión', action_labels)
         self.assertIn('Deshacer', action_labels)
+        generation_row = self.app.editor.content.controls[3]
+        generation_labels = [
+            getattr(btn, 'text', '') or getattr(btn, 'content', '')
+            for sub in generation_row.controls
+            for btn in (getattr(sub, 'controls', None) or [sub])
+        ]
+        self.assertIn('Generar tanda', generation_labels)
+        self.assertIn('Decisiones', generation_labels)
 
     async def test_auto_capture_default(self):
         source = sample()
@@ -275,20 +351,46 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.app.editor.empty.visible)
         self.assertEqual(self.app.status.value, 'Listo para abrir tu montaje.')
 
+    async def test_settings_gemini_requires_a_key_before_showing_models(self):
+        settings = self.app.settings
+        with patch('features.settings.settings_view.has_gemini_api_key', return_value=False), \
+                patch('features.settings.settings_view.list_available_gemini_model_info') as scan:
+            settings.refresh()
+            await settings.scan_models()
+        self.assertEqual(settings.model_dropdown.options, [])
+        self.assertIsNone(settings.model_dropdown.value)
+        self.assertTrue(settings.model_dropdown.disabled)
+        self.assertEqual(settings.key_status.value, 'Ingresa tu clave API de Gemini.')
+        scan.assert_not_called()
+
     async def test_settings_model_selector_and_key_persistence(self):
         from features.settings.settings_view import MASKED_KEY
+        from davinci_flow.ai.client import GeminiModelInfo
         settings = self.app.settings
-        self.assertIn(self.controller.preferences.model, [opt.key for opt in settings.model_dropdown.options])
-        with patch('features.settings.settings_view.has_gemini_api_key', return_value=True):
+        self.controller.preferences.long_context_enabled = True
+        current = self.controller.preferences.model
+        scanned = [
+            GeminiModelInfo(current, 1000000, 8192, True),
+            GeminiModelInfo('gemini-4-argon', 1000000, 8192, True),
+            GeminiModelInfo('gemini-4-carbon', None, 8192, True),
+        ]
+        with patch('features.settings.settings_view.has_gemini_api_key', return_value=True), \
+                patch('features.settings.settings_view.list_available_gemini_model_info', side_effect=[scanned, ()]) as scan:
             settings.refresh()
             self.assertEqual(settings.key.value, MASKED_KEY)
-        scanned = ('gemini-3.8-flash', 'gemini-3.7-flash')
-        with patch('features.settings.settings_view.list_available_gemini_models', return_value=scanned):
+            self.assertEqual(settings.model_dropdown.options, [])
             await settings.scan_models()
-            options = [opt.key for opt in settings.model_dropdown.options]
-            for m in scanned:
-                self.assertIn(m, options)
-            self.assertIn('2 modelos detectados', settings.scan_status.value)
+            options = [info.model_id for info in scanned]
+            self.assertEqual([opt.key for opt in settings.model_dropdown.options], options)
+            self.assertEqual([opt.text for opt in settings.model_dropdown.options], options)
+            self.assertIn('3 modelos disponibles', settings.scan_status.value)
+            self.assertEqual(settings.model_dropdown.value, current)
+            scan.assert_called_once_with(use_fallback=False)
+            await settings.scan_models()
+            self.assertEqual([opt.key for opt in settings.model_dropdown.options], options)
+            self.assertIn('No se pudo confirmar el catálogo', settings.scan_status.value)
+        self.controller.preferences.model = 'gemini-4-carbon'
+        self.assertFalse(self.app.editor._batch_generator_args()[3])
 
     async def test_sidebar_about_button_and_hover(self):
         about_btn = self.app.about_btn
@@ -313,68 +415,64 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(dialog, ft.AlertDialog)
 
         col = dialog.content.content
-        buttons_col = col.controls[-1]
-        action_buttons = buttons_col.controls
-        self.assertEqual(len(action_buttons), 4)
+        support_row = next(c for c in col.controls if isinstance(c, ft.ResponsiveRow))
+        support_buttons = [c.content for c in support_row.controls]
+        links_row = next(
+            c for c in col.controls
+            if isinstance(c, ft.Row) and any(isinstance(btn, ft.OutlinedButton) for btn in c.controls)
+        )
+        link_buttons = list(links_row.controls)
+        self.assertEqual(len(support_buttons), 2)
+        self.assertEqual(len(link_buttons), 4)
 
-        labels = [str(b.content) for b in action_buttons]
-        self.assertTrue(any('Donaciones Oficiales' in l for l in labels))
-        self.assertTrue(any('Buy Me a Coffee' in l for l in labels))
-        self.assertTrue(any('Feedback' in l for l in labels))
-        self.assertTrue(any('GitHub' in l for l in labels))
+        github_btn = next(b for b in link_buttons if getattr(b, 'content', '') == '@biglexj')
+        feedback_btn = next(b for b in link_buttons if getattr(b, 'content', '') == 'Reportar un problema')
 
-        # Test launching links
-        action_buttons[0].on_click(None)
+        # Test launching links for the 4 canonical support channels
+        await support_buttons[0].on_click(None)
         self.page.launch_url.assert_called_with(DONATIONS_URL)
 
-        action_buttons[1].on_click(None)
+        await support_buttons[1].on_click(None)
         self.page.launch_url.assert_called_with(BUY_ME_A_COFFEE_URL)
 
-        action_buttons[2].on_click(None)
+        await feedback_btn.on_click(None)
         self.page.launch_url.assert_called_with(FEEDBACK_URL)
 
-        action_buttons[3].on_click(None)
+        await github_btn.on_click(None)
         self.page.launch_url.assert_called_with(GITHUB_URL)
 
-        # Test update action button in dialog actions
-        update_action_btn = dialog.actions[0]
+        # El panel consulta y muestra el resultado dentro del mismo diálogo.
+        self.assertTrue(any(control is self.app.updates.content for control in col.controls))
+        update_action_btn = self.app.updates.check_button
         self.assertIn('Buscar actualizaciones', str(update_action_btn.content))
         with patch.object(self.app, 'check_updates') as mock_check:
             res = update_action_btn.on_click(None)
             if inspect.isawaitable(res):
                 await res
-            self.assertFalse(dialog.open)
-            self.page.pop_dialog.assert_called()
+            self.page.pop_dialog.assert_not_called()
             mock_check.assert_called_with(manual=True)
 
         # Test dismiss action button
-        dismiss_btn = dialog.actions[1]
+        dismiss_btn = dialog.actions[0]
         self.assertIn('Cerrar', str(dismiss_btn.content))
         dismiss_res = dismiss_btn.on_click(None)
         if inspect.isawaitable(dismiss_res):
             await dismiss_res
         self.page.pop_dialog.assert_called()
 
-    async def test_settings_updater_panel_layout_and_interactions(self):
+    async def test_updates_remain_in_about_and_report_unverified_result(self):
+        from dataclasses import replace
         from davinci_flow.updater.checker import UpdateRelease
-        settings = self.app.settings
-        self.assertIsNotNone(settings.col_left)
-        self.assertIsNotNone(settings.col_right)
-        self.assertEqual(settings.col_left.expand, 1)
-        self.assertEqual(settings.col_right.expand, 1)
-        self.assertIsNotNone(settings.updater_card)
-        self.assertIsNotNone(settings.update_status_chip)
-        self.assertIsNotNone(settings.check_button)
-        self.assertIsNotNone(settings.update_content_box)
+        panel = self.app.updates
+        initial_view = self.app.current
 
         # Estado inicial
-        self.assertIn('Comprobación pendiente', settings.update_status_chip.content.value)
+        self.assertIn('Comprobación pendiente', panel.update_status_chip.content.value)
 
-        # 1. Comprobación manual sin versión nueva
+        # Una consulta sin respuesta verificable no acredita estar al día.
         with patch('davinci_flow.updater.checker.check_github_release', return_value=None):
             await self.app.check_updates(manual=True)
-            self.assertEqual(settings.update_status_chip.content.value, 'Al día')
-            self.assertIn('Estás en la última versión', self.app.toast_text.value)
+            self.assertEqual(panel.update_status_chip.content.value, 'Sin confirmar')
 
         # 2. Comprobación con actualización detectada
         mock_release = UpdateRelease(
@@ -386,10 +484,14 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
             is_newer=True,
             sanitized_notes='Novedades:\n• Soporte para nuevos motores Fusion.\n• Correcciones menores.',
         )
+        with patch('davinci_flow.updater.checker.check_github_release', return_value=replace(mock_release, is_newer=False)):
+            await self.app.check_updates(manual=True)
+            self.assertEqual(panel.update_status_chip.content.value, 'Al día')
         with patch('davinci_flow.updater.checker.check_github_release', return_value=mock_release):
             await self.app.check_updates(manual=True)
-            self.assertEqual(settings.update_status_chip.content.value, 'Nueva v0.3.1')
-            self.assertIsNotNone(settings.update_content_box.content)
+            self.assertEqual(panel.update_status_chip.content.value, 'Nueva v0.3.1')
+            self.assertIsNotNone(panel.update_content_box.content)
+            self.assertEqual(self.app.current, initial_view)
 
     async def test_show_toast_overlay(self):
         await self.app.show_toast('Toast de prueba', duration=0.02)
@@ -498,6 +600,219 @@ class DesktopTests(unittest.IsolatedAsyncioTestCase):
         # Cancelar diálogo
         await dialog.actions[0].on_click(None)
         self.assertIsNone(await asyncio.wait_for(job, 2))
+
+    async def test_library_is_the_last_entry_before_settings(self):
+        order = list(self.app.labels)
+        self.assertEqual(order[-2:], ['library', 'settings'])
+        self.assertLess(order.index('fetch'), order.index('library'))
+
+    async def test_library_tabs_use_short_names(self):
+        labels = [str(control.content) for control in self.app.library.category_buttons.values()]
+        self.assertEqual(labels, ['B-rolls', 'Efectos (SFX)', 'Música', 'Títulos y Fusion', 'Textos y documentos'])
+
+    async def test_music_category_shows_cover_art_in_square_tiles(self):
+        from davinci_flow.assets.library import Resource
+        try:
+            from tests.test_cover_art import JPEG, _id3_apic
+        except ImportError:
+            from test_cover_art import JPEG, _id3_apic
+        song = Path(self.temp.name) / 'tema.mp3'
+        song.write_bytes(_id3_apic())
+        self.controller.resources = (Resource('id-musica', 'music', 'tema.mp3', str(song)),)
+        self.app.music.refresh()
+        self.app.current = 'music'
+        await self.app.music._hydrate_art(self.controller.resources, self.app.music.art_generation)
+        self.assertFalse(self.app.music.list.visible)
+        self.assertTrue(self.app.music.grid.visible)
+        self.assertEqual(self.app.music.grid.child_aspect_ratio, 1.0)
+        tiles = self.app.music.grid.controls
+        self.assertEqual(len(tiles), 1)
+        self.assertEqual(tiles[0].content.controls[0].content.src, JPEG)
+        await self.app.music.toggle('id-musica')
+        self.assertIn('id-musica', self.controller.preferences.resource_ids)
+        self.assertTrue(self.app.music.tiles['id-musica'][1].visible)
+
+    async def test_music_playback_does_not_select_for_ai_and_stops_on_navigation(self):
+        from unittest.mock import AsyncMock
+        import flet as ft
+        import flet_video as ftv
+        from davinci_flow.assets.library import Resource
+        song = Path(self.temp.name) / 'tema.wav'
+        song.write_bytes(b'audio-fixture')
+        self.controller.resources = (Resource('song', 'music', song.name, str(song)),)
+        self.app.current = 'music'
+        selected = list(self.controller.preferences.resource_ids)
+        with patch.object(ftv.Video, 'pause', new_callable=AsyncMock) as pause, \
+                patch.object(ftv.Video, 'play', new_callable=AsyncMock) as play:
+            await self.app.music.play_audio('song')
+            self.assertEqual(self.controller.preferences.resource_ids, selected)
+            self.assertTrue(self.app.music.is_playing)
+            self.assertEqual(self.app.music.tiles['song'][2].icon, ft.Icons.PAUSE_ROUNDED)
+            self.assertEqual(self.app.music.player.playlist[0].resource, song.as_uri())
+            self.assertFalse(self.app.music.player.configuration.enable_hardware_acceleration)
+            self.assertEqual(self.app.music.player.configuration.hardware_decoding_api, 'no')
+            self.app.music._audio_complete(SimpleNamespace(control=self.app.music.player, data=False))
+            self.assertTrue(self.app.music.is_playing)
+            await self.app.music.play_audio('song')
+            self.assertFalse(self.app.music.is_playing)
+            await self.app.music.play_audio('song')
+            play.assert_awaited_once()
+            await self.app.navigate('editor')
+        self.assertEqual(pause.await_count, 2)
+        self.assertIsNone(self.app.music.player)
+        self.assertIsNone(self.app.music.player_host.content)
+
+    async def test_brolls_category_uses_grid_and_sidecar_poster(self):
+        from davinci_flow.assets.library import Resource
+        try:
+            from tests.test_cover_art import JPEG
+        except ImportError:
+            from test_cover_art import JPEG
+        clip = Path(self.temp.name) / 'clip.mp4'
+        clip.write_bytes(b'video')
+        (Path(self.temp.name) / 'clip.jpg').write_bytes(JPEG)
+        self.controller.resources = (Resource('id-broll', 'visuals', 'clip.mp4', str(clip)),)
+        self.controller.preferences.paths['visuals'] = self.temp.name
+        self.app.brolls.refresh()
+        tiles = [tile for tile in self.app.brolls.list_column.controls if tile.tooltip == str(clip)]
+        self.assertEqual(len(tiles), 1)
+        self.assertEqual(tiles[0].content.controls[0].content.src, str(clip.with_suffix('.jpg')))
+
+    async def test_video_preview_stays_in_tile_and_stops_on_navigation(self):
+        from unittest.mock import AsyncMock
+        import flet as ft
+        import flet_video as ftv
+        from davinci_flow.assets.library import Resource
+        clip = Path(self.temp.name) / 'clip.mp4'
+        clip.write_bytes(b'video-fixture')
+        self.controller.resources = (Resource('clip', 'visuals', clip.name, str(clip)),)
+        self.controller.preferences.paths['visuals'] = self.temp.name
+        self.app.current = 'brolls'
+        view = self.app.brolls
+        view.refresh()
+        tile = view.list_column.controls[0]
+        play_button = tile.content.controls[-1].content
+        self.assertIs(tile.on_click, play_button.on_click)
+        host = tile.content.controls[0]
+        poster = host.content
+        selected = list(self.controller.preferences.resource_ids)
+        with patch.object(ftv.Video, 'pause', new_callable=AsyncMock) as pause, \
+             patch.object(ftv.Video, 'play', new_callable=AsyncMock) as play:
+            await tile.on_click(None)
+            player = view.video_preview.player
+            self.assertIs(host.content, player)
+            self.assertEqual(player.playlist[0].resource, clip.as_uri())
+            self.assertEqual(player.fit, ft.BoxFit.CONTAIN)
+            self.assertFalse(player.configuration.enable_hardware_acceleration)
+            self.assertEqual(player.configuration.hardware_decoding_api, 'no')
+            self.assertEqual(view.list_column.child_aspect_ratio, 16/9)
+            self.assertEqual(selected, self.controller.preferences.resource_ids)
+            view.video_preview._complete(SimpleNamespace(control=player, data=False))
+            self.assertIs(host.content, player)
+            await play_button.on_click(None)
+            self.assertFalse(view.video_preview.is_playing)
+            await play_button.on_click(None)
+            play.assert_awaited_once()
+            await self.app.navigate('editor')
+        self.assertEqual(pause.await_count, 2)
+        self.assertIs(host.content, poster)
+        self.assertEqual(play_button.icon, ft.Icons.PLAY_ARROW_ROUNDED)
+        self.assertIsNone(view.video_preview.player)
+
+    async def test_library_only_manages_folders_and_music_links_to_its_category(self):
+        from davinci_flow.assets.library import Resource
+        self.controller.resources = (Resource('song', 'music', 'tema.mp3', 'missing.mp3'),)
+        with patch('features.library.library_view.cover_art') as read_cover:
+            await self.app.library.change_category('music')
+            read_cover.assert_not_called()
+        view = self.app.library
+        self.assertTrue(view.manage_only)
+        self.assertFalse(view.grid.visible)
+        self.assertFalse(view.list.visible)
+        self.assertEqual(view.tiles, {})
+        self.assertIn(view.folders_card, view.content.controls)
+        self.assertNotIn(view.query, view.content.controls)
+        self.assertNotIn(self.app.music.folders_card, self.app.music.content.controls)
+        await self.app.library.change_category('visuals')
+        await self.app.music.manage_folders()
+        self.assertEqual(self.app.current, 'library')
+        self.assertEqual(self.app.library.category, 'music')
+        self.assertIn('1 recursos indexados', self.app.library.summary.value)
+
+    async def test_broll_preview_switches_tiles_and_search_stops_video(self):
+        from unittest.mock import AsyncMock
+        import flet as ft
+        import flet_video as ftv
+        view = self.app.brolls
+        self.controller.preferences.paths['visuals'] = self.temp.name
+        for name in ('a.mp4', 'b.mp4'):
+            (Path(self.temp.name) / name).write_bytes(b'video-fixture')
+        view.refresh()
+        first, second = view.list_column.controls
+        host1, host2 = first.content.controls[0], second.content.controls[0]
+        poster1, poster2 = host1.content, host2.content
+        button1, button2 = first.content.controls[-1].content, second.content.controls[-1].content
+        with patch.object(ftv.Video, 'pause', new_callable=AsyncMock) as pause:
+            await button1.on_click(None)
+            old_player = view.video_preview.player
+            await button2.on_click(None)
+            self.assertIs(host1.content, poster1)
+            self.assertEqual(button1.icon, ft.Icons.PLAY_ARROW_ROUNDED)
+            self.assertIs(host2.content, view.video_preview.player)
+            view.video_preview._complete(SimpleNamespace(control=old_player, data=True))
+            self.assertIs(host2.content, view.video_preview.player)
+            view.query.value = 'b'
+            await view.search()
+        self.assertEqual(pause.await_count, 2)
+        self.assertIs(host2.content, poster2)
+        self.assertIsNone(view.video_preview.player)
+
+    async def test_broll_pages_fill_grid_without_repeating_or_hiding_remaining_files(self):
+        view = self.app.brolls
+        root = Path(self.temp.name)
+        self.controller.preferences.paths['visuals'] = str(root)
+        for i in range(70):
+            (root / f'clip-{i:03}.mp4').write_bytes(b'video')
+        (root / 'subfolder').mkdir()
+        (root / 'subfolder' / 'nested.mp4').write_bytes(b'video')
+        view.refresh()
+        first = {tile.tooltip for tile in view.list_column.controls}
+        self.assertEqual(len(first), 48)
+        self.assertTrue(view.has_next)
+        await view.paginate(1)
+        second = {tile.tooltip for tile in view.list_column.controls}
+        self.assertEqual(len(second), 22)
+        self.assertFalse(first & second)
+        self.assertFalse(view.has_next)
+        await view.paginate(1)
+        self.assertEqual(view.offset, 48)
+        view.query.value = 'nested'
+        await view.search()
+        self.assertEqual(view.offset, 0)
+        self.assertEqual(len(view.list_column.controls), 1)
+        self.assertEqual(view.list_column.controls[0].tooltip, str(root / 'subfolder' / 'nested.mp4'))
+
+    async def test_all_views_flutter_layout_safety(self):
+        """Verifica que ninguna vista contenga un hijo con expand=True dentro de un Row(wrap=True),
+        lo cual provoca una excepción de RenderFlex y una pantalla gris sólida en Flutter."""
+        import flet as ft
+        def check_control(ctrl, path):
+            if isinstance(ctrl, ft.Row) and getattr(ctrl, 'wrap', False):
+                for i, child in enumerate(ctrl.controls):
+                    self.assertFalse(
+                        getattr(child, 'expand', False),
+                        f"Control {child} en {path} tiene expand=True dentro de un Row con wrap=True."
+                    )
+            children = getattr(ctrl, 'controls', None)
+            if children:
+                for i, c in enumerate(children):
+                    check_control(c, f"{path}.controls[{i}]")
+            inner = getattr(ctrl, 'content', None)
+            if inner:
+                check_control(inner, f"{path}.content")
+
+        for name, view in self.app.views.items():
+            check_control(view.content, name)
 
 
 class InstanceTests(unittest.TestCase):

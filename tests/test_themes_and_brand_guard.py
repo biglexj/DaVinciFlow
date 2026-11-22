@@ -22,7 +22,10 @@ class ThemesAndBrandGuardTests(unittest.TestCase):
         self.assertEqual(theme.secondary_color, "#FB7793")
         self.assertEqual(theme.accent_color, "#FFE6CA")
         self.assertEqual(theme.context_color, "#6E7179")
-        self.assertEqual(theme.font_family_main, "Montserrat")
+        self.assertEqual(theme.font_family_main, "Thunder")
+        self.assertEqual(theme.font_family_context, "Open Sans")
+        self.assertEqual(theme.font_family_accent, "Tilt Warp")
+        self.assertEqual(theme.font_style_accent, "Regular")
 
     def test_get_official_aurora_theme(self) -> None:
         theme = get_theme("aurora")

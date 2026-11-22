@@ -1,5 +1,6 @@
 """Diálogo modal e información oficial de «Acerca de DaVinci Flow»."""
 
+import inspect
 import platform
 import flet as ft
 from davinci_flow import __version__
@@ -16,15 +17,11 @@ def build_about_dialog(app) -> ft.AlertDialog:
     branding = getattr(app, 'branding_path', None)
     icon_src = str(branding / 'icon-transparent.png') if branding else None
 
-    async def dismiss(event=None):
-        if hasattr(app.page, 'pop_dialog'):
-            app.page.pop_dialog()
-        app.page.update()
-
     def launch(url):
-        def handler(event=None):
-            if hasattr(app.page, 'launch_url'):
-                app.page.launch_url(url)
+        async def handler(event=None):
+            result = app.page.launch_url(url)
+            if inspect.isawaitable(result):
+                await result
         return handler
 
     header_items = []
@@ -44,8 +41,9 @@ def build_about_dialog(app) -> ft.AlertDialog:
     )
 
     content = ft.Container(
-        width=460,
+        width=620,
         content=ft.Column([
+            ft.Container(height=3, bgcolor=ACCENT),
             ft.Row(header_items, alignment=ft.MainAxisAlignment.CENTER, spacing=12),
             ft.Container(height=4),
             text('Desarrollado por biglexj (2026)', 13, weight=ft.FontWeight.W_600,
@@ -54,42 +52,27 @@ def build_about_dialog(app) -> ft.AlertDialog:
                 'Automatización modular de subtítulos, Fusion y edición para DaVinci Resolve.',
                 12, color=MUTED, text_align=ft.TextAlign.CENTER
             ),
-            text(
-                'Si esta herramienta agiliza tu flujo de trabajo diario, considera apoyar su desarrollo continuo.',
-                11, color='#8E9A9F', text_align=ft.TextAlign.CENTER
-            ),
-            text(
-                f'{platform.python_implementation()} · Flet v{ft.__version__}',
-                10, color=MUTED, text_align=ft.TextAlign.CENTER
-            ),
+            app.updates.content,
             ft.Divider(color=LINE, height=18),
-            ft.Column([
-                button(
-                    'Donaciones Oficiales (Yape / Plin / Web)',
-                    launch(DONATIONS_URL),
-                    icon=ft.Icons.VOLUNTEER_ACTIVISM_OUTLINED,
-                    primary=True,
-                    width=430,
-                ),
-                button(
-                    'Buy Me a Coffee ☕',
-                    launch(BUY_ME_A_COFFEE_URL),
-                    icon=ft.Icons.COFFEE_ROUNDED,
-                    width=430,
-                ),
-                button(
-                    'Enviar Feedback / Reportar Error 💬',
-                    launch(FEEDBACK_URL),
-                    icon=ft.Icons.FEEDBACK_OUTLINED,
-                    width=430,
-                ),
-                button(
-                    'Perfil de GitHub',
-                    launch(GITHUB_URL),
-                    icon=ft.Icons.CODE_ROUNDED,
-                    width=430,
-                ),
-            ], spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            text('Apoyo oficial y canales de la comunidad', 14, weight=ft.FontWeight.BOLD),
+            text('Gracias por usar DaVinci Flow. Puedes apoyar su desarrollo continuo a través de los canales oficiales.', 12, color=MUTED),
+            ft.ResponsiveRow([
+                ft.Container(col={'xs': 12, 'sm': 6}, content=ft.Button(
+                    content=ft.Column([ft.Row([ft.Icon(ft.Icons.FAVORITE_BORDER), text('Donaciones oficiales', 13)]), text('Yape, Plin y transferencias', 11, color=MUTED)], spacing=6),
+                    bgcolor=ft.Colors.with_opacity(0.16, ACCENT), color=TEXT, on_click=launch(DONATIONS_URL))),
+                ft.Container(col={'xs': 12, 'sm': 6}, content=ft.Button(
+                    content=ft.Column([ft.Row([ft.Icon(ft.Icons.COFFEE_ROUNDED), text('Buy Me a Coffee', 13)]), text('Apoya el desarrollo', 11, color=MUTED)], spacing=6),
+                    bgcolor=ft.Colors.with_opacity(0.16, ACCENT), color=TEXT, on_click=launch(BUY_ME_A_COFFEE_URL))),
+            ], spacing=8, run_spacing=8),
+            ft.Row([
+                ft.OutlinedButton('biglexj.com', icon=ft.Icons.PUBLIC, on_click=launch('https://biglexj.com/desarrollo/davinci-flow')),
+                ft.OutlinedButton('@biglexj', icon=ft.Image(src=str(branding / 'github.svg'), width=16, height=16, color=TEXT) if branding else None, on_click=launch(GITHUB_URL)),
+                ft.OutlinedButton('Repositorio', icon=ft.Icons.OPEN_IN_NEW, on_click=launch('https://github.com/biglexj/DaVinciFlow')),
+                ft.OutlinedButton('Reportar un problema', icon=ft.Icons.BUG_REPORT, on_click=launch(FEEDBACK_URL)),
+            ], wrap=True, spacing=8, run_spacing=8),
+            ft.ExpansionTile(title=text('Licencia e información técnica', 12), leading=ft.Icon(ft.Icons.SHIELD_OUTLINED), controls=[
+                text(f'Licencia MIT · biglexj · {platform.python_implementation()} · Flet v{ft.__version__}', 11, color=MUTED),
+            ]),
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, tight=True, spacing=6),
         padding=ft.Padding.symmetric(vertical=4, horizontal=4),
     )
@@ -113,17 +96,14 @@ def build_about_dialog(app) -> ft.AlertDialog:
     async def dismiss(event=None):
         close_dialog()
 
-    async def check_updates(event=None):
-        close_dialog()
-        if hasattr(app, 'check_updates'):
-            await app.check_updates(manual=True)
-
     dialog = ft.AlertDialog(
         modal=False,
+        title=text('Acerca de DaVinci Flow', 16, weight=ft.FontWeight.BOLD),
+        barrier_color=SIDE,
         alignment=ft.Alignment.CENTER,
         content=content,
+        scrollable=True,
         actions=[
-            button('🔄 Buscar actualizaciones', app.bind(check_updates)),
             button('Cerrar', app.bind(dismiss), primary=False),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
@@ -133,7 +113,10 @@ def build_about_dialog(app) -> ft.AlertDialog:
 
 def show_about_dialog(app):
     """Muestra el diálogo modal de Acerca de en la página activa."""
-    dialog = build_about_dialog(app)
+    if app.about_dialog is not None and app.about_dialog.open:
+        return app.about_dialog
+    app.updates.refresh()
+    dialog = app.about_dialog = build_about_dialog(app)
     if hasattr(app.page, 'show_dialog'):
         app.page.show_dialog(dialog)
     app.page.update()

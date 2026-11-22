@@ -28,6 +28,7 @@ var
   ModernFooterRight, ModernFooterTop, ModernFooterWidth, ModernFooterHeight,
     ModernFooterGap: Integer;
   ModernYesGlyph, ModernNoGlyph, ModernRunGlyph: TBitmapButton;
+  ModernPreparingListSurface: TBitmapImage;
 
 { Funciones de la API de Windows }
 procedure ModernExitProcess(ExitCode: Integer);
@@ -290,7 +291,8 @@ end;
 
 { Glifos personalizados para radios y casillas (sin indicadores azules ni saltos) }
 procedure ModernPaintSelector(Button: TBitmapButton);
-var Canvas: TCanvas; Bounds: TRect; Checked: Boolean; W, H, Inset: Integer;
+var Canvas: TCanvas; Bounds: TRect; Checked, HasFocus: Boolean; W, H, Inset: Integer;
+  Title, Detail: String;
 begin
   if Button = nil then Exit;
   W := Button.Bitmap.Width; H := Button.Bitmap.Height;
@@ -304,6 +306,42 @@ begin
   Bounds.Left := 0; Bounds.Top := 0; Bounds.Right := W; Bounds.Bottom := H;
   Canvas.Brush.Color := ModernBackground;
   Canvas.FillRect(Bounds);
+  if (Button = ModernYesGlyph) or (Button = ModernNoGlyph) then
+  begin
+    HasFocus := WizardForm.PreparingYesRadio.Focused;
+    Title := 'Cerrar aplicaciones y continuar';
+    Detail := 'Guarda tu trabajo antes de continuar.';
+    if Button = ModernNoGlyph then
+    begin
+      HasFocus := WizardForm.PreparingNoRadio.Focused;
+      Title := 'Mantener las aplicaciones abiertas';
+      Detail := 'Algunos archivos pueden requerir reiniciar Windows.';
+    end;
+    Canvas.Pen.Width := ScaleX(1);
+    Canvas.Pen.Color := ModernLine;
+    if Checked or HasFocus then Canvas.Pen.Color := ModernAccent;
+    Canvas.Brush.Color := ModernSurface;
+    Canvas.RoundRect(1, 1, W - 1, H - 1, ScaleX(16), ScaleY(16));
+    Canvas.Pen.Color := ModernMuted;
+    if Checked then Canvas.Pen.Color := ModernAccent;
+    Canvas.Ellipse(ScaleX(14), ScaleY(20), ScaleX(32), ScaleY(38));
+    if Checked then
+    begin
+      Canvas.Brush.Color := ModernAccent;
+      Canvas.Ellipse(ScaleX(19), ScaleY(25), ScaleX(27), ScaleY(33));
+    end;
+    Canvas.Brush.Style := bsClear;
+    Canvas.Font.Name := 'Segoe UI';
+    Canvas.Font.Height := -ScaleY(13);
+    Canvas.Font.Style := [fsBold];
+    Canvas.Font.Color := ModernText;
+    Canvas.TextOut(ScaleX(46), ScaleY(10), Title);
+    Canvas.Font.Height := -ScaleY(11);
+    Canvas.Font.Style := [];
+    Canvas.Font.Color := ModernMuted;
+    Canvas.TextOut(ScaleX(46), ScaleY(32), Detail);
+    Exit;
+  end;
   Canvas.Pen.Width := ScaleX(1);
   Canvas.Pen.Color := ModernMuted;
   if Checked then Canvas.Pen.Color := ModernAccent;
@@ -336,6 +374,73 @@ procedure ModernRadioChanged(Sender: TObject);
 begin
   ModernPaintSelector(ModernYesGlyph);
   ModernPaintSelector(ModernNoGlyph);
+end;
+
+{ Aplicaciones abiertas: conservar los controles y decisiones del motor nativo. }
+procedure ModernPreparingLayout;
+var W, H, ListHeight, ListLimit, OptionsTop: Integer; ListBounds: TRect;
+begin
+  if not WizardForm.PreparingYesRadio.Visible then Exit;
+  W := WizardForm.PreparingPage.ClientWidth;
+  H := WizardForm.PreparingPage.ClientHeight;
+  WizardForm.PreparingErrorBitmapImage.Visible := False;
+  WizardForm.PageNameLabel.Caption := 'Aplicaciones abiertas';
+  WizardForm.PageNameLabel.Font.Name := 'Segoe UI';
+  WizardForm.PageNameLabel.Font.Size := 13;
+  WizardForm.PageNameLabel.Font.Style := [fsBold];
+  WizardForm.PageDescriptionLabel.Caption := 'Guarda tu trabajo y elige cómo continuar con la actualización.';
+  WizardForm.PageDescriptionLabel.Font.Name := 'Segoe UI';
+  WizardForm.PageDescriptionLabel.Font.Size := 9;
+  WizardForm.PreparingLabel.SetBounds(0, 0, W, ScaleY(42));
+  WizardForm.PreparingLabel.Font.Name := 'Segoe UI';
+  WizardForm.PreparingLabel.Font.Size := 10;
+  WizardForm.PreparingLabel.Font.Color := ModernText;
+  WizardForm.PreparingLabel.Caption := 'Estas aplicaciones están usando archivos que el instalador necesita actualizar.';
+  OptionsTop := H - ScaleY(132);
+  ListLimit := OptionsTop - ScaleY(62);
+  ListHeight := ScaleY(28 + WizardForm.PreparingMemo.Lines.Count * 20);
+  if ListHeight < ScaleY(56) then ListHeight := ScaleY(56);
+  if ListHeight > ListLimit then ListHeight := ListLimit;
+  if ModernPreparingListSurface = nil then
+  begin
+    ModernPreparingListSurface := TBitmapImage.Create(WizardForm);
+    ModernPreparingListSurface.Parent := WizardForm.PreparingPage;
+  end;
+  ModernPreparingListSurface.SetBounds(0, ScaleY(48), W, ListHeight);
+  ModernPreparingListSurface.Bitmap.Width := W;
+  ModernPreparingListSurface.Bitmap.Height := ListHeight;
+  ListBounds.Left := 0; ListBounds.Top := 0;
+  ListBounds.Right := W; ListBounds.Bottom := ListHeight;
+  ModernPreparingListSurface.Bitmap.Canvas.Brush.Color := ModernBackground;
+  ModernPreparingListSurface.Bitmap.Canvas.FillRect(ListBounds);
+  ModernPreparingListSurface.Bitmap.Canvas.Brush.Color := ModernSurface;
+  ModernPreparingListSurface.Bitmap.Canvas.Pen.Color := ModernLine;
+  ModernPreparingListSurface.Bitmap.Canvas.RoundRect(0, 0, W - 1, ListHeight - 1,
+    ScaleX(16), ScaleY(16));
+  ModernPreparingListSurface.Visible := True;
+  ModernPreparingListSurface.SendToBack;
+  WizardForm.PreparingMemo.StyleElements := [];
+  WizardForm.PreparingMemo.BorderStyle := bsNone;
+  WizardForm.PreparingMemo.Color := ModernSurface;
+  WizardForm.PreparingMemo.Font.Name := 'Segoe UI';
+  WizardForm.PreparingMemo.Font.Size := 10;
+  WizardForm.PreparingMemo.Font.Color := ModernText;
+  WizardForm.PreparingMemo.WordWrap := True;
+  WizardForm.PreparingMemo.ScrollBars := ssVertical;
+  if ScaleY(20 * WizardForm.PreparingMemo.Lines.Count) < ListHeight - ScaleY(20) then
+    WizardForm.PreparingMemo.ScrollBars := ssNone;
+  WizardForm.PreparingMemo.SetBounds(ScaleX(14), ScaleY(58), W - ScaleX(28), ListHeight - ScaleY(20));
+  WizardForm.PreparingYesRadio.SetBounds(0, OptionsTop, W, ScaleY(60));
+  WizardForm.PreparingNoRadio.SetBounds(0, OptionsTop + ScaleY(68), W, ScaleY(60));
+  WizardForm.PreparingYesRadio.Font.Name := 'Segoe UI';
+  WizardForm.PreparingNoRadio.Font.Name := 'Segoe UI';
+  ModernYesGlyph.SetBounds(0, 0, W, ScaleY(60));
+  ModernNoGlyph.SetBounds(0, 0, W, ScaleY(60));
+  ModernYesGlyph.Bitmap.Width := W;
+  ModernYesGlyph.Bitmap.Height := ScaleY(60);
+  ModernNoGlyph.Bitmap.Width := W;
+  ModernNoGlyph.Bitmap.Height := ScaleY(60);
+  ModernRadioChanged(WizardForm);
 end;
 
 procedure ModernRunChanged(Sender: TObject);
@@ -708,6 +813,10 @@ begin
   ModernNoGlyph := ModernCreateGlyph(WizardForm.PreparingNoRadio, 'No cerrar las aplicaciones');
   WizardForm.PreparingYesRadio.OnClick := @ModernRadioChanged;
   WizardForm.PreparingNoRadio.OnClick := @ModernRadioChanged;
+  WizardForm.PreparingYesRadio.OnEnter := @ModernRadioChanged;
+  WizardForm.PreparingYesRadio.OnExit := @ModernRadioChanged;
+  WizardForm.PreparingNoRadio.OnEnter := @ModernRadioChanged;
+  WizardForm.PreparingNoRadio.OnExit := @ModernRadioChanged;
 
   if WizardForm.RunList <> nil then
   begin
@@ -820,21 +929,7 @@ begin
     ModernPaintSelector(ModernRunGlyph);
   end;
 
-  if CurPageID = wpPreparing then
-  begin
-    WizardForm.PreparingMemo.StyleElements := [];
-    WizardForm.PreparingMemo.Font.Name := 'Segoe UI';
-    WizardForm.PreparingMemo.Font.Size := 9;
-    WizardForm.PreparingMemo.Color := ModernSurface;
-    WizardForm.PreparingMemo.Font.Color := ModernText;
-    WizardForm.PreparingYesRadio.Font.Name := 'Segoe UI';
-    WizardForm.PreparingYesRadio.Font.Size := 9;
-    WizardForm.PreparingYesRadio.Font.Color := ModernText;
-    WizardForm.PreparingNoRadio.Font.Name := 'Segoe UI';
-    WizardForm.PreparingNoRadio.Font.Size := 9;
-    WizardForm.PreparingNoRadio.Font.Color := ModernText;
-    ModernRadioChanged(WizardForm);
-  end;
+  if CurPageID = wpPreparing then ModernPreparingLayout;
 
   WizardForm.NextButton.Left := -ScaleX(1000);
   WizardForm.CancelButton.Left := -ScaleX(1000);

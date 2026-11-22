@@ -4,7 +4,9 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from davinci_flow.ai.providers.factory import build_text_provider
+from davinci_flow.ai.decision_client import DecisionClient
 from davinci_flow.assets.library import scan_library
+from davinci_flow.editorial.decision_planner import propose_with_decisions
 from davinci_flow.editorial.model import Decision, EditorialError, EditorialOptions, Proposal, Template
 from davinci_flow.editorial.planner import propose
 from davinci_flow.editorial.preferences import Preferences, PREFERENCES_PATH
@@ -24,6 +26,8 @@ class EditorialController:
         loaded_templates = [fresh_basic.get(t.id, t) for t in (Template(**d) for d in self.preferences.templates)]
         self.templates = tuple(loaded_templates) or basic_titles()
         self.catalog = dict(fresh_basic)
+        for preset in self.preferences.title_presets.values():
+            self.catalog.update({t.id: t for t in (Template(**d) for d in preset)})
         self.catalog.update({t.id: t for t in self.templates})
         if self.preferences.templates != [asdict(t) for t in self.templates]:
             self.save_preferences()
@@ -63,6 +67,25 @@ class EditorialController:
         # El catálogo de una propuesta ya generada es inmutable: esta selección es para la siguiente.
         self.templates = tuple(t for t in self.catalog.values() if t.id in identifiers)
         self.save_preferences()
+
+    def save_title_preset(self, name, identifiers):
+        name = name.strip()
+        if not name or len(name) > 80:
+            raise EditorialError('Escribe un nombre de preset de entre 1 y 80 caracteres.')
+        if not identifiers or len(identifiers) > 60 or any(i not in self.catalog for i in identifiers):
+            raise EditorialError('Elige entre 1 y 60 plantillas para guardar el preset.')
+        templates = [asdict(t) for t in self.catalog.values() if t.id in identifiers]
+        self.preferences.title_presets[name] = templates
+        self.save_preferences()
+        return len(templates)
+
+    def use_title_preset(self, name):
+        if name not in self.preferences.title_presets:
+            raise EditorialError('Ese preset ya no está disponible.')
+        templates = tuple(Template(**d) for d in self.preferences.title_presets[name])
+        self.catalog.update({t.id: t for t in templates})
+        self.choose_templates({t.id for t in templates})
+        return len(templates)
 
     def scan_resources(self):
         self.resources, self.diagnostics = scan_library(self.preferences.paths)
@@ -108,6 +131,26 @@ class EditorialController:
                          client or build_text_provider(self.preferences.provider, self.preferences.model),
                          options=self.options())
         # Un fallo conserva la propuesta anterior y todas sus revisiones.
+        self.proposal = result
+        self.dirty = True
+        return result
+
+    def generate_decisions(self, client=None, threshold: float = 0.5):
+        """Propuesta experimental con el motor de decisiones de Google Gemini.
+
+        No sustituye al proveedor activo: es una segunda forma de proponer
+        rótulos, con la diferencia de que cada decisión llega con su
+        probabilidad. La propuesta nace sin revisar, como cualquier otra.
+        """
+        if self.snapshot is None:
+            raise EditorialError('Captura la secuencia o abre un SRT primero.')
+        result, _traces = propose_with_decisions(
+            self.snapshot,
+            self.templates,
+            client or DecisionClient(),
+            options=self.options(),
+            threshold=threshold,
+        )
         self.proposal = result
         self.dirty = True
         return result

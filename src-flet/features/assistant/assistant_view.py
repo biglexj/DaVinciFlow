@@ -39,8 +39,6 @@ class AssistantView:
         ]
 
         self.content = ft.Column([
-            text("Asistente IA de Edición", 22, weight=ft.FontWeight.W_600),
-            text("Brainstorming narrativo, conceptos visuales y sugerencias de assets antes de montar.", color=MUTED),
             card(ft.Row([
                 ft.Icon(ft.Icons.AUTO_AWESOME, color=ACCENT, size=18),
                 self.context_summary,

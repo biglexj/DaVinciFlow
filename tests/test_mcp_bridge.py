@@ -163,7 +163,8 @@ class NativeEditorialTests(unittest.TestCase):
         args = client.call_tool.call_args
         self.assertEqual(args.args[0], 'run_script_unsafe')
         script = args.args[1]['script']
-        self.assertIn('connect_to_resolve(resolve)', script)
+        self.assertIn('connect_to_resolve(resolve, require_timeline=', script)
+        self.assertIn('sys.modules.update(_flow_modules)', script)
         self.assertIn('session=_flow_session', script)
         self.assertIn('sys.path[:] = _flow_path', script)
         compile(script, '<mcp>', 'exec')

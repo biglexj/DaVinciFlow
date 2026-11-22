@@ -48,7 +48,7 @@ def digest(data: Any) -> str:
 class Template:
     id: str
     name: str
-    source: str  # installed_file o media_pool
+    source: str  # installed_file, installed_archive, installed_bin, media_pool o native
     locator: str
     text_tool: str = ""
     fingerprint: str = ""
@@ -56,7 +56,7 @@ class Template:
     category: str = "general"
 
     def __post_init__(self) -> None:
-        if self.source not in ("installed_file", "installed_archive", "media_pool", "native") or not all(
+        if self.source not in ("installed_file", "installed_archive", "installed_bin", "media_pool", "native") or not all(
             isinstance(v, str) and v.strip() for v in (self.id, self.name, self.locator)
         ):
             raise EditorialError("Descriptor de plantilla inválido.")

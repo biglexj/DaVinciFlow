@@ -17,6 +17,7 @@ para importarlo a mano: el archivo nunca se pierde.
 
 from __future__ import annotations
 
+from davinci_flow.user_data import user_data_dir
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -82,7 +83,7 @@ class SubtitleTrackWriter:
         self.media_pool = session.project.GetMediaPool()
         if self.media_pool is None:
             raise SubtitleTrackError("El proyecto activo no expone el Media Pool.")
-        self.temp_root = temp_root or Path.home() / ".davinci_flow" / "subtitles"
+        self.temp_root = temp_root or user_data_dir() / "subtitles"
 
     def frame_rate(self) -> float:
         """Devuelve la tasa de fotogramas de la línea de tiempo."""
@@ -138,6 +139,7 @@ class SubtitleTrackWriter:
             ("mediaType=2", 2),
             ("mediaType=1", 1),
             ("sin mediaType", None),
+            ("directo", "direct"),
         )
         for method, media_type in attempts:
             appended = self._append(item, target_track, media_type)
@@ -171,27 +173,32 @@ class SubtitleTrackWriter:
         import_fn = getattr(self.media_pool, "ImportMedia", None)
         if not callable(import_fn):
             raise SubtitleTrackError("El Media Pool no expone ImportMedia.")
-        imported = import_fn([{"FilePath": path}])
+        imported = import_fn([path])
+        if not imported:
+            imported = import_fn([{"FilePath": path}])
         if not imported:
             raise SubtitleTrackError(f"Resolve no pudo importar el archivo: {path}")
         if isinstance(imported, dict):
             imported = list(imported.values())
         return imported[0]
 
-    def _append(self, item: Any, track_index: int, media_type: int | None) -> list[Any]:
+    def _append(self, item: Any, track_index: int, media_type: int | str | None) -> list[Any]:
         """Anexa el elemento de subtítulo a la pista indicada."""
         append_fn = getattr(self.media_pool, "AppendToTimeline", None)
         if not callable(append_fn):
             raise SubtitleTrackError("El Media Pool no expone AppendToTimeline.")
 
-        clip_info: dict[str, Any] = {
-            "mediaPoolItem": item,
-            "trackIndex": track_index,
-        }
-        if media_type is not None:
-            clip_info["mediaType"] = media_type
+        if media_type == "direct":
+            result = append_fn([item])
+        else:
+            clip_info: dict[str, Any] = {
+                "mediaPoolItem": item,
+                "trackIndex": track_index,
+            }
+            if media_type is not None:
+                clip_info["mediaType"] = media_type
+            result = append_fn([clip_info])
 
-        result = append_fn([clip_info])
         if isinstance(result, dict):
             result = list(result.values())
         return list(result or [])

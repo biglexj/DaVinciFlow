@@ -2,12 +2,19 @@
 
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from davinci_flow.errors import ResolveConnectionError
 from davinci_flow.resolve.client import _validate_external_python_runtime, connect_to_resolve
 
 
 class ResolveClientTests(unittest.TestCase):
+    def test_media_pool_access_can_be_requested_without_timeline(self):
+        project = SimpleNamespace(GetCurrentTimeline=lambda: None)
+        resolve = SimpleNamespace(GetProjectManager=lambda: SimpleNamespace(GetCurrentProject=lambda: project))
+        self.assertIs(connect_to_resolve(resolve, require_timeline=False).project, project)
+        with self.assertRaisesRegex(ResolveConnectionError, 'línea de tiempo'):
+            connect_to_resolve(resolve)
     @patch("davinci_flow.resolve.client._is_resolve_running", return_value=False)
     def test_stops_before_loading_native_module_when_resolve_is_closed(self, _) -> None:
         with self.assertRaisesRegex(ResolveConnectionError, "no está en ejecución"):

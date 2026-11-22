@@ -17,7 +17,7 @@ DENSITIES = {'sparse': 'Pocos rótulos', 'balanced': 'Equilibrado', 'dense': 'M�
 TRACK_MODES = {
     'triple': '3 Pistas (Contexto + Principal + Énfasis)',
     'dual': '2 Pistas (Base + Énfasis)',
-    'single': '1 Pista (Monocapa · SnapCaptions)',
+    'single': '1 Pista (Monocapa)',
 }
 
 
@@ -58,6 +58,10 @@ def card(content, padding=14, **kwargs):
 
 def source_label(template):
     cat = getattr(template, 'category', '')
+    if cat == 'davinci_flow':
+        return 'DaVinci Flow'
+    if cat == 'karaoke':
+        return 'DaVinci Flow · Karaoke'
     if cat == 'shorts':
         return '📱 Shorts Bold'
     if cat == 'youtube':
@@ -66,6 +70,8 @@ def source_label(template):
         return '📰 Noticiero TV'
     if template.source == 'media_pool':
         return '📁 Proyecto · Media Pool'
+    if template.source == 'installed_bin':
+        return 'Referencia animada'
     if 'basic_titles' in template.locator:
         return 'Text+ básico'
     if template.source == 'installed_archive':

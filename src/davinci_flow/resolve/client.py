@@ -116,7 +116,7 @@ def _validate_external_python_runtime() -> None:
         )
 
 
-def connect_to_resolve(resolve_instance: Any = None) -> ResolveSession:
+def connect_to_resolve(resolve_instance: Any = None, *, require_timeline: bool = True) -> ResolveSession:
     """Obtiene el proyecto y la línea de tiempo activos sin modificarlos."""
     resolve = resolve_instance
 
@@ -148,7 +148,7 @@ def connect_to_resolve(resolve_instance: Any = None) -> ResolveSession:
         raise ResolveConnectionError("No hay un proyecto activo en DaVinci Resolve.")
 
     timeline = project.GetCurrentTimeline()
-    if timeline is None:
+    if timeline is None and require_timeline:
         raise ResolveConnectionError("El proyecto activo no tiene una línea de tiempo seleccionada.")
 
     return ResolveSession(resolve=resolve, project=project, timeline=timeline)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,7 +10,9 @@ import flet as ft
 
 from davinci_flow.sfx.catalog import DEFAULT_SFX_ASSETS
 from davinci_flow.sfx.player import global_sound_player
-from shared.components import ACCENT, CARD, FIELD, LINE, MUTED, TEXT, button, card, field, select, text
+from shared.components import ACCENT, LINE, MUTED, TEXT, button, card, field, select, text
+
+PAGE_SIZE = 48
 
 
 @dataclass
@@ -37,13 +40,19 @@ class SFXView:
         self.track_name = field("Pista SFX", "DF_SFX", width=120)
         self.anticipation = field("Anticipación (frames)", "-3", width=160, hint_text="Disparo previo al subtítulo")
         
-        self.list_column = ft.Column(spacing=6)
+        self.offset = 0
+        self.list_column = ft.GridView(expand=True, max_extent=128, child_aspect_ratio=1.0,
+                                       spacing=10, run_spacing=10, padding=4)
+        self.previous_button = button('Anterior', app.bind(self.paginate, -1))
+        self.next_button = button('Siguiente', app.bind(self.paginate, 1))
         self.status_banner = text("Cargando catálogo sonoro…", color=MUTED, size=12)
         self.now_playing_text = text("Ningún sonido en reproducción", color=MUTED, size=11)
         self.currently_playing: str | None = None
         
         self.all_sounds: list[SoundEntry] = []
         self.categories: dict[str, int] = {}
+        self._indexed_paths = None
+        self._load_lock = asyncio.Lock()
 
         config_card = card(
             ft.Column([
@@ -85,20 +94,22 @@ class SFXView:
         )
 
         self.content = ft.Column([
-            text("Efectos de Sonido (SFX)", 22, weight=ft.FontWeight.W_600),
-            text("Biblioteca sonora completa organizada por tipos y preescucha instantánea con un clic.", color=MUTED),
             config_card,
             status_card,
             ft.Row([self.query_field, self.category_dropdown], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            card(self.list_column, padding=10),
-        ], spacing=14, scroll=ft.ScrollMode.AUTO, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
+            card(self.list_column, padding=10, expand=True),
+            ft.Row([self.previous_button, self.next_button], spacing=10),
+        ], spacing=14, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
 
-        self.reindex_sounds()
         self.refresh_ui()
 
     def reindex_sounds(self):
         """Escanea todos los archivos de audio en la carpeta SFX configurada y los organiza por subcarpetas."""
         raw_folders = self.controller.preferences.paths.get("sfx", "")
+        self._apply_sounds(*self._scan_sounds(raw_folders), raw_folders)
+
+    @staticmethod
+    def _scan_sounds(raw_folders):
         folders = [p.strip() for p in raw_folders.split(";") if p.strip()]
         
         valid_exts = {".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac"}
@@ -149,8 +160,11 @@ class SFXView:
             )
             categories_count[cat_name] = categories_count.get(cat_name, 0) + 1
 
-        self.all_sounds = sounds
-        self.categories = categories_count
+        return sounds, categories_count
+
+    def _apply_sounds(self, sounds, categories_count, raw_folders):
+        self.all_sounds, self.categories = sounds, categories_count
+        self._indexed_paths = raw_folders
 
         # Actualizar opciones del desplegable
         options = {"all": f"Todos los tipos ({len(self.all_sounds)})"}
@@ -161,14 +175,37 @@ class SFXView:
             self.category_dropdown.value = "all"
 
     async def reindex(self):
-        self.reindex_sounds()
-        self.refresh_ui()
+        self.offset = 0
+        await self.open(force=True)
         self.app.notify(f"Catálogo SFX reindexado: {len(self.all_sounds)} sonidos cargados.")
         self.app.page.update()
 
+    async def open(self, force=False):
+        async with self._load_lock:
+            raw = self.controller.preferences.paths.get('sfx', '')
+            if force or raw != self._indexed_paths:
+                self.status_banner.value = 'Leyendo los nombres de los efectos…'
+                self.app.page.update()
+                sounds, counts = await asyncio.get_running_loop().run_in_executor(
+                    self.app.media_executor, self._scan_sounds, raw)
+                self._apply_sounds(sounds, counts, raw)
+            self.refresh_ui()
+
     async def on_filter_changed(self):
+        self.offset = 0
         self.refresh_ui()
         self.app.page.update()
+
+    async def paginate(self, direction):
+        self.offset = max(0, self.offset + direction * PAGE_SIZE)
+        self.refresh_ui()
+
+    async def stop_audio(self):
+        global_sound_player.stop()
+        self.currently_playing = None
+        self.now_playing_text.value = 'Ningún sonido en reproducción'
+        self.now_playing_text.color = MUTED
+        self.refresh_ui()
 
     async def go_to_library_sfx(self):
         self.app.library.category = "sfx"
@@ -208,80 +245,29 @@ class SFXView:
 
     def _render_sfx_item(self, sound: SoundEntry) -> ft.Container:
         is_playing = (self.currently_playing == sound.full_path) and bool(sound.full_path)
-
-        border_color = ACCENT if is_playing else LINE
-        bg_color = "#162822" if is_playing else "#14181B"
-        icon_name = ft.Icons.STOP_ROUNDED if is_playing else ft.Icons.PLAY_ARROW_ROUNDED
-        icon_color = ACCENT if is_playing else (TEXT if sound.full_path else MUTED)
-
-        # Badge de categoría
-        badge_bg = "#1B2830"
-        badge_border = "#2A4050"
-        badge_color = "#7CE0FF"
-        if "procedural" in sound.category.lower():
-            badge_bg = "#2D1D30"
-            badge_border = "#63386B"
-            badge_color = "#E3A3ED"
-        elif "impacto" in sound.category.lower() or "acción" in sound.category.lower():
-            badge_bg = "#301A1A"
-            badge_border = "#692E2E"
-            badge_color = "#FF8A8A"
-        elif "anime" in sound.category.lower():
-            badge_bg = "#2E2413"
-            badge_border = "#694F1A"
-            badge_color = "#FFD166"
-
         return ft.Container(
-            content=ft.Row([
-                ft.Row([
-                    ft.IconButton(
-                        icon=icon_name,
-                        icon_color=icon_color,
-                        icon_size=20,
+            content=ft.Stack([
+                ft.Container(alignment=ft.Alignment.TOP_CENTER, padding=ft.Padding.only(top=22),
+                    content=ft.IconButton(
+                        ft.Icons.STOP_ROUNDED if is_playing else ft.Icons.PLAY_ARROW_ROUNDED,
+                        icon_color=ACCENT if is_playing else TEXT, icon_size=30,
                         on_click=self.app.bind(self.toggle_play, sound),
-                        tooltip="Detener" if is_playing else "Reproducir vista previa",
-                    ),
-                    ft.Column([
-                        ft.Row([
-                            text(sound.name, size=13, weight=ft.FontWeight.W_600, color=ACCENT if is_playing else TEXT),
-                            ft.Container(
-                                content=text(sound.category, size=10, weight=ft.FontWeight.W_500, color=badge_color),
-                                padding=ft.Padding.symmetric(horizontal=8, vertical=2),
-                                border_radius=10,
-                                bgcolor=badge_bg,
-                                border=ft.Border.all(0.6, badge_border),
-                            ),
-                            ft.Container(
-                                content=text(sound.ext, size=9, weight=ft.FontWeight.W_600, color=MUTED),
-                                padding=ft.Padding.symmetric(horizontal=5, vertical=2),
-                                border_radius=4,
-                                bgcolor="#101416",
-                            ),
-                            *([ft.Container(
-                                content=text("REPRODUCIENDO", size=9, weight=ft.FontWeight.W_700, color=ACCENT),
-                                padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-                                border_radius=4,
-                                bgcolor="#17352A",
-                            )] if is_playing else []),
-                        ], spacing=8),
-                        text(sound.subpath, size=11, color=MUTED, selectable=True),
-                    ], spacing=2),
-                ], spacing=6),
-                ft.Row([
-                    ft.IconButton(
-                        icon=ft.Icons.CONTENT_COPY_ROUNDED,
-                        icon_color=MUTED,
-                        icon_size=16,
-                        tooltip="Copiar ruta del archivo",
-                        on_click=self.app.bind(self.copy_sound_path, sound),
-                    ),
-                ], spacing=4),
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-            border_radius=8,
-            bgcolor=bg_color,
-            border=ft.Border.all(1.2 if is_playing else 0.8, border_color),
-            ink=True,
+                        tooltip='Detener' if is_playing else 'Escuchar',
+                    )),
+                ft.Container(left=6, top=6, content=text(sound.ext, size=9, color=MUTED)),
+                ft.Container(right=0, top=0, content=ft.IconButton(
+                    ft.Icons.CONTENT_COPY_ROUNDED, icon_color=MUTED, icon_size=14,
+                    tooltip='Copiar ruta del archivo', on_click=self.app.bind(self.copy_sound_path, sound),
+                )),
+                ft.Container(left=8, right=8, bottom=8, content=ft.Column([
+                    text(sound.name, size=11, weight=ft.FontWeight.W_600, color=ACCENT if is_playing else TEXT,
+                         max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                    text(sound.category, size=9, color=MUTED, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                ], spacing=2, tight=True)),
+            ], fit=ft.StackFit.EXPAND),
+            tooltip=sound.subpath, border_radius=10, clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            bgcolor='#162822' if is_playing else '#14181B',
+            border=ft.Border.all(1.5, ACCENT if is_playing else LINE),
             on_click=self.app.bind(self.toggle_play, sound),
         )
 
@@ -298,18 +284,16 @@ class SFXView:
             filtered.append(sound)
 
         total_matching = len(filtered)
-        # Mostrar hasta 80 sonidos para garantizar renderizado instantáneo
-        displayed = filtered[:80]
-
-        if total_matching > 80:
-            self.status_banner.value = (
-                f"Mostrando 80 de {total_matching} sonidos encontrados (Total en biblioteca: {len(self.all_sounds)}). "
-                f"Usa el buscador o el filtro de tipos para afinar."
-            )
-        else:
-            self.status_banner.value = (
-                f"Mostrando {total_matching} de {len(self.all_sounds)} sonidos en la biblioteca."
-            )
+        self.offset = min(self.offset, max(0, (total_matching - 1) // PAGE_SIZE * PAGE_SIZE))
+        displayed = filtered[self.offset:self.offset + PAGE_SIZE]
+        self.previous_button.disabled = self.offset == 0
+        self.next_button.disabled = self.offset + PAGE_SIZE >= total_matching
+        first = self.offset + 1 if displayed else 0
+        pages = max(1, (total_matching + PAGE_SIZE - 1) // PAGE_SIZE)
+        self.status_banner.value = (
+            f'{first}–{self.offset + len(displayed)} de {total_matching} sonidos · '
+            f'página {self.offset // PAGE_SIZE + 1}/{pages}'
+        )
 
         if not displayed:
             empty_text = (
@@ -328,5 +312,6 @@ class SFXView:
             self.list_column.controls = [self._render_sfx_item(s) for s in displayed]
 
     def refresh(self):
-        self.reindex_sounds()
+        if self._indexed_paths != self.controller.preferences.paths.get('sfx', ''):
+            self.reindex_sounds()
         self.refresh_ui()

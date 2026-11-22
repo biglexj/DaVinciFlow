@@ -1,5 +1,6 @@
 """Una ventana por checkout; las siguientes aperturas solicitan traerla al frente."""
 
+from davinci_flow.user_data import user_data_dir
 import hashlib
 import os
 from pathlib import Path
@@ -9,7 +10,7 @@ import time
 class DesktopInstance:
     def __init__(self, directory=None):
         key = hashlib.sha256(str(Path(__file__).resolve()).encode()).hexdigest()[:16]
-        self.directory = Path(directory) if directory else Path.home() / '.davinci_flow/runtime' / key
+        self.directory = Path(directory) if directory else user_data_dir() / "runtime" / key
         self.directory.mkdir(parents=True, exist_ok=True)
         self.activation = self.directory / 'activate'
         self.last_activation = self._stamp()

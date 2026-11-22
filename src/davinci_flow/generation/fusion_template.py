@@ -36,14 +36,17 @@ def generate_textplus_fusion_setting(
     """Genera la estructura de un archivo Fusion .setting con un nodo TextPlus, animación opcional y MediaOut."""
     if role == "context":
         font = tokens.font_family_context
+        style = tokens.font_style_context
         size = tokens.font_size_context
         r, g, b = hex_to_rgb_float(tokens.context_color)
     elif role == "accent":
         font = tokens.font_family_accent
+        style = tokens.font_style_accent
         size = tokens.font_size_accent
         r, g, b = hex_to_rgb_float(tokens.accent_color)
     else:  # main
         font = tokens.font_family_main
+        style = tokens.font_style_main
         size = tokens.font_size_main
         r, g, b = hex_to_rgb_float(tokens.primary_color)
 
@@ -62,7 +65,7 @@ def generate_textplus_fusion_setting(
 \t\t\t\tCenter = Input {{ Value = {{ {pos_x:.4f}, {pos_y:.4f} }}, }},
 \t\t\t\tStyledText = Input {{ Value = "{safe_text}", }},
 \t\t\t\tFont = Input {{ Value = "{font}", }},
-\t\t\t\tStyle = Input {{ Value = "Bold", }},
+\t\t\t\tStyle = Input {{ Value = "{style}", }},
 \t\t\t\tSize = Input {{ Value = {size:.4f}, }},
 \t\t\t\tRed1 = Input {{ Value = {r:.4f}, }},
 \t\t\t\tGreen1 = Input {{ Value = {g:.4f}, }},
@@ -120,7 +123,7 @@ def generate_textplus_fusion_setting(
 \t\t\t\tCenter = Input {{ Value = {{ {pos_x:.4f}, {pos_y:.4f} }}, }},
 \t\t\t\tStyledText = Input {{ Value = "{safe_text}", }},
 \t\t\t\tFont = Input {{ Value = "{font}", }},
-\t\t\t\tStyle = Input {{ Value = "Bold", }},
+\t\t\t\tStyle = Input {{ Value = "{style}", }},
 \t\t\t\tSize = Input {{ Value = {size:.4f}, }},
 \t\t\t\tRed1 = Input {{ Value = {r:.4f}, }},
 \t\t\t\tGreen1 = Input {{ Value = {g:.4f}, }},
@@ -187,7 +190,7 @@ def generate_textplus_fusion_setting(
 \t\t\t\tCenter = Input {{ Value = {{ {pos_x:.4f}, {pos_y:.4f} }}, }},
 \t\t\t\tStyledText = Input {{ Value = "{safe_text}", }},
 \t\t\t\tFont = Input {{ Value = "{font}", }},
-\t\t\t\tStyle = Input {{ Value = "Bold", }},
+\t\t\t\tStyle = Input {{ Value = "{style}", }},
 \t\t\t\tSize = Input {{ Value = {size:.4f}, }},
 \t\t\t\tRed1 = Input {{ Value = {r:.4f}, }},
 \t\t\t\tGreen1 = Input {{ Value = {g:.4f}, }},
@@ -244,7 +247,7 @@ def generate_textplus_fusion_setting(
 \t\t\t\tCenter = Input {{ Value = {{ {pos_x:.4f}, {pos_y:.4f} }}, }},
 \t\t\t\tStyledText = Input {{ Value = "{safe_text}", }},
 \t\t\t\tFont = Input {{ Value = "{font}", }},
-\t\t\t\tStyle = Input {{ Value = "Bold", }},
+\t\t\t\tStyle = Input {{ Value = "{style}", }},
 \t\t\t\tSize = Input {{ Value = {size:.4f}, }},
 \t\t\t\tRed1 = Input {{ Value = {r:.4f}, }},
 \t\t\t\tGreen1 = Input {{ Value = {g:.4f}, }},
@@ -301,7 +304,7 @@ def generate_textplus_fusion_setting(
 \t\t\t\tCenter = Input {{ Value = {{ {pos_x:.4f}, {pos_y:.4f} }}, }},
 \t\t\t\tStyledText = Input {{ Value = "{safe_text}", }},
 \t\t\t\tFont = Input {{ Value = "{font}", }},
-\t\t\t\tStyle = Input {{ Value = "Bold", }},
+\t\t\t\tStyle = Input {{ Value = "{style}", }},
 \t\t\t\tSize = Input {{ Value = {size:.4f}, }},
 \t\t\t\tRed1 = Input {{ Value = {r:.4f}, }},
 \t\t\t\tGreen1 = Input {{ Value = {g:.4f}, }},
@@ -349,7 +352,7 @@ def generate_textplus_fusion_setting(
 \t\t\t\tCenter = Input {{ Value = {{ {pos_x:.4f}, {pos_y:.4f} }}, }},
 \t\t\t\tStyledText = Input {{ Value = "{safe_text}", }},
 \t\t\t\tFont = Input {{ Value = "{font}", }},
-\t\t\t\tStyle = Input {{ Value = "Bold", }},
+\t\t\t\tStyle = Input {{ Value = "{style}", }},
 \t\t\t\tSize = Input {{ Value = {size:.4f}, }},
 \t\t\t\tRed1 = Input {{ Value = {r:.4f}, }},
 \t\t\t\tGreen1 = Input {{ Value = {g:.4f}, }},

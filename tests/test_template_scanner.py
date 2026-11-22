@@ -11,6 +11,22 @@ from davinci_flow.resolve.template_scanner import (
 
 
 class TemplateScannerTests(unittest.TestCase):
+    def test_finds_titles_in_arbitrary_folder_and_after_move(self):
+        from types import SimpleNamespace
+        title = SimpleNamespace(GetName=lambda: 'Kinetic Pop In', GetUniqueId=lambda: 'same-title',
+                                GetClipProperty=lambda key: 'Fusion Title')
+        folder = SimpleNamespace(GetName=lambda: 'DF Text+ Base', GetClipList=lambda: {1: title},
+                                 GetSubFolderList=lambda: {})
+        root = SimpleNamespace(GetName=lambda: 'Master', GetClipList=lambda: [],
+                               GetSubFolderList=lambda: {1: folder})
+        pool = SimpleNamespace(GetRootFolder=lambda: root)
+        before = scan_davinciflow_presets(pool)
+        self.assertEqual([p.name for p in before], ['Kinetic Pop In'])
+        root.GetClipList = lambda: [title]
+        folder.GetClipList = lambda: []
+        after = scan_davinciflow_presets(pool)
+        self.assertIs(before[0].media_item, after[0].media_item)
+
     def test_excludes_carrier_images_and_video_from_template_bin(self) -> None:
         pool, root, folder = MagicMock(), MagicMock(), MagicMock()
         pool.GetRootFolder.return_value = root
@@ -19,6 +35,7 @@ class TemplateScannerTests(unittest.TestCase):
         folder.GetSubFolderList.return_value = []
         clips = []
         for name, kind in (("DF_Fusion_Title.png", "Captura"), ("carrier.avi", "Vídeo"),
+                           ("df_e2e_test", "Subtítulo"), ("en_sub", "Subtitle"),
                            ("biglexpe", "Título – Fusion"), ("Text+", "Fusion Title")):
             clip = MagicMock()
             clip.GetName.return_value = name

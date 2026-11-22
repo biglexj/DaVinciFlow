@@ -15,6 +15,7 @@ Resolve no confirma el resultado, se informa con precisión en lugar de insistir
 
 from __future__ import annotations
 
+from davinci_flow.user_data import user_data_dir
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -148,7 +149,7 @@ class FusionEffectWriter:
         self.media_pool = session.project.GetMediaPool()
         if self.media_pool is None:
             raise FusionEffectError("El proyecto activo no expone el Media Pool.")
-        self.temp_root = temp_root or Path.home() / ".davinci_flow" / "fusion_effects"
+        self.temp_root = temp_root or user_data_dir() / "fusion_effects"
 
     def insert_composition(
         self,

@@ -71,13 +71,18 @@ class WorkspaceFilePicker:
         drives = get_system_drives()
 
         async def finish(value):
-            self.app.page.pop_dialog()
-            if not future.done():
-                future.set_result(value)
+            if future.done():
+                return
+            dialog.open = False
+            future.set_result(value)
             self.app.page.update()
 
         async def cancel(event=None):
             await finish(None)
+
+        async def dismissed(event):
+            if not future.done():
+                future.set_result(None)
 
         def make_drive_button(drv):
             label = drv.rstrip('\\')
@@ -215,7 +220,7 @@ class WorkspaceFilePicker:
 
         path_field.on_submit = navigate
         filename.on_submit = accept
-        dialog = ft.AlertDialog(modal=True, alignment=ft.Alignment.CENTER,
+        dialog = ft.AlertDialog(modal=False, on_dismiss=dismissed, alignment=ft.Alignment.CENTER,
             title=text(title, 18), content=ft.Container(ft.Column([
                 ft.Row([
                     path_field,

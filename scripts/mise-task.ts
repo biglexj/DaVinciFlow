@@ -44,7 +44,7 @@ function resolvePythonCmd(): string[] {
     const venvPython = join(root, ".venv", "Scripts", "python.exe");
     if (existsSync(venvPython)) return [venvPython];
     const uv = findUv();
-    if (uv) return [uv, "run", "python"];
+    if (uv) return [uv, "run", "--locked", "--python", "3.13", "python"];
     return ["python"];
 }
 
@@ -116,7 +116,7 @@ const IMPORT_SMOKE = [
 
 const help = `DaVinci Flow: mise <setup|dev|build|check|test|release|publish> [opciones]
   setup    Preparar .venv con uv e instalar el lanzador en DaVinci Resolve.
-  dev      Ejecutar en modo desarrollo (Flet Desktop).
+  dev py   Abrir la interfaz Python/Flet de esta rama.
   build    Verificar sintaxis y generar los paquetes Python en dist/.
   check    Verificar sintaxis, importacion y contratos, sin generar artefactos.
   test     Ejecutar las pruebas unitarias.
@@ -128,7 +128,7 @@ const help = `DaVinci Flow: mise <setup|dev|build|check|test|release|publish> [o
 
 Ejemplos:
   mise setup
-  mise dev --plan
+  mise dev py --plan
   mise build --plan
   mise check --plan
   mise test --plan
@@ -297,7 +297,11 @@ export async function main(args = Bun.argv.slice(2)): Promise<number> {
         return handlePublish(rest);
     }
 
-    assertOpciones(action, rest, ["--plan"]);
+    if (action === "dev" && rest[0] !== "py") {
+        console.error("Usa 'mise dev py' para Python. 'mise dev' abre GPUI desde la rama main.");
+        return 1;
+    }
+    assertOpciones(action, action === "dev" ? rest.slice(1) : rest, ["--plan"]);
     const isPlan = rest.includes("--plan");
 
     if (action === "setup") {

@@ -71,6 +71,10 @@ def main() -> None:
     base = _base_dir()
     _prepare_import_paths(base)
 
+    if len(sys.argv) == 3 and sys.argv[1] == '--auth-callback':
+        from davinci_flow.voice.account import accept_callback
+        accept_callback(sys.argv[2])
+
     import app.app as desktop_app
 
     branding = base / "assets" / "branding" / "icons"

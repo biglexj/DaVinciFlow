@@ -25,6 +25,7 @@ FALLBACK_MODELS = (
     "gemini-3.0-flash",
 )
 API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+_CURRENT_GEMINI_FAMILIES = ("gemini-3.", "gemini-3-", "gemini-4.", "gemini-4-")
 LONG_CONTEXT_THRESHOLD = 100_000
 MAX_LONG_CONTEXT_PROMPT_CHARS = 2_000_000
 
@@ -89,7 +90,7 @@ def _model_info(model: dict[str, Any]) -> GeminiModelInfo | None:
     methods = model.get("supportedGenerationMethods", [])
     name = str(model.get("name", "")).replace("models/", "").strip()
     low = name.lower()
-    if not name or "generateContent" not in methods or not low.startswith("gemini-3"):
+    if "generateContent" not in methods or not low.startswith(_CURRENT_GEMINI_FAMILIES):
         return None
     if any(part in low for part in (
         "embedding", "aqa", "imagen", "whisper", "image", "tts", "preview",
@@ -105,19 +106,22 @@ def _model_info(model: dict[str, Any]) -> GeminiModelInfo | None:
         output_limit = int(model.get("outputTokenLimit") or known_output or 0) or None
     except (TypeError, ValueError):
         output_limit = known_output
-    # Gemini 3 text generation models used by this editor support JSON output.
+    # The Gemini text families admitted here support JSON output.
     return GeminiModelInfo(name, input_limit, output_limit, True)
 
 
 def list_available_gemini_model_info(
     api_key: str | None = None,
     timeout_seconds: float = 8.0,
+    *,
+    use_fallback: bool = True,
 ) -> tuple[GeminiModelInfo, ...]:
-    """Consulta modelos Gemini 3 disponibles y sus límites publicados por la API."""
+    """Consulta los modelos de texto disponibles y sus capacidades publicadas por la API."""
+    fallback = fallback_gemini_model_info() if use_fallback else ()
     try:
         resolved_key = get_gemini_api_key(api_key)
     except Exception:
-        return fallback_gemini_model_info()
+        return fallback
 
     found: dict[str, GeminiModelInfo] = {}
     page_token = ""
@@ -145,10 +149,10 @@ def list_available_gemini_model_info(
             seen_tokens.add(next_token)
             page_token = next_token
     except Exception:
-        return fallback_gemini_model_info()
+        return fallback
 
     if not found:
-        return fallback_gemini_model_info()
+        return fallback
 
     def sort_key(info: GeminiModelInfo) -> tuple[int, str]:
         low = info.model_id.lower()
@@ -275,9 +279,8 @@ class GeminiClient:
 
             if generation_config:
                 effective_config = dict(generation_config)
-                # Gemini 3.x uses provider defaults for sampling; passing these values can
-                # conflict with current API guidance and some stable model configurations.
-                if model.lower().startswith("gemini-3"):
+                # Gemini 3 and 4 use provider defaults for sampling.
+                if model.lower().startswith(_CURRENT_GEMINI_FAMILIES):
                     for parameter in ("temperature", "topP", "topK", "candidateCount"):
                         effective_config.pop(parameter, None)
                 body["generationConfig"] = effective_config

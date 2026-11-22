@@ -21,7 +21,9 @@ def descriptor(name: str, source: str, locator: str, content: bytes, category: s
         node, input_id = root[1], controls[0]
     if not category:
         nl = (name + " " + locator).lower()
-        if "templates.drfx" in nl:
+        if 'davinci flow' in name.casefold():
+            category = 'karaoke' if 'karaoke' in name.casefold() else 'davinci_flow'
+        elif "templates.drfx" in nl:
             category = "native"
         elif any(k in nl for k in ("short", "tiktok", "reel", "vertical")):
             category = "shorts"
@@ -48,6 +50,8 @@ def scan_archive(path: Path) -> tuple[Template, ...]:
         with ZipFile(path) as archive:
             for info in archive.infolist():
                 entry = info.filename.replace("\\", "/")
+                if any(part.startswith(('.', '__MACOSX')) for part in PurePosixPath(entry).parts):
+                    continue
                 if "/titles/" not in "/" + entry.lower() or not entry.lower().endswith((".setting", ".comp")):
                     continue
                 if info.file_size > 4 * 1024 * 1024:

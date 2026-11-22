@@ -9,7 +9,9 @@ Salida: un directorio `DaVinciFlow/` con `DaVinciFlow.exe` y `_internal/`.
 Se instala completo en `{app}`.
 """
 
+import importlib.util
 import os
+import sys
 import tomllib
 from pathlib import Path
 
@@ -19,7 +21,41 @@ ROOT = WINDOWS_DIR.parent.parent
 BUILD_DIR = WINDOWS_DIR / "build"
 CLIENT_ZIP = BUILD_DIR / "cache" / "flet-windows.zip"
 LAUNCHER = SPEC_DIR / "DaVinciFlow.py"
+RESOLVE_LAUNCHER = WINDOWS_DIR / "resolve" / "DaVinci Flow.py"
 ICON = ROOT / "assets" / "branding" / "icons" / "icon-windows.ico"
+PYTHON_ROOT = ROOT / "src"
+FLET_ROOT = ROOT / "src-flet"
+
+# --- Rutas resolubles durante la compilacion ---------------------------------
+# El analisis de PyInstaller sigue imports estaticos. La interfaz importa sus
+# vistas en tiempo de ejecucion (`app/views.py` usa `import_module`), asi que
+# el bundle debe declararlas de forma explicita: sin esto, el ejecutable
+# instalado muere al arrancar con `ModuleNotFoundError`.
+#
+# Ademas, `collect_all` necesita importar el paquete para recoger sus datos
+# (las plantillas `.setting` de `davinci_flow.editorial.basic_titles`). Con las
+# dos raices en `sys.path` y en `PYTHONPATH`, tanto el proceso de compilacion
+# como los subprocesos aislados de PyInstaller las encuentran.
+for _root in (PYTHON_ROOT, FLET_ROOT):
+    if str(_root) not in sys.path:
+        sys.path.insert(0, str(_root))
+os.environ["PYTHONPATH"] = os.pathsep.join(
+    [str(PYTHON_ROOT), str(FLET_ROOT), os.environ.get("PYTHONPATH", "")]
+)
+
+
+def _view_modules() -> list:
+    """Modulos de las vistas declarados en `app/views.py`.
+
+    El manifiesto vive en `scripts/packaging/flet_view_manifest.py` y lo
+    comparten la compilacion y las pruebas: anadir una vista nueva no obliga
+    a tocar este archivo.
+    """
+    manifest_path = ROOT / "scripts" / "packaging" / "flet_view_manifest.py"
+    spec = importlib.util.spec_from_file_location("flet_view_manifest", manifest_path)
+    manifest = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(manifest)
+    return manifest.view_modules(ROOT)
 
 if not CLIENT_ZIP.is_file():
     raise SystemExit(
@@ -84,13 +120,24 @@ hiddenimports = []
 # Flet distribuye datos (icons.json, assets, plantillas) que se leen en
 # tiempo de ejecucion: sin `collect_all` el cliente no encuentra sus
 # archivos y la app falla al construir la interfaz.
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
-for _package in ("flet", "flet_desktop", "davinci_flow"):
+for _package in ("flet", "flet_desktop", "flet_video", "davinci_flow", "yt_dlp"):
     _datas, _binaries, _hidden = collect_all(_package)
     datas += _datas
     binaries += _binaries
     hiddenimports += _hidden
+
+# Las vistas y los modulos de la interfaz se importan en tiempo de ejecucion.
+# Se declaran aqui para que el bundle los contenga.
+hiddenimports += _view_modules()
+for _package in ("app", "features", "shared"):
+    hiddenimports += collect_submodules(_package)
+
+# El lanzador del menu Scripts de DaVinci Resolve viaja dentro del bundle:
+# la app instalada puede reinstalarlo sin depender del repositorio.
+if RESOLVE_LAUNCHER.is_file():
+    datas.append((str(RESOLVE_LAUNCHER), "packaging/windows/resolve"))
 
 a = Analysis(
     [str(LAUNCHER)],

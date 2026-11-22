@@ -95,7 +95,11 @@ Source: "{#MyAppIcon}"; Flags: dontcopy
 ; por scripts/packaging/Build-Installer.ps1 en packaging\windows\build\staging.
 ; Sin `ignoreversion`: los binarios internos no llevan version y deben
 ; reescribirse en cada actualizacion.
-Source: "{#MyAppPayload}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
+Source: "{#MyAppPayload}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Lanzador del menu Workspace > Scripts de DaVinci Resolve. Se copia en la
+; carpeta Utility del usuario: una instalacion limpia ofrece la entrada desde
+; Resolve sin pasos manuales. El lanzador solo busca el ejecutable instalado.
+Source: "resolve\DaVinci Flow.py"; DestDir: "{userappdata}\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Utility"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"

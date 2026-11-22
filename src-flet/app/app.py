@@ -8,31 +8,32 @@ from pathlib import Path
 import flet as ft
 
 from davinci_flow.editorial.controller import EditorialController
+from davinci_flow.user_data import is_development, user_data_dir
 from shared.components import ACCENT, BG, CARD, FIELD, LINE, MUTED, SIDE, TEXT, button, text
 from shared.path_picker import WorkspaceFilePicker
 from app.instance import DesktopInstance
 from app.runtime import desktop_runtime
-from features.assistant.assistant_view import AssistantView
-from features.editor.editor_view import EditorView
-from features.sfx.sfx_view import SFXView
-from features.brolls.brolls_view import BRollsView
-from features.catalog.catalog_view import CatalogView
-from features.library.library_view import LibraryView
-from features.subtitles.subtitles_view import SubtitlesView
-from features.settings.settings_view import SettingsView
+from app.views import LazyViews, VIEW_TYPES
 
 BRANDING = Path(__file__).resolve().parents[2] / 'assets/branding/icons'
 
 
 class DesktopApp:
+    def __getattr__(self, name):
+        if name in VIEW_TYPES:
+            return self.views[name]
+        raise AttributeError(name)
+
     def __init__(self, page, controller=None):
         self.page = page
+        self.views = LazyViews(self)
         self.controller = controller or EditorialController()
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='davinci-flow')
+        self.media_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='flow-media')
         self.busy = False
         self.closing = False
         self.current = 'editor'
-        page.title = 'DaVinci Flow — Editor y recursos'
+        page.title = 'DaVinci Flow (Desarrollo)' if is_development() else 'DaVinci Flow'
         page.bgcolor = BG
         page.padding = 0
         page.spacing = 0
@@ -87,7 +88,7 @@ class DesktopApp:
                 interactive=True,
             ),
         )
-        page.window.width, page.window.height = 1180, 810
+        page.window.width, page.window.height = 1280, 900
         page.window.min_width, page.window.min_height = 900, 640
         page.window.prevent_close = True
         page.window.icon = str(BRANDING / 'icon-windows.ico')
@@ -95,44 +96,31 @@ class DesktopApp:
         self.branding_path = BRANDING
         self.picker = WorkspaceFilePicker(self)
         self.identity = text('Sin secuencia capturada', color=MUTED, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS)
-        self.model = text(self.controller.preferences.model, color=ACCENT, no_wrap=True)
         self.status = text('Listo para abrir tu montaje.', color=MUTED, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, expand=True)
         self.progress = ft.ProgressRing(width=16, height=16, stroke_width=2, visible=False, color=ACCENT)
-        self.heading = text('Editor', 17, weight=ft.FontWeight.W_600)
-        self.assistant = AssistantView(self)
-        self.editor = EditorView(self)
-        self.sfx = SFXView(self)
-        self.brolls = BRollsView(self)
-        self.catalog = CatalogView(self)
-        self.library = LibraryView(self)
-        self.subtitles = SubtitlesView(self)
-        self.settings = SettingsView(self)
-        self.views = {
-            'assistant': self.assistant,
-            'editor': self.editor,
-            'sfx': self.sfx,
-            'brolls': self.brolls,
-            'catalog': self.catalog,
-            'library': self.library,
-            'subtitles': self.subtitles,
-            'settings': self.settings,
-        }
+        self.about_dialog = None
         self.nav = {}
         self.labels = {
             'assistant': 'Asistente IA',
             'editor': 'Editor',
-            'sfx': 'Efectos (SFX)',
-            'brolls': 'B-Rolls',
-            'catalog': 'Plantillas',
-            'library': 'Biblioteca',
             'subtitles': 'Corrección',
+            'voice': 'Generación de voz',
+            'brolls': 'B-Rolls',
+            'music': 'Música',
+            'sfx': 'Efectos (SFX)',
+            'catalog': 'Plantillas',
+            'fetch': 'Luna Fetch',
+            'library': 'Biblioteca',
             'settings': 'Ajustes',
         }
         icons = {
             'assistant': ft.Icons.AUTO_AWESOME_ROUNDED,
             'editor': ft.Icons.EDIT_NOTE_ROUNDED,
+            'voice': ft.Icons.RECORD_VOICE_OVER_ROUNDED,
             'sfx': ft.Icons.GRAPHIC_EQ_ROUNDED,
             'brolls': ft.Icons.VIDEO_LIBRARY_ROUNDED,
+            'music': ft.Icons.MUSIC_NOTE_ROUNDED,
+            'fetch': ft.Icons.CLOUD_DOWNLOAD_ROUNDED,
             'catalog': ft.Icons.TEXT_FIELDS_ROUNDED,
             'library': ft.Icons.FOLDER_OUTLINED,
             'subtitles': ft.Icons.SPELLCHECK_ROUNDED,
@@ -176,18 +164,21 @@ class DesktopApp:
             content=ft.Column([ft.Row([ft.Image(src=str(BRANDING / 'icon-transparent.png'), width=28, height=28),
                 text('DaVinci Flow', 14, weight=ft.FontWeight.W_700)], spacing=5),
                 text('Tu espacio creativo', 11, color=MUTED), ft.Container(height=5), self.identity,
-                ft.Divider(color=LINE, height=18), *self.nav.values(),
-                ft.Container(expand=True), self.about_btn], spacing=4))
+                ft.Divider(color=LINE, height=18),
+                ft.Column([control for key, control in self.nav.items() if key not in {'library', 'settings'}],
+                          spacing=4, expand=True, scroll=ft.ScrollMode.AUTO),
+                self.nav['library'], self.nav['settings'], self.about_btn], spacing=4))
         self.workspace = ft.Container(content=self.editor.content, expand=True, padding=ft.Padding.only(right=10), bgcolor=BG)
-        header = ft.Row([self.heading, ft.Container(expand=True),
-            ft.Container(self.model, bgcolor='#153630', padding=ft.Padding.symmetric(horizontal=10, vertical=6), border_radius=7),
-            ft.IconButton(icon=ft.Icons.PUSH_PIN_OUTLINED, icon_size=17, tooltip='Fijar al frente', on_click=self.bind(self.pin))], height=38)
-        self.body = ft.Row([sidebar, ft.Container(ft.Column([header, self.workspace], spacing=14, horizontal_alignment=ft.CrossAxisAlignment.STRETCH),
+        self.heading = text(self.labels[self.current], 17, weight=ft.FontWeight.W_600)
+        header = ft.Container(self.heading, height=28, alignment=ft.Alignment.CENTER_LEFT)
+        self.body = ft.Row([sidebar, ft.Container(ft.Column([header, self.workspace], spacing=10,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH),
             expand=True, padding=ft.Padding.only(left=18, right=10, top=12, bottom=10))], expand=True, spacing=0,
             vertical_alignment=ft.CrossAxisAlignment.STRETCH)
         self.footer = ft.Container(ft.Row([self.progress, self.status], spacing=10), padding=ft.Padding.symmetric(horizontal=18, vertical=9),
                                    border=ft.Border(top=ft.BorderSide(1, LINE)))
         self.latest_release = None
+        self.update_error = None
         self.checking_updates = False
         self.has_checked_updates = False
         self.toast_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE_ROUNDED, color=ACCENT, size=18)
@@ -271,15 +262,21 @@ class DesktopApp:
     async def confirm(self, title, message):
         future = asyncio.get_running_loop().create_future()
         async def answer(value):
-            self.page.pop_dialog()
-            if not future.done():
-                future.set_result(value)
+            if future.done():
+                return
+            dialog.open = False
+            future.set_result(value)
+            self.page.update()
         async def accept(event):
             await answer(True)
         async def cancel(event):
             await answer(False)
-        self.page.show_dialog(ft.AlertDialog(modal=True, title=text(title, 18), content=text(message, size=13),
-            alignment=ft.Alignment.CENTER, actions=[button('Volver', cancel), button('Continuar', accept, primary=True)]))
+        async def dismissed(event):
+            if not future.done():
+                future.set_result(False)
+        dialog = ft.AlertDialog(modal=False, on_dismiss=dismissed, title=text(title, 18), content=text(message, size=13),
+            alignment=ft.Alignment.CENTER, actions=[button('Volver', cancel), button('Continuar', accept, primary=True)])
+        self.page.show_dialog(dialog)
         return await future
 
     async def pick_file(self, title, extensions):
@@ -289,17 +286,22 @@ class DesktopApp:
 
     async def navigate(self, key):
         self.editor.sync_preferences()
-        self.library.save_path()
+        self.controller.save_preferences()
+        if self.current != key:
+            if self.current in {'library', 'music', 'brolls'}:
+                await self.views[self.current].stop_preview()
+            elif self.current == 'sfx':
+                await self.sfx.stop_audio()
         self.current = key
+        self.heading.value = self.labels[key]
         self.workspace.content = self.views[key].content
-        self.heading.value = 'Corrección de subtítulos' if key == 'subtitles' else self.labels[key]
         for item, control in self.nav.items():
             control.bgcolor = '#173A35' if item == key else None
             control.content.controls[0].color = ACCENT if item == key else MUTED
         if key == 'catalog':
-            self.catalog.refresh()
-        elif key == 'library':
-            self.library.refresh()
+            await self.catalog.open()
+        elif key in {'library', 'music'}:
+            self.views[key].refresh()
         elif key == 'subtitles':
             self.subtitles.refresh()
         elif key == 'editor':
@@ -307,16 +309,28 @@ class DesktopApp:
         elif key == 'assistant':
             self.assistant.refresh()
         elif key == 'sfx':
-            self.sfx.refresh()
+            await self.sfx.open()
         elif key == 'brolls':
-            self.brolls.refresh()
+            await self.brolls.stop_preview()
+            await self.brolls.open()
+        elif key == 'voice':
+            await self.voice.open()
+        elif key == 'settings':
+            await self.settings.open()
 
     def refresh_identity(self):
         s = self.controller.snapshot
         self.identity.value = f'{s.project}\n{s.timeline}' if s else 'Sin secuencia capturada'
         self.identity.tooltip = self.identity.value
-        self.model.value = self.controller.preferences.model
-        self.assistant.refresh()
+        if assistant := self.views.loaded.get('assistant'):
+            assistant.refresh()
+
+    async def poll_voice_callback(self):
+        voice = self.views.loaded.get('voice')
+        if voice is None and (user_data_dir() / 'account' / 'callback.bin').is_file():
+            voice = self.voice
+        if voice is not None:
+            await voice.handle_callback_if_ready()
 
     async def pin(self):
         self.page.window.always_on_top = not self.page.window.always_on_top
@@ -366,10 +380,11 @@ class DesktopApp:
         if self.checking_updates:
             return self.latest_release
         self.checking_updates = True
+        self.update_error = None
         if manual:
             self.notify('Consultando GitHub Releases…')
-        if hasattr(self, 'settings') and hasattr(self.settings, 'refresh_updates_ui'):
-            self.settings.refresh_updates_ui()
+        if updates := self.views.loaded.get('updates'):
+            updates.refresh()
         self.page.update()
 
         try:
@@ -378,22 +393,25 @@ class DesktopApp:
             self.latest_release = release
             if release and release.is_newer:
                 self.notify(f'🚀 Nueva versión v{release.version} disponible.')
-                if manual and self.current != 'settings':
-                    await self.navigate('settings')
-            elif manual:
+            elif manual and release:
                 from davinci_flow import __version__
                 self.notify('Estás en la última versión.')
                 await self.show_toast(f'✅ ¡Estás en la última versión! (v{__version__})')
+            if release is None:
+                self.update_error = 'No se pudo confirmar la última versión publicada.'
+                if manual:
+                    self.notify(self.update_error)
             return release
         except Exception as error:
+            self.update_error = str(error)
             if manual:
                 self.notify(f'No se pudo comprobar actualizaciones: {error}')
             return None
         finally:
             self.checking_updates = False
             self.has_checked_updates = True
-            if hasattr(self, 'settings') and hasattr(self.settings, 'refresh_updates_ui'):
-                self.settings.refresh_updates_ui()
+            if updates := self.views.loaded.get('updates'):
+                updates.refresh()
             self.page.update()
 
     async def window_event(self, event):
@@ -409,9 +427,9 @@ class DesktopApp:
                 if not await self.confirm('Cambios sin guardar', 'Hay una revisión sin guardar en archivo. ¿Cerrar de todos modos?'):
                     return
             self.editor.sync_preferences()
-            self.library.save_path()
             self.controller.save_preferences()
             self.executor.shutdown(wait=False)
+            self.media_executor.shutdown(wait=False, cancel_futures=True)
             await self.page.window.destroy()
         except Exception as error:
             self.show_error(str(error))
@@ -424,14 +442,19 @@ def open_desktop():
     if not instance.acquire():
         return
     async def main(page):
-        DesktopApp(page)
-        await page.window.wait_until_ready_to_show()
-        await page.window.center()
+        page.window.visible = False
+        app = DesktopApp(page)
+        try:
+            await asyncio.wait_for(page.window.wait_until_ready_to_show(), timeout=2.0)
+            await page.window.center()
+        except Exception:
+            pass
         page.window.visible = True
         page.update()
         async def activate_requests():
             while True:
                 await asyncio.sleep(0.5)
+                await app.poll_voice_callback()
                 if instance.activation_requested():
                     page.window.minimized = False
                     page.update()

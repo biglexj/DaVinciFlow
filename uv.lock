@@ -26,14 +26,20 @@ wheels = [
 
 [[package]]
 name = "davinci-flow"
-version = "0.3.0"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "flet", extra = ["desktop"] },
+    { name = "flet-video" },
+    { name = "yt-dlp" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "flet", extras = ["desktop"], specifier = "==0.86.5" }]
+requires-dist = [
+    { name = "flet", extras = ["desktop"], specifier = "==0.86.5" },
+    { name = "flet-video", specifier = "==0.86.5" },
+    { name = "yt-dlp", specifier = ">=2026.10.26" },
+]
 
 [[package]]
 name = "flet"
@@ -66,6 +72,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/1f/90/1284eec849d2a22b8955661a9b66e2d2a19c9697062930e2422c03e3c553/flet_desktop-0.86.5.tar.gz", hash = "sha256:3268f419110a33622aee2d60cfcf88ffd0182b52c2a1fb741ed508bc67bef719", size = 6348, upload-time = "2026-08-01T16:51:33.447Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/29/a9/affa56880df94b3f8fbbdeca536df29cabae4cd1a08285fabaa27133c8a8/flet_desktop-0.86.5-py3-none-any.whl", hash = "sha256:66f9f1f0abcf5e946273edb7740597b4f8fd5dff3652e3747cf4b3829f61d3d9", size = 6419, upload-time = "2026-08-01T16:51:32.436Z" },
+]
+
+[[package]]
+name = "flet-video"
+version = "0.86.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flet" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/e9/6747186526088779ca5213ad3cf5c2b5e8ad3b6ca3fbb894fa0295d2792f/flet_video-0.86.5.tar.gz", hash = "sha256:560642643a0db0db73c79f5b797f05f24cac63bb67fb97048e48b0cc656be6d7", size = 24248, upload-time = "2026-08-01T16:52:34.821Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/05/403a87621ff2ada7f82b7c102ba2c182719267ee0c506f93ed31e217984e/flet_video-0.86.5-py3-none-any.whl", hash = "sha256:162540a0ccea8ef15b3a9b0c588943f8ee04e37bda2c7df61a35b0643879ce17", size = 26166, upload-time = "2026-08-01T16:52:33.876Z" },
 ]
 
 [[package]]
@@ -235,4 +253,13 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz", hash = "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5", size = 113555, upload-time = "2026-07-02T08:40:05.92Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8", size = 45571, upload-time = "2026-07-02T08:40:04.659Z" },
+]
+
+[[package]]
+name = "yt-dlp"
+version = "2026.10.26"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/83/31/4be3987022a6244550ab6a3afe45ad10ac10b5e5ab8874bd8eecc7f8b937/yt_dlp-2026.10.26.tar.gz", hash = "sha256:abe5c6b94c3b2f0560500add1c42e0a97641752743a5b65588ac2007a6e23eb6", size = 3048880, upload-time = "2026-10-26T22:25:26.931Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7f/3d/16ea7d5638cf585991f2c5705e8083688dde633d32d0871f2404e0f4d827/yt_dlp-2026.10.26-py3-none-any.whl", hash = "sha256:a05c5b5d8562f7e8a62f5334348b406af4930d56d3a65f8021d14af0e22339ae", size = 3186201, upload-time = "2026-10-26T22:25:24.877Z" },
 ]

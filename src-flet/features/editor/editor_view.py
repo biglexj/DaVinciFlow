@@ -116,6 +116,10 @@ class EditorView:
                 self.direction,
                 self.batch_size,
                 button('Generar tanda', app.bind(self.generate_batch), ft.Icons.AUTO_AWESOME, primary=True),
+                button('Decisiones', app.bind(self.generate_decisions), ft.Icons.PSYCHOLOGY,
+                       tooltip='Experimento: el motor de decisiones de Google Gemini decide qué bloques merecen rótulo, '
+                               'qué capa, qué plantilla y si conviene un sonido. Cada bloque muestra su probabilidad. '
+                               'No aplica nada por sí solo.'),
                 button('Completar secuencia', app.bind(self.generate_all), ft.Icons.PLAY_CIRCLE_OUTLINE_ROUNDED,
                        tooltip='Procesa y guarda cada tanda hasta terminar todos los subtítulos'),
                 button('Abrir propuesta', app.bind(self.load), ft.Icons.FOLDER_OPEN),
@@ -355,13 +359,9 @@ class EditorView:
         preferences = self.controller.preferences
         settings = getattr(self.app, 'settings', None)
         capabilities = getattr(settings, 'capabilities', ()) if settings is not None else ()
-        long_context_enabled = bool(getattr(preferences, 'long_context_enabled', False))
         capability = capability_for(preferences.provider, preferences.model, capabilities)
-        if long_context_enabled and not (capability.long_context and capability.supports_structured_output):
-            raise EditorialError(
-                'El modelo seleccionado no tiene un límite de contexto largo verificado y salida estructurada. '
-                'Elige otro modelo en Ajustes o desactiva esa opción.'
-            )
+        long_context_enabled = (preferences.long_context_enabled and capability.long_context
+                                and capability.supports_structured_output)
         return (
             preferences.batch_size,
             preferences.provider,
@@ -503,6 +503,20 @@ class EditorView:
             self.refresh()
             self.app.notify('Propuesta lista. Revisa cada bloque, incluidos los momentos sin texto.')
 
+    async def generate_decisions(self):
+        """Propuesta experimental del motor de decisiones; no aplica nada por sí solo."""
+        if not await self.replacement_allowed():
+            return
+        self.sync_preferences()
+        result = await self.app.run('Evaluando decisiones editoriales…', self.controller.generate_decisions)
+        if result:
+            self.selected = None
+            self.review_card.visible = False
+            self.user_stage = 2
+            self.refresh()
+            self.app.notify('Propuesta de decisiones lista: cada bloque muestra su probabilidad en el motivo. '
+                            'Revísala antes de aplicar.')
+
     async def choose(self, index):
         if self.controller.proposal is None:
             self.controller.create_default_proposal()
@@ -580,8 +594,10 @@ class EditorView:
             self.selected = None
             self.review_card.visible = False
             self.refresh()
-            self.app.catalog.refresh(sync=True)
-            self.app.settings.refresh()
+            if catalog := self.app.views.loaded.get('catalog'):
+                catalog.refresh(sync=True)
+            if settings := self.app.views.loaded.get('settings'):
+                settings.refresh()
 
     async def save(self):
         if self.form_changed():
@@ -665,7 +681,7 @@ class EditorView:
             await self.clean_tracks(auto_retry=True)
 
         dialog = ft.AlertDialog(
-            modal=True,
+            modal=False,
             title=text('Conflicto en la línea de tiempo', 18, color='#EF4444', weight=ft.FontWeight.BOLD),
             content=ft.Container(
                 ft.Column([

@@ -15,8 +15,8 @@ from davinci_flow.generation.record import GenerationExecutionRecord
 from davinci_flow.subtitles.model import SubtitleCue
 from davinci_flow.resolve.mcp_client import MCPError, ResolveMCP, find_mcp_executable
 
-OPERATIONS = {'capture', 'titles', 'apply', 'undo', 'clean_tracks', 'fusion_effect', 'native_title', 'subtitles'}
-WRITING_OPERATIONS = {'apply', 'undo', 'fusion_effect', 'native_title', 'subtitles'}
+OPERATIONS = {'capture', 'titles', 'apply', 'undo', 'clean_tracks', 'fusion_effect', 'native_title', 'subtitles', 'import_media', 'capture_title_preview'}
+WRITING_OPERATIONS = {'apply', 'undo', 'fusion_effect', 'native_title', 'subtitles', 'import_media', 'capture_title_preview'}
 RESULT_PREFIX = 'DAVINCI_FLOW_RESULT='
 SOURCE = Path(__file__).resolve().parents[2]
 
@@ -168,10 +168,10 @@ def dispatch(operation, parameters, *, session=None):
     proposal = Proposal.load(parameters['proposal_path']) if operation == 'apply' else None
     if proposal:
         proposal.validate(require_review=True)
-    session = session if session is not None else connect_to_resolve()
+    session = session if session is not None else connect_to_resolve(require_timeline=operation not in {'titles', 'import_media', 'capture_title_preview'})
     if operation == 'clean_tracks':
         timeline = session.timeline
-        names = {"DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_SFX"}
+        names = {"DF_BROLL", "DF_CONTEXT", "DF_MAIN", "DF_ACCENT", "DF_SFX"}
         deleted_count = 0
         for track_type in ("video", "audio"):
             count = int(timeline.GetTrackCount(track_type) or 0)
@@ -185,6 +185,16 @@ def dispatch(operation, parameters, *, session=None):
                         timeline.DeleteClips(items, False)
                         deleted_count += len(items)
         return {'deleted_count': deleted_count}
+    if operation == 'capture_title_preview':
+        from davinci_flow.editorial.preview_capture import capture_in_resolve
+        return capture_in_resolve(session, Template(**parameters['template']), Path(parameters['target']))
+    if operation == 'import_media':
+        from davinci_flow.fetch.resolve_importer import ResolveMediaImporter
+        from davinci_flow.fetch.models import MediaKind
+        success, detail = ResolveMediaImporter.import_to_resolve(
+            Path(parameters['file_path']), MediaKind(parameters['kind']),
+            parameters.get('custom_bin_name'), resolve_session=session)
+        return {'success': success, 'bin_or_error': detail}
     if operation in {'capture', 'titles'}:
         templates, _ = media_pool_catalog(session.project.GetMediaPool())
         catalog = [asdict(t) for t in templates]

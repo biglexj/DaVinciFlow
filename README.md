@@ -1,6 +1,10 @@
 # DaVinci Flow
 
-DaVinci Flow es una automatización modular en Python para DaVinci Resolve 21. Primero analiza la transcripción existente —pista de subtítulos nativa o archivo SRT— y, a partir de ese texto y sus tiempos, decide la jerarquía de capas, los títulos Fusion y las propuestas de efectos sonoros.
+Esta es la edición Python/Flet de DaVinci Flow 1.0.0, en la rama `Python`. Se abre con `mise dev py`. En la rama `main`, `mise dev` inicia la edición Rust + GPUI.
+
+DaVinci Flow es una automatización modular en Python para DaVinci Resolve 21. Su flujo editorial parte de una biblioteca de títulos nativos y presets elegidos: transcripción → propuesta → revisión → aplicación de títulos Text+ editables. Luna Fetch complementa ese flujo incorporando medios al Media Pool.
+
+El [catálogo visual y los presets](docs/es/guides/catalogo-y-presets-textplus.md) permiten consultar títulos instalados, reproducir sus muestras originales disponibles y guardar selecciones reutilizables. La escritura editorial utiliza bases DRB o del Media Pool; los SETTING/DRFX sin base nativa se detienen antes de escribir. La validación real de la nueva colección editorial sigue pendiente.
 
 ## 📸 Capturas de Pantalla
 
@@ -17,9 +21,9 @@ El icono canónico de identidad se conserva en [`assets/branding/icons/icon-tran
 - **Transcripción como fuente de verdad**: Lee la pista nativa o un SRT; las capas son un resultado del análisis, no la entrada.
 - **Clasificación semántica determinista**: Desglose en hasta 3 capas de texto (`DF_CONTEXT`, `DF_MAIN`, `DF_ACCENT`) e intención comunicativa (`statement`, `question`, `exclamation`, `emphasis`, `negation`).
 - **Brand Guard y temas oficiales**: Soporte estricto para los temas **Ely** y **Aurora** con validación de paletas HEX y fuentes tipográficas oficiales.
-- **Composiciones Fusion propias**: Cada capa se inserta con pista, inicio y duración verificados contra el `TimelineItem` devuelto por Resolve.
+- **Títulos editoriales nativos**: Copia bases DRB/Media Pool y verifica pista, inicio, duración y texto, conservando su diseño. La validación completa de la nueva colección en Resolve sigue pendiente.
 - **Proveedores de IA intercambiables**: Capa `ai/providers` con adaptadores de **Google Gemini** y **Minimax** tras un contrato común; el proveedor se elige en Ajustes.
-- **Locución con Minimax**: Síntesis de voz con subtítulos alineados a la propia locución, lista para la pista nativa.
+- **Generación de voz**: Sección independiente reservada para el servicio de Aurora con Gemini. La integración está pendiente; la interfaz anterior de locución con Minimax se ha retirado.
 - **Autocorrector auditable**: Normalización, glosario e IA por etapas separadas, con el diff de cada subtítulo.
 - **Efectos Fusion editables**: Composiciones y títulos nativos (`Text+`, `Fade On`, `Headline`) que se siguen editando en el Inspector, nunca renderizados.
 - **Subtítulos en la pista nativa**: Escritura de cues en la pista `subtitle` de Resolve, con verificación posterior.
@@ -93,7 +97,7 @@ DaVinci Flow implementa la interfaz universal de tareas mediante Mise:
 | Tarea | Propósito |
 |---|---|
 | `mise setup` | Preparar `.venv` con `uv` e instalar el lanzador en DaVinci Resolve. |
-| `mise dev` | Iniciar entorno de desarrollo (Flet Desktop). |
+| `mise dev py` | Iniciar el entorno de desarrollo Python/Flet. |
 | `mise build` | Verificar sintaxis y generar los paquetes Python en `dist/`, sin instalador. |
 | `mise check` | Verificar sintaxis, importación y contratos de los scripts, sin artefactos. |
 | `mise test` | Ejecutar las pruebas unitarias. |
@@ -101,7 +105,7 @@ DaVinci Flow implementa la interfaz universal de tareas mediante Mise:
 | `mise publish` | Publicar la release en GitHub Releases; exige autorización explícita (`--yes`). |
 
 Opciones de inspección y comprobación:
-- `--plan`: Muestra el comando y las operaciones planificadas sin ejecutar procesos ni modificar el sistema (`mise dev --plan`, `mise release --plan`, `mise publish --plan`).
+- `--plan`: Muestra el comando y las operaciones planificadas (`mise dev py --plan`, `mise release --plan`, `mise publish --plan`).
 - `--check`: (para `publish`) Verifica el estado del repositorio, tags, notas y la presencia e integridad del instalador en `release/` sin publicar nada (`mise publish --check`).
 - `--yes`: (para `publish`) Autoriza de forma explícita la publicación en GitHub Releases (`mise publish --yes`). Sin esta opción la tarea no publica y muestra el plan.
 
@@ -111,7 +115,7 @@ La publicación usa GitHub Releases como fuente de distribución. La sincronizac
 
 ```powershell
 mise setup     # equivalente a ./scripts/setup-desktop.ps1
-mise dev       # equivalente a ./scripts/start-desktop.ps1
+mise dev py    # interfaz Python/Flet
 ```
 
 La preparación utiliza `.venv` y actualiza el acceso **Área de trabajo → Secuencias de comandos → DaVinci Flow**. El menú de Resolve, `--ui` y `--editorial-ui` abren la misma ventana Flet; una segunda apertura trae la primera al frente.
@@ -174,6 +178,16 @@ uv run --python 3.13 python -m davinci_flow --generate --dry-run --srt "temp/dem
 ```powershell
 uv run --python 3.13 python -m davinci_flow --reconcile "temp/plan_generacion.json"
 ```
+
+### 6. Experimento: Gemini Decision 1 frente al motor actual
+```powershell
+uv run --python 3.13 python -m davinci_flow --experiment decision1 --srt "temp/demo.srt" --compare --experiment-out "temp/experimento.json"
+```
+
+Compara el motor de decisiones `gemini-decision-1` con el motor editorial
+actual sobre el mismo SRT: latencia, consumo, acuerdo por bloque y
+cumplimiento del contrato. Guarda el informe y una **propuesta sin revisar**
+que se abre en el Editor para revisarla a mano. No escribe en Resolve.
 
 ---
 

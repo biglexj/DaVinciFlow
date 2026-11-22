@@ -58,6 +58,7 @@ $artifact = Join-Path $build 'dist\DaVinciFlow'
 $clientZip = Join-Path $cache 'flet-windows.zip'
 $spec = Join-Path $packaging 'launcher\DaVinciFlow.spec'
 $launcher = Join-Path $packaging 'launcher\DaVinciFlow.py'
+$resolveLauncher = Join-Path $packaging 'resolve\DaVinci Flow.py'
 $iss = Join-Path $packaging 'setup.iss'
 $versionIss = Join-Path $packaging 'version.iss'
 $identityIss = Join-Path $packaging 'identity.iss'
@@ -192,8 +193,10 @@ function Assert-BuildFresh {
     $exeItem = Get-Item -LiteralPath $Artifact
     $newest = Get-NewestWriteTime -Paths @(
         (Join-Path $root 'src'),
+        (Join-Path $root 'src-flet'),
         (Join-Path $root 'assets'),
         (Join-Path $root 'packaging\windows\launcher'),
+        (Join-Path $root 'packaging\windows\resolve'),
         (Join-Path $root 'pyproject.toml')
     )
     if (-not $newest.Time) { return }
@@ -269,8 +272,8 @@ if (-not $SkipDesktopBuild) {
         Write-Host '    creando el entorno de compilacion...'
         Invoke-Checked $uv @('venv', '--python', '3.13', $buildVenv)
     }
-    Write-Host '    instalando flet[desktop] y pyinstaller...'
-    Invoke-Checked $uv @('pip', 'install', '--python', $buildPython, 'flet[desktop]==0.86.5', 'pyinstaller>=6.10')
+    Write-Host '    instalando dependencias y pyinstaller...'
+    Invoke-Checked $uv @('pip', 'install', '--python', $buildPython, 'flet[desktop]==0.86.5', 'yt-dlp>=2026.10.26', 'pyinstaller>=6.10')
 
     Write-Step 'Preparando el cliente de escritorio de Flet'
     $clientVersion = & $buildPython -c "import flet_desktop.version as v; print(v.version)"
@@ -299,6 +302,13 @@ if (-not $SkipDesktopBuild) {
 }
 
 Assert-BuildFresh -Artifact (Join-Path $artifact 'DaVinciFlow.exe') -Force:$ForceStale
+
+# El lanzador del menu Scripts de Resolve se copia en la carpeta Utility del
+# usuario durante la instalacion. Sin el, una instalacion limpia no ofrece la
+# entrada desde DaVinci Resolve.
+if (-not (Test-Path -LiteralPath $resolveLauncher)) {
+    throw "No existe el lanzador de Resolve que se instala en DaVinci Resolve: $resolveLauncher"
+}
 
 Write-Step 'Sincronizando el icono oficial con la carpeta de empaquetado'
 Copy-Item -LiteralPath $iconSource -Destination $iconIss -Force
@@ -353,7 +363,7 @@ if (Test-Path -LiteralPath $releasesGlobalDir) {
 
 # --- 4. Los archivos de empaquetado deben seguir versionados --------------
 Write-Step 'Comprobando que el empaquetado sigue versionado en git'
-$tracked = @($iss, $identityIss, $uiIss, $versionIss, $iconIss, $spec, $launcher)
+$tracked = @($iss, $identityIss, $uiIss, $versionIss, $iconIss, $spec, $launcher, $resolveLauncher)
 Push-Location $root
 try {
     foreach ($file in $tracked) {

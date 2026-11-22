@@ -14,6 +14,12 @@ from app.app import DesktopApp
 from features.subtitles.subtitles_view import SubtitlesView
 
 
+def isolated_controller(test):
+    folder = tempfile.TemporaryDirectory()
+    test.addCleanup(folder.cleanup)
+    return EditorialController(Path(folder.name) / "prefs.json")
+
+
 def make_cues():
     return (
         SubtitleCue(text="hola amigos de biglex", start_frame=0.0, end_frame=24.0, track_index=1),
@@ -47,8 +53,10 @@ class SubtitlesViewTests(unittest.IsolatedAsyncioTestCase):
         self.page.window = Mock()
         self.page.overlay = []
         self.page.update = Mock()
-        self.controller = EditorialController()
+        self.controller = isolated_controller(self)
         self.app = DesktopApp(self.page, self.controller)
+        self.addCleanup(self.app.executor.shutdown)
+        self.addCleanup(self.app.media_executor.shutdown)
 
     async def test_subtitles_tab_registered_in_app(self):
         self.assertIn('subtitles', self.app.views)
@@ -59,7 +67,7 @@ class SubtitlesViewTests(unittest.IsolatedAsyncioTestCase):
     async def test_navigate_to_subtitles_sets_heading(self):
         await self.app.navigate('subtitles')
         self.assertEqual(self.app.current, 'subtitles')
-        self.assertEqual(self.app.heading.value, 'Corrección de subtítulos')
+        self.assertEqual(self.app.heading.value, 'Corrección')
         self.assertIs(self.app.workspace.content, self.app.subtitles.content)
 
     async def test_load_and_refresh_subtitles_from_snapshot(self):
@@ -171,8 +179,10 @@ class StageDecouplingTests(unittest.IsolatedAsyncioTestCase):
         self.page.window = Mock()
         self.page.overlay = []
         self.page.update = Mock()
-        self.controller = EditorialController()
+        self.controller = isolated_controller(self)
         self.app = DesktopApp(self.page, self.controller)
+        self.addCleanup(self.app.executor.shutdown)
+        self.addCleanup(self.app.media_executor.shutdown)
 
     async def test_stage_labels_and_montage_recognition(self):
         editor = self.app.editor
@@ -220,7 +230,7 @@ class StageDecouplingTests(unittest.IsolatedAsyncioTestCase):
 
 class ControllerDirectProposalTests(unittest.TestCase):
     def test_create_default_proposal(self):
-        controller = EditorialController()
+        controller = isolated_controller(self)
         controller.snapshot = make_snapshot()
         proposal = controller.create_default_proposal()
 
@@ -233,7 +243,7 @@ class ControllerDirectProposalTests(unittest.TestCase):
         proposal.validate()
 
     def test_update_cues_syncs_existing_proposal(self):
-        controller = EditorialController()
+        controller = isolated_controller(self)
         controller.snapshot = make_snapshot()
         proposal = controller.create_default_proposal()
 
@@ -250,7 +260,7 @@ class ControllerDirectProposalTests(unittest.TestCase):
         controller.proposal.validate()
 
     def test_choose_pack_selects_matching_templates(self):
-        controller = EditorialController()
+        controller = isolated_controller(self)
         # Ensure fresh basic titles are loaded into catalog
         count = controller.choose_pack("shorts")
         self.assertEqual(count, 3)
@@ -261,7 +271,7 @@ class ControllerDirectProposalTests(unittest.TestCase):
         self.assertTrue(all(t.category == "youtube" for t in controller.templates))
 
     def test_clean_df_tracks_invokes_bridge(self):
-        controller = EditorialController()
+        controller = isolated_controller(self)
         with patch("davinci_flow.editorial.resolve_bridge.clean_tracks", return_value={"status": "ok", "deleted_count": 4}) as mock_clean:
             res = controller.clean_df_tracks()
             mock_clean.assert_called_once()
