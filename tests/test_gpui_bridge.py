@@ -136,6 +136,101 @@ class GPUIBridgeTests(unittest.TestCase):
         self.assertEqual(preferences.provider, 'gemini')
         save.assert_not_called()
 
+    def test_editorial_conflicts_are_structured_instead_of_generic_error(self):
+        from davinci_flow.editorial.model import (
+            Snapshot,
+            Template,
+            Decision,
+            Proposal,
+            EditorialOptions,
+            EditorialConflictError,
+            EditorialConflictDetail,
+        )
+        from davinci_flow.subtitles.model import SubtitleCue
+
+        snapshot = Snapshot(
+            'Prueba',
+            'Montaje',
+            'timeline-test',
+            24,
+            1920,
+            1080,
+            86400,
+            1,
+            (SubtitleCue('Hola', 86424, 86448, 1),),
+            source='resolve',
+        )
+        decision = Decision(0, '', 'Hola', '', {'main': 'main'}, 'Revisión', reviewed=True)
+        proposal = Proposal(
+            snapshot,
+            (Template('main', 'Principal', 'native', 'Text+'),),
+            (decision,),
+            'manual-direct',
+            '1.1.0',
+            EditorialOptions(mode='captions'),
+        )
+        conflict = EditorialConflictDetail(
+            cue_index=0,
+            cue_text='Hola',
+            track_name='DF_MAIN',
+            track_index=2,
+            clip_name='Clip ajeno',
+            start_frame=86424,
+            end_frame=86448,
+        )
+        with patch(
+            'davinci_flow.editorial.resolve_bridge.apply',
+            side_effect=EditorialConflictError('Colisión', (conflict,)),
+        ):
+            result = editorial.execute('apply', {'proposal': proposal.to_dict()})
+        self.assertFalse(result['applied'])
+        self.assertEqual(len(result['conflicts']), 1)
+        self.assertEqual(result['conflicts'][0]['track_name'], 'DF_MAIN')
+
+    def test_save_library_syncs_and_clears_preferences_paths(self):
+        import tempfile
+        from davinci_flow.editorial.preferences import Preferences
+        with tempfile.TemporaryDirectory() as tmp:
+            prefs_path = Path(tmp) / 'prefs.json'
+            prefs = Preferences()
+            orig_save = Preferences.save
+            with (patch('davinci_flow.editorial.preferences.Preferences.load', return_value=prefs),
+                  patch.object(Preferences, 'save', lambda self: orig_save(self, prefs_path))):
+                res = services.execute('save_library', {
+                    'folders': {'sfx': ['C:/sfx1', 'C:/sfx2'], 'visuals': []},
+                    'selected': ['id-1', 'id-2'],
+                })
+                self.assertTrue(res['saved'])
+                self.assertEqual(res['categories'], 1)
+                self.assertEqual(res['selected'], 2)
+                loaded = Preferences.load(prefs_path)
+                self.assertEqual(loaded.paths, {'sfx': 'C:/sfx1; C:/sfx2'})
+                self.assertEqual(loaded.resource_ids, ['id-1', 'id-2'])
+
+                res2 = services.execute('save_library', {'folders': {}, 'selected': []})
+                self.assertEqual(res2['categories'], 0)
+                loaded2 = Preferences.load(prefs_path)
+                self.assertEqual(loaded2.paths, {})
+                self.assertEqual(loaded2.resource_ids, [])
+
+    def test_write_subtitles_validates_cues_and_routes_to_resolve_bridge(self):
+        with patch('davinci_flow.editorial.resolve_bridge.request', return_value={
+            'track_index': 1, 'cue_count': 2, 'srt_path': 'C:/tmp/out.srt', 'confirmed': True, 'method': 'sin mediaType', 'detail': ''
+        }) as req:
+            res = services.execute('write_subtitles', {
+                'cues': [
+                    {'text': 'Primero', 'start_frame': 0.0, 'end_frame': 24.0},
+                    {'text': 'Segundo', 'start_frame': 24.0, 'end_frame': 48.0},
+                ],
+                'track_index': 1,
+                'file_name': 'prueba',
+            })
+        self.assertTrue(res['confirmed'])
+        self.assertEqual(res['cue_count'], 2)
+        req.assert_called_once()
+        self.assertEqual(req.call_args.args[0], 'subtitles')
+        self.assertEqual(len(req.call_args.kwargs['cues']), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

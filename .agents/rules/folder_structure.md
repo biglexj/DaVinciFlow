@@ -8,6 +8,10 @@ trigger: always_on
 
 ## Raíz del repositorio
 
+`DaVinciFlow` usa `main` y `mise dev` para GPUI. `DaVinciFlow-Flet` usa `Python` y `mise dev py` para Flet. `mise dev py` también funciona desde `main` y dirige el arranque a la carpeta de trabajo de `Python`.
+
+GPUI tiene su interfaz y lógica nativa en `src-gpui/`. Sus adaptadores aún cargan `src/davinci_flow/` para Resolve y varios servicios. Los cambios de interfaz Flet se hacen en su propia carpeta de trabajo. Los cambios del motor compartido se incorporan explícitamente a cada rama que los necesite.
+
 ```text
 DaVinciFlow/
 ├── .agents/rules/          # Reglas locales del agente (base.md, core_profile.md, folder_structure.md)
@@ -25,6 +29,7 @@ DaVinciFlow/
 │   ├── app/                # Shell de la ventana y ciclo de vida
 │   ├── features/           # Vistas por dominio (editor, catalog, library, settings)
 │   └── shared/             # Componentes y utilidades visuales transversales
+├── src-gpui/               # Interfaz y motor Rust; adaptadores Python en bridge/ (main)
 ├── assets/                 # Recursos maestros de marca (iconos, plantillas)
 ├── packaging/windows/      # Empaquetado Inno Setup (setup.iss, identity.iss, version.iss, launcher/)
 ├── scripts/                # Implementación de las tareas: mise-task.ts, release/, packaging/, arranque

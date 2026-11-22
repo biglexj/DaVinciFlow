@@ -35,7 +35,7 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
-            mode: "captions".into(),
+            mode: "highlights".into(),
             format: "auto".into(),
             density: "balanced".into(),
             direction: String::new(),
@@ -96,9 +96,18 @@ impl Proposal {
         if !fps.is_finite() || fps <= 0. {
             return Err("Los FPS deben ser positivos.".into());
         }
+        let is_applicable =
+            |t: &TemplateInfo| matches!(t.source.as_str(), "media_pool" | "installed_bin");
         let Some(template) = templates
             .iter()
+            .filter(|t| is_applicable(t))
             .find(|t| t.name.to_lowercase().contains("principal"))
+            .or_else(|| templates.iter().find(|t| is_applicable(t)))
+            .or_else(|| {
+                templates
+                    .iter()
+                    .find(|t| t.name.to_lowercase().contains("principal"))
+            })
             .or(templates.first())
         else {
             return Err("Elige al menos una plantilla real del catálogo.".into());
@@ -383,18 +392,87 @@ fn grounded(original: &str, selected: &str) -> bool {
             })
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Conflict {
+    pub cue_index: usize,
+    pub cue_text: String,
+    pub track_name: String,
+    pub track_index: i64,
+    pub clip_name: String,
+    pub start_frame: f64,
+    pub end_frame: f64,
+}
+
+#[derive(Clone, Debug)]
+pub enum ApplyOutcome {
+    Applied(Value),
+    Conflicts(Vec<Conflict>),
+}
+
+#[derive(Clone, Debug)]
+pub struct BatchProgress {
+    pub proposal: Proposal,
+    pub processed: usize,
+    pub total: usize,
+    pub complete: bool,
+    pub next_number: Option<usize>,
+    pub start: usize,
+    pub end: usize,
+    pub message: String,
+}
+
 pub fn generate(proposal: &Proposal) -> Result<Proposal, String> {
     proposal.validate(false)?;
     let result =
         crate::bridge::invoke_json("editorial.py", "generate", json!({"proposal":proposal}))?;
     Proposal::from_value(result)
 }
-pub fn apply(proposal: &Proposal) -> Result<Value, String> {
+pub fn generate_decisions(proposal: &Proposal) -> Result<Proposal, String> {
+    proposal.validate(false)?;
+    let result = crate::bridge::invoke_json(
+        "editorial.py",
+        "generate_decisions",
+        json!({"proposal":proposal}),
+    )?;
+    Proposal::from_value(result)
+}
+pub fn batch_next(proposal: &Proposal, batch_size: &str) -> Result<BatchProgress, String> {
+    proposal.validate(false)?;
+    let value = crate::bridge::invoke_json(
+        "editorial.py",
+        "batch_next",
+        json!({"proposal":proposal,"batch_size":batch_size}),
+    )?;
+    let merged = Proposal::from_value(value["proposal"].clone())?;
+    Ok(BatchProgress {
+        proposal: merged,
+        processed: value["processed"].as_u64().unwrap_or(0) as usize,
+        total: value["total"].as_u64().unwrap_or(0) as usize,
+        complete: value["complete"].as_bool().unwrap_or(false),
+        next_number: value["next_number"].as_u64().map(|v| v as usize),
+        start: value["start"].as_u64().unwrap_or(0) as usize,
+        end: value["end"].as_u64().unwrap_or(0) as usize,
+        message: value["message"].as_str().unwrap_or_default().to_string(),
+    })
+}
+pub fn apply(proposal: &Proposal) -> Result<ApplyOutcome, String> {
     proposal.validate(true)?;
-    crate::bridge::invoke_json("editorial.py", "apply", json!({"proposal":proposal}))
+    let value = crate::bridge::invoke_json("editorial.py", "apply", json!({"proposal":proposal}))?;
+    if value.get("applied").and_then(Value::as_bool) == Some(false) {
+        let conflicts: Vec<Conflict> = serde_json::from_value(value["conflicts"].clone())
+            .map_err(|_| "No se pudieron leer las colisiones de la línea de tiempo.".to_string())?;
+        return Ok(ApplyOutcome::Conflicts(conflicts));
+    }
+    Ok(ApplyOutcome::Applied(
+        value.get("record").cloned().unwrap_or(value),
+    ))
 }
 pub fn undo() -> Result<Value, String> {
     crate::bridge::invoke_json("editorial.py", "undo", json!({}))
+}
+pub fn clean_tracks() -> Result<usize, String> {
+    let value = crate::bridge::invoke_json("editorial.py", "clean_tracks", json!({}))?;
+    Ok(value["deleted_count"].as_u64().unwrap_or(0) as usize)
 }
 
 /// Vincula la propuesta a los textos y tiempos efectivamente revisados en la sesión.
@@ -427,7 +505,10 @@ mod tests {
                 ..Default::default()
             }],
             24.,
-            Options::default(),
+            Options {
+                mode: "captions".into(),
+                ..Options::default()
+            },
         )
         .unwrap()
     }
@@ -489,7 +570,10 @@ mod tests {
             Some(&p.snapshot),
             p.templates.clone(),
             24.,
-            Options::default(),
+            Options {
+                mode: "captions".into(),
+                ..Options::default()
+            },
         )
         .unwrap();
         assert_eq!(reviewed.snapshot, p.snapshot);
@@ -543,5 +627,41 @@ mod tests {
             json!({"proposal":p,"require_review":true}),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn direct_proposal_prefers_applicable_media_pool_or_drb_templates() {
+        let document = crate::subtitles::parse(
+            "1\n00:00:01,000 --> 00:00:02,000\nIdea clave.",
+            "prueba.srt".into(),
+        )
+        .unwrap();
+        let templates = vec![
+            TemplateInfo {
+                id: "setting_main".into(),
+                name: "Principal básico".into(),
+                source: "installed_file".into(),
+                locator: "Principal.setting".into(),
+                text_input: "StyledText".into(),
+                ..Default::default()
+            },
+            TemplateInfo {
+                id: "pool_1".into(),
+                name: "SC-1-Kinetic Pop In".into(),
+                source: "media_pool".into(),
+                locator: "pool-id-1".into(),
+                text_input: "StyledText".into(),
+                ..Default::default()
+            },
+        ];
+        let proposal =
+            Proposal::direct(&document, None, templates, 24., Options::default()).unwrap();
+        assert_eq!(
+            proposal.decisions[0]
+                .templates
+                .get("main")
+                .map(String::as_str),
+            Some("pool_1")
+        );
     }
 }

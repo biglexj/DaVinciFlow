@@ -18,119 +18,64 @@ class MediaPoolPreset:
         return f"📁 {self.bin_path}"
 
 
-def _traverse_folder_for_clips(folder: Any, current_path: str) -> list[MediaPoolPreset]:
-    """Recorre recursivamente una carpeta del Media Pool buscando clips plantilla."""
-    presets: list[MediaPoolPreset] = []
+TITLE_WORDS = ('fusion', 'title', 'título', 'text', 'texto')
+TEMPLATE_FOLDERS = {'davinciflow', 'davinci flow', 'davinci_flow', 'titles', 'subtitles',
+                    'subtítulos', 'títulos', 'plantillas', 'templates'}
+
+
+def _values(items):
+    return items.values() if isinstance(items, dict) else items or ()
+
+
+def _traverse_folder_for_clips(folder: Any, current_path: str,
+                               allow_untyped: bool = False) -> list[MediaPoolPreset]:
     if folder is None:
-        return presets
-
-    get_clips = getattr(folder, "GetClipList", None)
-    if callable(get_clips):
-        clips = get_clips() or []
-        for clip in clips:
-            get_property = getattr(clip, "GetClipProperty", None)
-            clip_type = get_property("Type") if callable(get_property) else None
-            if isinstance(clip_type, str) and clip_type.strip() and not any(
-                word in clip_type.casefold() for word in ("fusion", "title", "título", "text", "texto")
-            ):
+        return []
+    folder_name = str(getattr(folder, 'GetName', lambda: '')() or '').strip()
+    allow_untyped = allow_untyped or folder_name.casefold() in TEMPLATE_FOLDERS
+    presets = []
+    for clip in _values(getattr(folder, 'GetClipList', lambda: [])()):
+        kind = getattr(clip, 'GetClipProperty', lambda key: None)('Type')
+        name = str(getattr(clip, 'GetName', lambda: '')() or '').strip()
+        if isinstance(kind, str) and kind.strip():
+            kind_cf = kind.casefold()
+            if 'subtitle' in kind_cf or 'subtítulo' in kind_cf:
                 continue
-            get_name = getattr(clip, "GetName", None)
-            clip_name = str(get_name() or "").strip() if callable(get_name) else ""
-            if not clip_name:
-                clip_name = "Plantilla"
-            bin_path = f"{current_path}/{clip_name}" if current_path else clip_name
-            presets.append(
-                MediaPoolPreset(
-                    name=clip_name,
-                    bin_path=bin_path,
-                    media_item=clip,
-                )
-            )
-
-    get_subfolders = getattr(folder, "GetSubFolderList", None)
-    if callable(get_subfolders):
-        subfolders = get_subfolders() or []
-        for sub in subfolders:
-            get_sub_name = getattr(sub, "GetName", None)
-            sub_name = str(get_sub_name() or "").strip() if callable(get_sub_name) else "Subfolder"
-            sub_path = f"{current_path}/{sub_name}" if current_path else sub_name
-            presets.extend(_traverse_folder_for_clips(sub, sub_path))
-
+            if not any(word in kind_cf for word in TITLE_WORDS):
+                continue
+        elif not allow_untyped and not any(word in name.casefold() for word in
+                                          ('statement', 'caption', 'subtitle', 'subtítulo', 'plantilla')):
+            continue
+        name = name or 'Plantilla'
+        presets.append(MediaPoolPreset(name, f'{current_path}/{name}', clip))
+    for child in _values(getattr(folder, 'GetSubFolderList', lambda: [])()):
+        name = str(getattr(child, 'GetName', lambda: 'Subfolder')() or 'Subfolder')
+        presets.extend(_traverse_folder_for_clips(child, f'{current_path}/{name}', allow_untyped))
     return presets
 
 
 def scan_davinciflow_presets(media_pool: Any) -> tuple[MediaPoolPreset, ...]:
-    """Escanea la bandeja 'DaVinciFlow', subcarpetas de títulos y presets en el Media Pool."""
+    """Lee títulos en cualquier carpeta sin depender de su nombre o ubicación."""
     if media_pool is None:
         return ()
-
-    get_root = getattr(media_pool, "GetRootFolder", None)
-    if not callable(get_root):
-        return ()
-
-    root = get_root()
+    root = getattr(media_pool, 'GetRootFolder', lambda: None)()
     if root is None:
         return ()
-
-    get_subfolders = getattr(root, "GetSubFolderList", None)
-    subfolders = get_subfolders() if callable(get_subfolders) else []
-    subfolders = subfolders or []
-
-    presets: list[MediaPoolPreset] = []
-    seen_ids: set[Any] = set()
-
-    def _add_preset(p: MediaPoolPreset) -> None:
-        uid = getattr(p.media_item, "GetUniqueId", None)
-        key = uid() if callable(uid) else id(p.media_item)
-        if key not in seen_ids:
-            seen_ids.add(key)
-            presets.append(p)
-
-    target_bin_names = {"davinciflow", "davinci flow", "davinci_flow"}
-
-    # 1. Carpetas explícitas DaVinciFlow
-    for folder in subfolders:
-        get_name = getattr(folder, "GetName", None)
-        folder_name = str(get_name() or "").strip() if callable(get_name) else ""
-        if folder_name.lower() in target_bin_names:
-            for p in _traverse_folder_for_clips(folder, folder_name):
-                _add_preset(p)
-
-    # 2. Carpetas de títulos o plantillas (Titles, Subtitles, Plantillas)
-    title_bin_names = {"titles", "subtitles", "subtítulos", "títulos", "plantillas", "templates"}
-    for folder in subfolders:
-        get_name = getattr(folder, "GetName", None)
-        folder_name = str(get_name() or "").strip() if callable(get_name) else ""
-        if folder_name.lower() in title_bin_names:
-            for p in _traverse_folder_for_clips(folder, folder_name):
-                _add_preset(p)
-
-    # 3. Clips colocados directamente en la raíz (Master)
-    get_root_clips = getattr(root, "GetClipList", None)
-    if callable(get_root_clips):
-        get_root_name = getattr(root, "GetName", None)
-        root_name = str(get_root_name() if callable(get_root_name) else "Master") or "Master"
-        for clip in get_root_clips() or []:
-            get_property = getattr(clip, "GetClipProperty", None)
-            clip_type = get_property("Type") if callable(get_property) else None
-            get_clip_name = getattr(clip, "GetName", None)
-            clip_name = str(get_clip_name() if callable(get_clip_name) else "").strip()
-            is_title = False
-            if isinstance(clip_type, str) and any(w in clip_type.casefold() for w in ("fusion", "title", "título", "text", "texto")):
-                is_title = True
-            elif any(w in clip_name.casefold() for w in ("statement", "caption", "subtitle", "subtítulo", "plantilla")):
-                is_title = True
-
-            if is_title:
-                _add_preset(
-                    MediaPoolPreset(
-                        name=clip_name or "Plantilla",
-                        bin_path=f"{root_name}/{clip_name}" if root_name else clip_name,
-                        media_item=clip,
-                    )
-                )
-
-    return tuple(presets)
+    name = str(getattr(root, 'GetName', lambda: 'Master')() or 'Master')
+    # Conservar los localizadores históricos de las carpetas de primer nivel.
+    found = _traverse_folder_for_clips(root, name)
+    result, seen = [], set()
+    for preset in found:
+        uid = getattr(preset.media_item, 'GetUniqueId', lambda: None)()
+        key = uid or id(preset.media_item)
+        if key in seen:
+            continue
+        seen.add(key)
+        path = preset.bin_path
+        if path.startswith(name + '/') and path.count('/') >= 2:
+            path = path[len(name) + 1:]
+        result.append(MediaPoolPreset(preset.name, path, preset.media_item))
+    return tuple(result)
 
 
 def ensure_davinciflow_bin(media_pool: Any) -> Any:

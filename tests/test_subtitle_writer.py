@@ -86,11 +86,18 @@ class _FakeMediaPool:
 
     def AppendToTimeline(self, clip_infos):
         self.appended.append(clip_infos)
-        media_type = clip_infos[0].get("mediaType")
+        entry = clip_infos[0]
+        if not isinstance(entry, dict):
+            if self.accepted_media_type != "direct":
+                return []
+            item = object()
+            self.timeline.subtitle_tracks.setdefault(1, []).append(item)
+            return [item]
+        media_type = entry.get("mediaType")
         if media_type != self.accepted_media_type:
             return []
         item = object()
-        track_index = clip_infos[0].get("trackIndex", 1)
+        track_index = entry.get("trackIndex", 1)
         self.timeline.subtitle_tracks.setdefault(track_index, []).append(item)
         return [item]
 
@@ -162,6 +169,30 @@ class SubtitleTrackWriterTests(unittest.TestCase):
     def test_frame_rate_falls_back_to_default(self) -> None:
         _, writer = self._writer()
         self.assertEqual(writer.frame_rate(), 24.0)
+
+    def test_import_media_tries_path_list_first_and_falls_back_to_dict(self) -> None:
+        session, writer = self._writer()
+        calls = []
+
+        def fake_import(arg):
+            calls.append(arg)
+            if isinstance(arg[0], dict):
+                return ["imported-dict-item"]
+            return []
+
+        session.media_pool.ImportMedia = fake_import
+        imported = writer._import_media("C:/tmp/test.srt")
+        self.assertEqual(imported, "imported-dict-item")
+        self.assertEqual(calls, [["C:/tmp/test.srt"], [{"FilePath": "C:/tmp/test.srt"}]])
+
+    def test_write_falls_back_to_direct_append_when_dict_variants_fail(self) -> None:
+        session, writer = self._writer(accepted_media_type="direct")
+        result = writer.write([_cue("Hola directo", 0, 48)])
+
+        self.assertTrue(result.confirmed)
+        self.assertEqual(result.method, "directo")
+        self.assertEqual(len(session.media_pool.appended), 4)
+        self.assertIsInstance(session.media_pool.imported[0][0], str)
 
 
 if __name__ == "__main__":

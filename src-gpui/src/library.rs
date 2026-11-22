@@ -19,7 +19,7 @@ const VIDEO_EXTENSIONS: [&str; 11] = [
     "mp4", "mov", "mkv", "avi", "webm", "m4v", "mxf", "png", "jpg", "jpeg", "webp",
 ];
 const AUDIO_EXTENSIONS: [&str; 6] = ["wav", "mp3", "aac", "flac", "ogg", "m4a"];
-const TITLE_EXTENSIONS: [&str; 3] = ["setting", "comp", "drfx"];
+const TITLE_EXTENSIONS: [&str; 4] = ["setting", "comp", "drfx", "drb"];
 const DOCUMENT_EXTENSIONS: [&str; 5] = ["txt", "md", "srt", "pdf", "docx"];
 
 /// Extensiones que la biblioteca vigente admite en cada categoría.

@@ -156,14 +156,26 @@ impl FlowApp {
                     .text_ellipsis()
                     .child(format!("Original: {}", cue.original)),
             )
-            .child(Textarea::new(&self.edit).h(px(72.)).disabled(self.busy))
+            .child(
+                div()
+                    .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                        if event.keystroke.key == "enter" && !event.keystroke.modifiers.shift {
+                            this.save_edit(window, cx);
+                            if !this.error {
+                                this.next_cue(window, cx);
+                            }
+                        }
+                    }))
+                    .child(Textarea::new(&self.edit).h(px(72.)).disabled(self.busy)),
+            )
             .child(
                 row()
                     .gap(px(8.))
                     .child(
-                        accent_button("save-edit", "Guardar cambio", self.busy || !draft).on_click(
-                            cx.listener(|this, _, window, cx| this.save_edit(window, cx)),
-                        ),
+                        accent_button("save-edit", "Guardar cambio (Enter)", self.busy || !draft)
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.save_edit(window, cx)),
+                            ),
                     )
                     .child(
                         button("next-cue", "Siguiente subtítulo", self.busy)
@@ -208,224 +220,244 @@ impl FlowApp {
             "Captura subtítulos de Resolve o carga un SRT para comenzar.".to_string()
         };
 
+        let p = palette();
+        let source_bar = card().w_full().py(px(10.)).px(px(14.)).child(
+            row()
+                .w_full()
+                .justify_between()
+                .gap(px(10.))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .text_size(px(12.))
+                        .text_color(rgb(p.muted))
+                        .child(summary),
+                )
+                .child(
+                    row()
+                        .flex_shrink_0()
+                        .gap(px(6.))
+                        .child(
+                            button("reload-resolve", "Recargar de Resolve", busy).on_click(
+                                cx.listener(|this, _, window, cx| this.capture(window, cx)),
+                            ),
+                        )
+                        .child(button("open-srt", "Cargar SRT", busy).on_click(
+                            cx.listener(|this, _, window, cx| this.choose_srt(window, cx)),
+                        ))
+                        .child(
+                            button("export-srt", "Exportar SRT", disabled || draft).on_click(
+                                cx.listener(|this, _, window, cx| this.export(window, cx)),
+                            ),
+                        )
+                        .child(
+                            button("write-resolve-subs", "Enviar a Resolve", disabled || draft)
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.write_subtitles_to_resolve(window, cx)
+                                })),
+                        )
+                        .child(
+                            accent_button("sync-editor", "Actualizar en Editor", disabled)
+                                .on_click(cx.listener(|this, _, _, cx| this.sync_to_editor(cx))),
+                        ),
+                ),
+        );
+
+        let search_card = card()
+            .w_full()
+            .min_w_0()
+            .justify_between()
+            .gap(px(8.))
+            .child(
+                row()
+                    .w_full()
+                    .justify_between()
+                    .gap(px(8.))
+                    .child(section("Buscar y reemplazar"))
+                    .child(
+                        Checkbox::new("match-case")
+                            .label("Mayús/minús")
+                            .checked(self.case_sensitive)
+                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                this.case_sensitive = *checked;
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .grid()
+                    .grid_cols(2)
+                    .gap(px(8.))
+                    .child(
+                        column()
+                            .min_w_0()
+                            .gap(px(3.))
+                            .child(field_label("Buscar texto"))
+                            .child(Input::new(&self.find)),
+                    )
+                    .child(
+                        column()
+                            .min_w_0()
+                            .gap(px(3.))
+                            .child(field_label("Reemplazar por"))
+                            .child(Input::new(&self.replacement)),
+                    ),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .grid()
+                    .grid_cols(2)
+                    .gap(px(8.))
+                    .child(
+                        accent_button("replace-all", "Reemplazar todo", disabled || draft)
+                            .w_full()
+                            .on_click(cx.listener(|this, _, window, cx| this.replace(window, cx))),
+                    )
+                    .child(
+                        button("normalize", "Normalizar ortografía", disabled || draft)
+                            .w_full()
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.normalize(window, cx)),
+                            ),
+                    ),
+            );
+
+        let glossary_card =
+            card()
+                .w_full()
+                .min_w_0()
+                .justify_between()
+                .gap(px(8.))
+                .child(
+                    row()
+                        .w_full()
+                        .justify_between()
+                        .gap(px(8.))
+                        .child(section("Glosario rápido"))
+                        .child(
+                            button(
+                                "toggle-ai-panel",
+                                if self.ai_panel_open {
+                                    "Ocultar IA / Guion"
+                                } else {
+                                    "Panel IA / Guion"
+                                },
+                                busy,
+                            )
+                            .on_click(cx.listener(|this, _, _, cx| this.toggle_ai_panel(cx))),
+                        ),
+                )
+                .child(Textarea::new(&self.glossary).h(px(62.)))
+                .child(row().w_full().justify_end().child(
+                    button("apply-glossary", "Aplicar glosario", disabled || draft).on_click(
+                        cx.listener(|this, _, window, cx| this.apply_glossary(window, cx)),
+                    ),
+                ));
+
         let mut view = column()
             .size_full()
             .min_h_0()
-            .gap(px(10.))
+            .gap(px(8.))
+            .child(source_bar)
             .child(
-                card().gap(px(6.)).child(
-                    row()
-                        .justify_between()
-                        .gap(px(10.))
+                div()
+                    .w_full()
+                    .grid()
+                    .grid_cols(2)
+                    .gap(px(10.))
+                    .child(search_card)
+                    .child(glossary_card),
+            )
+            .when(self.ai_panel_open, |container| {
+                container.child(
+                    card()
+                        .w_full()
+                        .gap(px(8.))
+                        .bg(rgb(p.active))
+                        .border_color(rgb(p.accent_fg))
                         .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .text_size(px(12.))
-                                .text_color(rgb(MUTED))
-                                .child(summary),
+                            row()
+                                .w_full()
+                                .justify_between()
+                                .child(section(format!(
+                                    "Alineación semántica y corrección con IA ({})",
+                                    if self.settings_provider == "minimax" {
+                                        "Minimax"
+                                    } else {
+                                        "Google Gemini"
+                                    }
+                                )))
+                                .child(
+                                    Checkbox::new("detect-markers")
+                                        .label("Detectar marcadores clave en línea de tiempo")
+                                        .checked(self.ai_detect_markers)
+                                        .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                            this.ai_detect_markers = *checked;
+                                            cx.notify();
+                                        })),
+                                ),
+                        )
+                        .child(
+                            column()
+                                .gap(px(4.))
+                                .child(field_label("Guion de referencia (opcional para IA)"))
+                                .child(Textarea::new(&self.ai_script).h(px(72.))),
                         )
                         .child(
                             row()
                                 .gap(px(8.))
                                 .child(
-                                    accent_button("sync-editor", "Actualizar en Editor", disabled)
-                                        .on_click(
-                                            cx.listener(|this, _, _, cx| this.sync_to_editor(cx)),
-                                        ),
-                                )
-                                .child(
-                                    button("export-srt", "Exportar SRT", disabled || draft)
-                                        .on_click(cx.listener(|this, _, window, cx| {
-                                            this.export(window, cx)
-                                        })),
-                                )
-                                .child(
-                                    button("reload-resolve", "Recargar de Resolve", busy).on_click(
-                                        cx.listener(|this, _, window, cx| this.capture(window, cx)),
-                                    ),
-                                ),
-                        ),
-                ),
-            )
-            .child(
-                card()
-                    .gap(px(10.))
-                    .child(
-                        row()
-                            .justify_between()
-                            .child(section("Herramientas Rápidas de Corrección"))
-                            .child(
-                                row()
-                                    .gap(px(8.))
-                                    .child(
-                                        button(
-                                            "toggle-ai-panel",
-                                            if self.ai_panel_open {
-                                                "Ocultar panel IA / Guion"
-                                            } else {
-                                                "Alternar panel IA / Guion"
-                                            },
-                                            busy,
-                                        )
-                                        .on_click(
-                                            cx.listener(|this, _, _, cx| this.toggle_ai_panel(cx)),
-                                        ),
+                                    accent_button(
+                                        "align-with-ai",
+                                        "Iniciar corrección con IA",
+                                        disabled || draft,
                                     )
-                                    .child(button("open-srt", "Cargar SRT", busy).on_click(
-                                        cx.listener(|this, _, window, cx| {
-                                            this.choose_srt(window, cx)
-                                        }),
+                                    .on_click(cx.listener(
+                                        |this, _, window, cx| this.align_with_ai(window, cx),
                                     )),
-                            ),
-                    )
-                    .child(
-                        row()
-                            .gap(px(8.))
-                            .items_start()
-                            .child(
-                                column()
-                                    .w(px(200.))
-                                    .gap(px(4.))
-                                    .child(field_label("Buscar texto"))
-                                    .child(Input::new(&self.find)),
-                            )
-                            .child(
-                                column()
-                                    .w(px(200.))
-                                    .gap(px(4.))
-                                    .child(field_label("Reemplazar por"))
-                                    .child(Input::new(&self.replacement)),
-                            )
-                            .child(
-                                Checkbox::new("match-case")
-                                    .label("Mayús/minús")
-                                    .checked(self.case_sensitive)
-                                    .on_click(cx.listener(|this, checked: &bool, _, cx| {
-                                        this.case_sensitive = *checked;
-                                        cx.notify();
-                                    })),
-                            )
-                            .child(
-                                accent_button("replace-all", "Reemplazar todo", disabled || draft)
-                                    .on_click(
-                                        cx.listener(|this, _, window, cx| this.replace(window, cx)),
-                                    ),
-                            )
-                            .child(
-                                button("normalize", "Normalizar ortografía", disabled || draft)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.normalize(window, cx)
-                                    })),
-                            ),
-                    )
-                    .child(
-                        row()
-                            .gap(px(8.))
-                            .items_start()
-                            .child(
-                                column()
-                                    .flex_1()
-                                    .gap(px(4.))
-                                    .child(field_label("Glosario rápido"))
-                                    .child(Textarea::new(&self.glossary).h(px(58.))),
-                            )
-                            .child(
-                                button("apply-glossary", "Aplicar glosario", disabled || draft)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.apply_glossary(window, cx)
-                                    })),
-                            ),
-                    )
-                    .when(self.ai_panel_open, |panel| {
-                        panel.child(
-                            column()
-                                .gap(px(8.))
-                                .p(px(12.))
-                                .bg(rgb(0x152220))
-                                .border_1()
-                                .border_color(rgb(0x264A43))
-                                .rounded(px(8.))
-                                .child(
-                                    row()
-                                        .justify_between()
-                                        .child(section(
-                                            "Alineación semántica y corrección con IA (Gemini)",
-                                        ))
-                                        .child(
-                                            Checkbox::new("detect-markers")
-                                                .label(
-                                                    "Detectar marcadores clave en línea de tiempo",
-                                                )
-                                                .checked(self.ai_detect_markers)
-                                                .on_click(cx.listener(
-                                                    |this, checked: &bool, _, cx| {
-                                                        this.ai_detect_markers = *checked;
-                                                        cx.notify();
-                                                    },
-                                                )),
-                                        ),
                                 )
                                 .child(
-                                    column()
-                                        .gap(px(4.))
-                                        .child(field_label(
-                                            "Guion de referencia (opcional para IA)",
-                                        ))
-                                        .child(Textarea::new(&self.ai_script).h(px(72.))),
-                                )
-                                .child(
-                                    row()
-                                        .gap(px(8.))
-                                        .child(
-                                            accent_button(
-                                                "align-with-ai",
-                                                "Iniciar corrección con IA",
-                                                disabled || draft,
-                                            )
-                                            .on_click(
-                                                cx.listener(|this, _, window, cx| {
-                                                    this.align_with_ai(window, cx)
-                                                }),
-                                            ),
-                                        )
-                                        .child(
-                                            button(
-                                                "insert-markers",
-                                                "Insertar marcadores en Resolve",
-                                                busy || self.ai_markers.is_empty()
-                                                    || self.ai_snapshot.is_none(),
-                                            )
-                                            .on_click(
-                                                cx.listener(|this, _, window, cx| {
-                                                    this.insert_ai_markers(window, cx)
-                                                }),
-                                            ),
-                                        ),
-                                )
-                                .when(!self.ai_markers.is_empty(), |panel| {
-                                    panel.child(label(format!(
-                                        "{} marcador(es) listos para insertar: {}",
-                                        self.ai_markers.len(),
-                                        self.ai_markers
-                                            .iter()
-                                            .map(|marker| marker.name.clone())
-                                            .collect::<Vec<_>>()
-                                            .join(", ")
-                                    )))
-                                }),
+                                    button(
+                                        "insert-markers",
+                                        "Insertar marcadores en Resolve",
+                                        busy || self.ai_markers.is_empty()
+                                            || self.ai_snapshot.is_none(),
+                                    )
+                                    .on_click(cx.listener(
+                                        |this, _, window, cx| this.insert_ai_markers(window, cx),
+                                    )),
+                                ),
                         )
-                    }),
-            )
+                        .when(!self.ai_markers.is_empty(), |panel| {
+                            panel.child(label(format!(
+                                "{} marcador(es) listos para insertar: {}",
+                                self.ai_markers.len(),
+                                self.ai_markers
+                                    .iter()
+                                    .map(|marker| marker.name.clone())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            )))
+                        }),
+                )
+            })
             .child(
                 row()
+                    .w_full()
                     .justify_between()
                     .child(label(format!(
                         "{total} subtítulos en total · {changed} corregidos"
                     )))
                     .child(
                         row()
-                            .gap(px(8.))
+                            .gap(px(6.))
                             .child(
                                 button(
                                     "undo-text",
@@ -458,13 +490,15 @@ impl FlowApp {
         if !has_cues {
             return view.child(
                 card()
+                    .flex_1()
                     .items_center()
+                    .justify_center()
                     .gap(px(10.))
                     .p(px(36.))
                     .child(
                         Icon::new(IconName::SpellCheck)
                             .size(px(32.))
-                            .text_color(rgb(ACCENT)),
+                            .text_color(rgb(p.accent_fg)),
                     )
                     .child(
                         div()

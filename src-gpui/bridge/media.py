@@ -18,7 +18,10 @@ def client():
 def execute(operation, args):
     if operation == 'fetch_analyze':
         from davinci_flow.fetch.engine import FetchEngine
-        return asdict(FetchEngine.analyze(args['url']))
+        info = FetchEngine.analyze(args['url'])
+        payload = asdict(info)
+        payload['duration_display'] = info.duration_display
+        return payload
     if operation == 'fetch_download':
         from davinci_flow.fetch.engine import FetchEngine
         from davinci_flow.fetch.models import FetchRequest, MediaKind
@@ -27,13 +30,23 @@ def execute(operation, args):
             import_to_resolve=args.get('import', False)))
         if not result.success:
             raise ValueError(result.error_message or 'La descarga no se completó.')
-        return {'path': str(result.file_path), 'title': result.title,
-                'imported': result.imported_to_resolve, 'message': result.error_message or ''}
+        return {
+            'path': str(result.file_path),
+            'title': result.title,
+            'kind': str(result.kind.value if hasattr(result.kind, 'value') else result.kind),
+            'imported': result.imported_to_resolve,
+            'resolve_bin': result.resolve_bin or '',
+            'message': result.error_message or '',
+        }
     if operation == 'import_media':
         from davinci_flow.editorial import resolve_bridge
         path = Path(args['path'])
         if not path.is_file():
             raise ValueError('El recurso ya no existe.')
+        if args.get('voice_bin'):
+            from davinci_flow.voice.media import import_voice_file
+            bin_name = import_voice_file(path)
+            return {'success': True, 'detail': f'Audio importado en {bin_name}'}
         from davinci_flow.fetch.models import MediaKind
         from davinci_flow.fetch.resolve_importer import ResolveMediaImporter
         kind = MediaKind.AUDIO if path.suffix.lower() in {'.wav', '.mp3', '.flac', '.m4a', '.aac', '.ogg'} else MediaKind.VIDEO
@@ -41,6 +54,22 @@ def execute(operation, args):
         if not success:
             raise ValueError(detail)
         return {'success': True, 'detail': detail}
+    if operation == 'voice_validate':
+        from davinci_flow.voice.media import validate_voice_file
+        validated = validate_voice_file(Path(args['path']))
+        return {'path': str(validated)}
+    if operation == 'play_sound':
+        from davinci_flow.sfx.player import global_sound_player
+        path = str(args.get('path') or '').strip()
+        if not path:
+            global_sound_player.stop()
+            return {'playing': False}
+        ok = global_sound_player.play(path)
+        return {'playing': bool(ok)}
+    if operation == 'stop_sound':
+        from davinci_flow.sfx.player import global_sound_player
+        global_sound_player.stop()
+        return {'playing': False}
     if operation == 'preview':
         path = Path(args['path'])
         if not path.is_file():
@@ -83,20 +112,54 @@ def execute(operation, args):
     if operation == 'voice_complete':
         client().account.complete_login()
         return {'confirmed': True}
+    if operation == 'voice_cancel':
+        client().account.cancel_login()
+        return {'cancelled': True}
+    if operation == 'voice_callback_ready':
+        from davinci_flow.user_data import user_data_dir
+        ready = (user_data_dir() / 'account' / 'callback.bin').is_file()
+        return {'ready': ready}
     if operation == 'voice_logout':
         client().account.logout()
         return {'confirmed': True}
     if operation == 'voice_catalog':
         from davinci_flow.voice.system_tts import system_voices
+        from davinci_flow.voice.catalog import normalize_catalog
         voice = client()
         voices = system_voices()
-        result = {'authenticated': False, 'user': '', 'voices': voices, 'balance': None, 'pending': False, 'warnings': []}
+        engines = [{'id': 'system', 'name': 'Voces del sistema · Gratis', 'available': bool(voices)}]
+        result = {
+            'authenticated': False,
+            'user': '',
+            'plan': '',
+            'internal': False,
+            'voices': voices,
+            'engines': engines,
+            'balance': None,
+            'pending': False,
+            'warnings': [],
+        }
         try:
             user = voice.account.restore()
             if user:
                 access = voice.refresh_access()
-                result.update(authenticated=True, user=user.get('email', ''), balance=access['balance'],
-                              pending=bool(voice.pending_id), voices=voices + access['voices'])
+                normalized = access if isinstance(access, dict) and 'engines' in access else normalize_catalog(access)
+                remote_engines = [
+                    {'id': e['id'], 'name': e.get('name', e['id']), 'available': bool(e.get('available', False))}
+                    for e in normalized.get('engines', [])
+                ]
+                notices = list(normalized.get('notices', []))
+                result.update(
+                    authenticated=True,
+                    user=user.get('email', ''),
+                    plan=str(access.get('plan', '')),
+                    internal=bool(access.get('internal', False)),
+                    balance=access.get('balance'),
+                    pending=bool(voice.pending_id),
+                    voices=voices + normalized.get('voices', []),
+                    engines=engines + remote_engines,
+                    warnings=notices,
+                )
         except Exception as error:
             result['warnings'].append('No se confirmó el acceso a Aurora: ' + str(error))
         return result

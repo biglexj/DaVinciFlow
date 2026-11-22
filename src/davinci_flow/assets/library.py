@@ -9,8 +9,8 @@ import re
 from davinci_flow.assets.broll_catalog import SUPPORTED_VIDEO_EXTENSIONS, SUPPORTED_AUDIO_EXTENSIONS
 
 CATEGORIES = {
-    "visuals": "Visuals y B-rolls",
-    "sfx": "Efectos de sonido",
+    "visuals": "B-rolls",
+    "sfx": "Efectos (SFX)",
     "music": "Música",
     "titles": "Títulos y Fusion",
     "documents": "Textos y documentos",

@@ -1,5 +1,19 @@
 # Validación · 2026-11-15
 
+## Promoción de GPUI · 2026-11-22
+
+Biglex fijó `mise dev` para GPUI en `main` y `mise dev py` para Python/Flet en la rama `Python`. El selector localiza la carpeta de trabajo de `Python` desde `main`. Si falta, la prepara desde la rama local o remota. `--plan` muestra el destino sin crear la carpeta.
+
+Se abrió una ventana por cada comando desde la carpeta principal. Pasaron 496 pruebas de Python/Flet, 53 pruebas de Rust y 15 pruebas del puente Python de GPUI. `mise check-gpui` y la compilación nativa pasaron. La rama `Python` se subió a GitHub en `2076d14` con versión 1.0.0.
+
+## Separación de carpetas de trabajo · 2026-11-22
+
+Git registra el cambio de nombre de `codex/gpui-demo` a `GPUI` en `aa772b1`. La raíz `DaVinciFlow` está en `GPUI`. La carpeta hermana `DaVinciFlow-Flet` es un `git worktree` en `codex/flet-local`, derivada de `main` en `00b5527`.
+
+Se copiaron 141 archivos locales vinculados a Flet, el motor Python, el empaquetado y sus documentos. Se verificaron byte a byte los 23 archivos modificados o nuevos de `src-flet/` en la nueva carpeta y en `temp/orden-worktrees-2026-11-22/cambios-interfaz-flet.zip`. El `src-flet/` de `GPUI` volvió al contenido de su commit base. El motor Python sigue disponible en ambos árboles para sus respectivos servicios. Se conservaron los cambios preparados en el índice.
+
+Flet tiene su propio `.venv` y el lockfile sincronizado con su manifiesto local. Pasaron `mise check` y 28 pruebas seleccionadas de Flet. Pasaron `mise check-gpui` y 15 pruebas de su puente Python. Los planes de arranque apuntan a cada carpeta y `main` conserva `00b5527`.
+
 ## Comprobaciones automatizadas
 
 - [x] `mise build-gpui`: binario nativo de Windows compilado con el toolchain estable actual (`x86_64-pc-windows-gnullvm`).
@@ -101,3 +115,23 @@ La captura en la ventana nativa, la exportación y la aceptación visual de Bigl
 ### Límites
 
 No se ejecutaron aplicación/deshacer ni marcadores reales en Resolve, acceso/retorno de Aurora, voz remota con créditos o descarga real de un enlace elegido por el usuario. No hay migración íntegra del motor a Rust, instalador GPUI ni publicación. El checkpoint GPUI utiliza el motor Python presente en el árbol, que conserva cambios previos ajenos a este incremento.
+
+## Cierre de paridad y renombrado a `GPUI` (2026-11-17)
+
+- [x] Rama renombrada `codex/gpui-demo` → `GPUI`; carpeta de proceso renombrada a `2026-11-15_migracion-rust-gpui`; eliminado el módulo inactivo `src-gpui/src/app/pending.rs`.
+- [x] Sincronizada versión `0.3.1` en `src-gpui/Cargo.toml`, título de ventana `DaVinci Flow (Desarrollo)` / `DaVinci Flow`, tamaño inicial `1280 × 900` y retirado el término «demo» de interfaz, `Cargo.toml`, `mise.toml` y `scripts/gpui-task.ts`.
+- [x] `app.rs` dividido extrayendo `src-gpui/src/app/subtitles_actions.rs` (401 líneas), dejando `app.rs` en 644 líneas y todos los módulos bajo el límite de 900 líneas.
+- [x] Preferencias en `src-gpui/src/preferences.rs` aisladas por checkout en desarrollo e importando automáticamente carpetas desde `editorial_preferences.json`; `Options::default()` alineado a `mode = "highlights"`, carga inicial silenciosa de ajustes y estado de Resolve, y persistencia automática al cambiar opciones del Editor.
+- [x] Identidad del proyecto y línea de tiempo en la barra lateral (`shell.rs`) tomada tanto de capturas/propuestas como de transcripciones SRT y estado de Resolve.
+- [x] Paridad de controles en Editor y Mesa de Revisión: captura de pista completa, avance/retroceso de rango, tandas reanudables (`batch_next`), modo experimental `Decisiones` (`generate_decisions`), tabla de 7 columnas, motivo e imagen sugerida de la IA, selector de SFX por bloque, capas visibles según `track_mode`, confirmación antes de aprobar pendientes al aplicar, botón «Limpiar pistas DF» y manejo estructurado de colisiones (`EditorialConflictError`).
+- [x] Paridad en Plantillas (packs rápidos de 1 clic, presets guardados, lectura del Media Pool del proyecto, asignación de nodo Text+, origen `Text+ básico` y vista previa modal), SFX (fusión con carpetas de usuario, filtros por categoría, pista/anticipación, preescucha Play/Detener y copia al portapapeles), Voz (selectores dependientes de motor y voz, Google/Discord, autodetección de callback de retorno, estimación en vivo y selección de audio local) y Luna Fetch (insignias de duración/extractor, autodetección de solo audio e historial de sesión).
+- [x] `cargo fmt --manifest-path src-gpui/Cargo.toml -- --check` y `cargo clippy --manifest-path src-gpui/Cargo.toml --locked --all-targets -- -D warnings`: **0 advertencias**.
+- [x] `cargo test --manifest-path src-gpui/Cargo.toml --locked --lib`: **45 pruebas en verde** (+ 1 prueba de integración Rust↔Python `--ignored` en verde).
+- [x] `PYTHONPATH=src;tests .venv/Scripts/python.exe -m unittest tests.test_gpui_bridge`: **13 pruebas en verde** (incluida la prueba nueva de colisiones estructuradas `EditorialConflictError`).
+- [x] Entrada por defecto cambiada a GPUI (`mise dev`, `mise dev gpui`, `mise dev-gpui`, `scripts/start-desktop.ps1`, `python -m davinci_flow.ui`, `python -m davinci_flow --ui`), conservando `--flet` / `mise dev-flet` como respaldo explícito.
+- [x] Icono oficial de ventana y barra de tareas (`assets/branding/icons/icon-windows.ico`) aplicado en la ventana nativa Win32 (`WM_SETICON` + `app_id = com.biglexj.davinciflow`).
+- [x] Diseño a ancho completo (`size_full()` / `w_full()`) en todas las vistas, sección superior del Editor dividida en dos columnas («Tramo y fuente» y «Captura de subtítulos en Resolve o SRT»), voces en rejilla multicolumna con botones de mayor altura, tarjetas de «Ajustes» en 2 columnas (Cuenta de Aurora + Modelo de IA) y diálogo «Acerca de» ampliado (`580 px`) con los 4 botones de apoyo oficial en cuadrícula 2×2.
+- [x] Reproductor nativo integrado de música y audio (`src-gpui/src/audio_player.rs` + `src-gpui/src/app/player_bar.rs`) sobre WinMM MCI en hilo persistente con caché WAV automática vía FFmpeg para `.m4a`/`.flac`/`.ogg`/`.aac`/`.opus`, cola de reproducción en **Música** y **Efectos (SFX)**, reproducción interna en **Generación de voz** y **Luna Fetch (Audio)** sin abrir reproductores externos/Prisma, barra de progreso interactiva, salto `-10s`/`+10s`, bucle y control de volumen/silencio.
+- [x] Verificación posterior (`2026-11-18`): `mise run check-gpui` sin advertencias, `mise run test-gpui` **48 pruebas en verde** (incluidas 3 nuevas de `audio_player`) y `mise run build-gpui` compilado en verde.
+- [x] Integración de vídeo nativo y refinamiento de UI (`2026-11-18`): reproductor de vídeo en vivo (`src-gpui/src/video_player.rs` sobre FFmpeg MJPEG + `RenderImage` con `window.drop_image` y reloj de audio/silencio en `audio_player.rs`), reproductor acotado exclusivamente a su sección activa (**B-Rolls**, **Música**, **Efectos (SFX)**, **Luna Fetch** y barra compacta dentro de «Audio generado» en **Generación de voz**), botones de acción multimedia de ancho fijo (`fixed_media_button`, `118 px`) sin saltos al alternar `Reproducir`/`Pausar`/`Reanudar`, y rejilla de **Generación de voz** en **4 columnas × máximo 3 filas visibles** con alineación exacta (`flex_basis(px(0.))`).
+- [x] Comprobación final (`2026-11-18`): `mise run check-gpui` (`0` advertencias), `mise run test-gpui` (**51 pruebas en verde**), `mise run build-gpui` en verde y todos los módulos bajo 900 líneas.

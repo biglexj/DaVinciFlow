@@ -1,7 +1,7 @@
-# Demo incremental Rust + GPUI
+# Migración a Rust + GPUI (`GPUI`)
 
-Autorización: Biglex pidió una rama nueva y una demo funcional, migrando por pestañas y bases (2026-11-15).
-Rama: `codex/gpui-demo`. La rama se creó desde `main`; los cambios previos del checkout permanecen intactos y no pertenecen a esta tarea.
+Autorización: Biglex pidió una rama nueva y la migración por pestañas y bases (2026-11-15), ampliando el 2026-11-17 para cubrir toda la migración (lógica y diseño) y renombrar la rama a `GPUI` dejando atrás el estado de demo.
+Rama: `GPUI` (antes `codex/gpui-demo`). La rama se creó desde `main`; los cambios previos del checkout permanecen intactos y no pertenecen a esta tarea.
 
 ## Primer incremento
 

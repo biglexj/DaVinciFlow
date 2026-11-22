@@ -263,7 +263,7 @@ class EditorialContractTests(unittest.TestCase):
         with patch("davinci_flow.editorial.service.capture") as read:
             with self.assertRaises(EditorialError):
                 apply_reviewed(proposal, Mock(), Path("unused.json"))
-            read.assert_not_called()
+            read.assert_called_once()
 
 
 class TemplateFileTests(unittest.TestCase):

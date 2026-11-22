@@ -5,11 +5,27 @@ use gpui_kit::component::Icon;
 impl FlowApp {
     /// Identidad de la secuencia; la interfaz vigente la muestra bajo la marca.
     fn identity(&self) -> Div {
-        let (project, timeline) = match &self.resolve {
-            Some(status) if !status.project.is_empty() => {
-                (status.project.clone(), status.timeline.clone())
-            }
-            _ => (String::new(), String::new()),
+        let snapshot = self
+            .proposal
+            .as_ref()
+            .map(|p| &p.snapshot)
+            .or(self.capture_snapshot.as_ref());
+        let (project, timeline) = if let Some(snap) = snapshot {
+            (
+                snap["project"].as_str().unwrap_or_default().to_owned(),
+                snap["timeline"].as_str().unwrap_or_default().to_owned(),
+            )
+        } else if !self.session.document().cues.is_empty() {
+            (
+                "Transcripción SRT".to_owned(),
+                self.session.document().source.clone(),
+            )
+        } else if let Some(status) = &self.resolve
+            && !status.project.is_empty()
+        {
+            (status.project.clone(), status.timeline.clone())
+        } else {
+            (String::new(), String::new())
         };
         if project.is_empty() && timeline.is_empty() {
             return div()
@@ -31,6 +47,7 @@ impl FlowApp {
         let available = tab.migrated();
         let on_click = tab;
         let on_key = tab;
+        let p = palette();
         row()
             .id(("nav", tab as usize))
             .role(Role::Tab)
@@ -44,17 +61,17 @@ impl FlowApp {
             .rounded(px(9.))
             .gap(px(9.))
             .cursor_pointer()
-            .when(active, |item| item.bg(rgb(ACTIVE)))
+            .when(active, |item| item.bg(rgb(p.active)))
             .child(
                 Icon::new(tab.icon())
                     .size(px(18.))
-                    .text_color(rgb(if active { ACCENT } else { MUTED })),
+                    .text_color(rgb(if active { p.accent_fg } else { p.muted })),
             )
             .child(
                 div()
                     .text_size(px(12.5))
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(rgb(if available { TEXT } else { MUTED }))
+                    .text_color(rgb(if available { p.text } else { p.muted }))
                     .child(tab.label()),
             )
             .on_click(cx.listener(move |this, _, window, cx| {
@@ -68,6 +85,7 @@ impl FlowApp {
     }
 
     fn about_button(&self, cx: &mut Context<Self>) -> Stateful<Div> {
+        let p = palette();
         row()
             .id("about")
             .role(Role::Button)
@@ -80,17 +98,17 @@ impl FlowApp {
             .rounded(px(9.))
             .gap(px(10.))
             .cursor_pointer()
-            .hover(|item| item.bg(rgb(ACTIVE)))
+            .hover(move |item| item.bg(rgb(p.active)))
             .child(
                 Icon::new(IconName::Info)
                     .size(px(18.))
-                    .text_color(rgb(MUTED)),
+                    .text_color(rgb(p.muted)),
             )
             .child(
                 div()
                     .text_size(px(13.))
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(rgb(MUTED))
+                    .text_color(rgb(p.muted))
                     .child("Acerca de"),
             )
             .on_click(cx.listener(|this, _, _, cx| {
@@ -100,11 +118,12 @@ impl FlowApp {
     }
 
     pub fn sidebar(&self, cx: &mut Context<Self>) -> Div {
+        let p = palette();
         column()
             .w(px(174.))
             .h_full()
             .flex_shrink_0()
-            .bg(rgb(SIDE))
+            .bg(rgb(p.side))
             .px(px(10.))
             .py(px(16.))
             .gap(px(4.))
@@ -125,7 +144,7 @@ impl FlowApp {
                     .child(
                         div()
                             .text_size(px(11.))
-                            .text_color(rgb(MUTED))
+                            .text_color(rgb(p.muted))
                             .child("Tu espacio creativo"),
                     ),
             )
@@ -137,7 +156,7 @@ impl FlowApp {
                     .w_full()
                     .flex()
                     .items_center()
-                    .child(div().w_full().h(px(1.)).bg(rgb(LINE))),
+                    .child(div().w_full().h(px(1.)).bg(rgb(p.line))),
             )
             .child(
                 column()
@@ -161,10 +180,11 @@ impl FlowApp {
         )
     }
 
-    pub fn footer(&self) -> Div {
+    pub fn footer(&self, cx: &mut Context<Self>) -> Div {
+        let p = palette();
         let spinner = Icon::new(IconName::Loader)
             .size(px(16.))
-            .text_color(rgb(ACCENT))
+            .text_color(rgb(p.accent_fg))
             .with_animation(
                 "footer-spinner",
                 Animation::new(std::time::Duration::from_millis(800)).repeat(),
@@ -172,12 +192,12 @@ impl FlowApp {
             );
         column()
             .flex_shrink_0()
-            .child(div().w_full().h(px(1.)).bg(rgb(LINE)))
+            .child(div().w_full().h(px(1.)).bg(rgb(p.line)))
             .child(
                 row()
                     .w_full()
                     .px(px(18.))
-                    .py(px(9.))
+                    .py(px(7.))
                     .gap(px(10.))
                     .when(self.busy, |footer| footer.child(spinner))
                     .child(
@@ -189,9 +209,10 @@ impl FlowApp {
                             .min_w_0()
                             .text_ellipsis()
                             .text_size(px(12.))
-                            .text_color(rgb(if self.error { ERROR } else { MUTED }))
+                            .text_color(rgb(if self.error { p.error } else { p.muted }))
                             .child(self.message.clone()),
-                    ),
+                    )
+                    .child(self.footer_mini_player(cx)),
             )
     }
 }

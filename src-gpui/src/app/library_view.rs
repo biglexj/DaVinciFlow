@@ -184,18 +184,40 @@ impl FlowApp {
                     .child(
                         row()
                             .gap(px(10.))
-                            .child(
-                                button("add-folder", "Añadir carpeta", self.busy).on_click(
-                                    cx.listener(|this, _, window, cx| {
-                                        this.choose_library_folder(window, cx)
-                                    }),
-                                ),
-                            )
+                            .child(button("add-folder", "Añadir carpeta", self.busy).on_click(
+                                cx.listener(|this, _, window, cx| {
+                                    this.choose_library_folder(window, cx)
+                                }),
+                            ))
                             .child(
                                 accent_button("index-library", "Guardar e indexar", self.busy)
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.scan_library(window, cx)
                                     })),
+                            )
+                            .child(
+                                button(
+                                    "clear-category",
+                                    "Vaciar categoría",
+                                    self.busy || self.preferences.folders_for(&current).is_empty(),
+                                )
+                                .on_click(cx.listener(
+                                    |this, _, window, cx| this.clear_library_category(window, cx),
+                                )),
+                            )
+                            .child(
+                                button(
+                                    "reset-library",
+                                    "Restablecer todo",
+                                    self.busy
+                                        || (self.preferences.folders.values().all(Vec::is_empty)
+                                            && self.preferences.selected.is_empty()),
+                                )
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| {
+                                        this.reset_library(window, cx)
+                                    }),
+                                ),
                             )
                             .child(label(format!(
                                 "{} carpetas · {} recursos indexados",
@@ -205,11 +227,30 @@ impl FlowApp {
                     ),
             )
             .child(Input::new(&self.library_filter))
-            .child(row().justify_between().child(label(format!(
-                "{resources} recursos · {selected}/80 compartidos"
-            ))).child(label(
-                "Comparte hasta 80 recursos con la IA por nombre y categoría. Los archivos permanecen en tu equipo.",
-            )))
+            .child(
+                row()
+                    .justify_between()
+                    .child(label(format!(
+                        "{resources} recursos · {selected}/80 compartidos"
+                    )))
+                    .child(
+                        row()
+                            .gap(px(8.))
+                            .child(label(
+                                "Comparte hasta 80 recursos con la IA por nombre y categoría.",
+                            ))
+                            .child(
+                                button(
+                                    "remove-missing-lib",
+                                    "Quitar selección no disponible",
+                                    self.busy || selected == 0,
+                                )
+                                .on_click(cx.listener(
+                                    |this, _, window, cx| this.remove_missing_resources(window, cx),
+                                )),
+                            ),
+                    ),
+            )
             .child(self.library_resources(cx))
             .child(label(warnings))
     }

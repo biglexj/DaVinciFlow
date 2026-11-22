@@ -19,6 +19,7 @@ Uso:
 
 from __future__ import annotations
 
+from davinci_flow.user_data import user_data_dir
 import json
 import sys
 from dataclasses import asdict, dataclass
@@ -41,7 +42,7 @@ PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_NAME = "davinci-flow"
 SERVER_VERSION = "0.2.0"
-VOICE_OUTPUT_DIR = Path.home() / ".davinci_flow" / "voice"
+VOICE_OUTPUT_DIR = user_data_dir() / "voice"
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +167,7 @@ def tool_propose(arguments: dict[str, Any]) -> dict[str, Any]:
     provider = build_text_provider(preferences.provider, preferences.model)
     result = propose(snapshot, selected, provider, options=options)
 
-    proposal_path = Path(arguments.get("proposal_path") or (Path.home() / ".davinci_flow" / "proposals" / "mcp-proposal.json"))
+    proposal_path = Path(arguments.get("proposal_path") or (user_data_dir() / "proposals" / "mcp-proposal.json"))
     result.save(proposal_path)
     return {
         "propuesta": result.to_dict(),
@@ -340,6 +341,42 @@ def tool_scripting_docs(arguments: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def tool_fetch_media(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Descarga un video o pista de música e importa el resultado en DaVinci Resolve (Luna Fetch)."""
+    from davinci_flow.fetch.engine import FetchEngine
+    from davinci_flow.fetch.models import FetchRequest, MediaKind
+
+    url = str(arguments.get("url") or "").strip()
+    if not url:
+        return {"éxito": False, "aviso": "Se requiere una URL válida para descargar."}
+
+    raw_kind = str(arguments.get("kind") or "video").casefold()
+    if raw_kind not in {'video', 'audio'}:
+        return {'éxito': False, 'aviso': 'El tipo debe ser video o audio.'}
+    kind = MediaKind(raw_kind)
+    import_resolve = arguments.get("import_to_resolve", True)
+    if type(import_resolve) is not bool:
+        return {'éxito': False, 'aviso': 'La opción de importación debe ser booleana.'}
+    custom_bin = arguments.get("custom_bin_name")
+
+    request = FetchRequest(
+        url=url,
+        kind=kind,
+        import_to_resolve=import_resolve,
+        custom_bin_name=str(custom_bin) if custom_bin else None,
+    )
+    result = FetchEngine.download(request)
+    return {
+        "éxito": result.success,
+        "título": result.title,
+        "archivo": str(result.file_path) if result.file_path else None,
+        "tipo": result.kind.value,
+        "importado_a_resolve": result.imported_to_resolve,
+        "bin_resolve": result.resolve_bin,
+        "error": result.error_message,
+    }
+
+
 TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="davinciflow_status",
@@ -500,6 +537,20 @@ TOOLS: tuple[ToolSpec, ...] = (
             }
         ),
         handler=tool_scripting_docs,
+    ),
+    ToolSpec(
+        name="davinciflow_fetch_media",
+        description="Descarga un video o pista de música de una URL (YouTube, Suno, TikTok, SoundCloud...) y lo importa en el Media Pool de Resolve bajo la carpeta organizada (Videos o Música).",
+        input_schema=_schema(
+            {
+                "url": _string("URL del video o canción a descargar."),
+                "kind": _string("Tipo de medio: 'video' (MP4) o 'audio' (MP3/Música)."),
+                "import_to_resolve": _boolean("Si es true, se importa directamente al Media Pool de Resolve en su carpeta correspondiente (Videos o Música)."),
+                "custom_bin_name": _string("Nombre de carpeta opcional en el Media Pool. Si se omite, se usa la jerarquía Luna Fetch/Videos o Luna Fetch/Música."),
+            },
+            required=("url",),
+        ),
+        handler=tool_fetch_media,
     ),
 )
 

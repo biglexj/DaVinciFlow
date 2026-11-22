@@ -47,6 +47,50 @@ impl FlowApp {
             },
         );
     }
+    pub(super) fn apply_loaded_settings(
+        &mut self,
+        settings: services::Settings,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.settings_provider = settings.provider.clone();
+        self.settings_model = settings.model.clone();
+        self.settings_models = settings.models.clone();
+        self.settings_status = if settings.has_key {
+            "Clave configurada.".into()
+        } else {
+            "Falta la clave API del proveedor.".into()
+        };
+        if !settings.preferences.mode.is_empty() {
+            self.editor_options.mode = settings.preferences.mode.clone();
+        }
+        if !settings.preferences.format.is_empty() {
+            self.editor_options.format = settings.preferences.format.clone();
+        }
+        if !settings.preferences.density.is_empty() {
+            self.editor_options.density = settings.preferences.density.clone();
+        }
+        if !settings.preferences.track_mode.is_empty() {
+            self.editor_options.track_mode = settings.preferences.track_mode.clone();
+        }
+        if !settings.preferences.batch_size.is_empty() {
+            self.editor_batch_size = settings.preferences.batch_size.clone();
+        }
+        let dir = settings.preferences.direction.clone();
+        if self.editor_direction.read(cx).value().trim().is_empty() && !dir.is_empty() {
+            self.editor_direction
+                .update(cx, |state, cx| state.set_value(dir, window, cx));
+        }
+        self.settings_model_input.update(cx, |state, cx| {
+            state.set_value(settings.model.clone(), window, cx)
+        });
+        if settings.has_key {
+            self.settings_key
+                .update(cx, |state, cx| state.set_value(MASKED_KEY, window, cx));
+        }
+        self.settings = Some(settings);
+    }
+
     pub(super) fn load_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.work(
             "Consultando los ajustes…",
@@ -54,23 +98,7 @@ impl FlowApp {
             cx,
             services::settings,
             |this, settings, window, cx| {
-                this.settings_provider = settings.provider.clone();
-                this.settings_model = settings.model.clone();
-                this.settings_models = settings.models.clone();
-                this.settings_status = if settings.has_key {
-                    "Clave configurada.".into()
-                } else {
-                    "Falta la clave API del proveedor.".into()
-                };
-                this.settings_model_input.update(cx, |state, cx| {
-                    state.set_value(settings.model.clone(), window, cx)
-                });
-                // La credencial nunca se lee de memoria: se muestra enmascarada.
-                if settings.has_key {
-                    this.settings_key
-                        .update(cx, |state, cx| state.set_value(MASKED_KEY, window, cx));
-                }
-                this.settings = Some(settings);
+                this.apply_loaded_settings(settings, window, cx);
             },
         );
     }
@@ -219,23 +247,80 @@ impl FlowApp {
 
     // --- Actualizaciones y catálogos ---
 
+    /// Persiste en segundo plano las opciones editoriales actuales en `editorial_preferences.json`.
+    pub(super) fn persist_editor_preferences(&mut self, cx: &mut Context<Self>) {
+        let mode = self.editor_options.mode.clone();
+        let format = self.editor_options.format.clone();
+        let density = self.editor_options.density.clone();
+        let track_mode = self.editor_options.track_mode.clone();
+        let batch_size = self.editor_batch_size.clone();
+        let direction = self.editor_direction.read(cx).value().trim().to_owned();
+        self.editor_options.direction = direction.clone();
+        cx.background_executor()
+            .spawn(async move {
+                if let Ok(settings) = services::settings() {
+                    let prefs = services::EditorialPreferences {
+                        mode,
+                        format,
+                        density,
+                        direction,
+                        track_mode,
+                        batch_size,
+                    };
+                    let _ = services::save_settings(&settings.provider, &settings.model, &prefs);
+                }
+            })
+            .detach();
+    }
+
+    pub(super) fn show_toast(
+        &mut self,
+        message: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.toast_message = Some(message.clone());
+        cx.notify();
+        cx.spawn_in(window, async move |this, cx| {
+            std::thread::sleep(std::time::Duration::from_secs(4));
+            let _ = this.update_in(cx, |this, _, cx| {
+                if this.toast_message.as_ref() == Some(&message) {
+                    this.toast_message = None;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
+
     pub(super) fn check_release(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.work(
             "Consultando GitHub Releases…",
             window,
             cx,
             services::release,
-            |this, release, _, cx| {
+            |this, release, window, cx| {
                 this.release_checked = true;
                 match release {
                     Some(release) => {
-                        let message = if release.is_newer {
+                        let is_newer = release.is_newer;
+                        let message = if is_newer {
                             format!("🚀 Nueva versión v{} disponible.", release.version)
                         } else {
                             "Estás en la última versión.".into()
                         };
                         this.release = Some(release);
                         this.notify(Ok(message), cx);
+                        if !is_newer {
+                            this.show_toast(
+                                format!(
+                                    "¡Estás en la última versión! (v{})",
+                                    env!("CARGO_PKG_VERSION")
+                                ),
+                                window,
+                                cx,
+                            );
+                        }
                     }
                     None => this.notify(
                         Err("No se pudo confirmar la última versión publicada.".into()),
@@ -265,12 +350,141 @@ impl FlowApp {
             "Leyendo las plantillas instaladas…",
             window,
             cx,
-            services::templates,
-            |this, (templates, diagnostics), _, cx| {
-                let count = templates.len();
-                this.templates = templates;
-                this.catalog_diagnostics = diagnostics;
+            services::template_catalog,
+            |this, catalog, _, cx| {
+                let count = catalog.templates.len();
+                this.templates = catalog.templates;
+                this.catalog_diagnostics = catalog.diagnostics;
+                this.catalog_presets = catalog.presets;
+                if this.catalog_selected.is_empty() {
+                    this.catalog_selected = catalog.selected_ids.into_iter().collect();
+                }
                 this.notify(Ok(format!("{count} plantillas disponibles.")), cx);
+            },
+        );
+    }
+
+    pub(super) fn load_project_templates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.work(
+            "Leyendo títulos del Media Pool en Resolve…",
+            window,
+            cx,
+            services::project_templates,
+            |this, project_items, _, cx| {
+                let count = project_items.len();
+                this.templates.retain(|t| t.source != "media_pool");
+                this.templates.extend(project_items);
+                this.notify(
+                    Ok(format!(
+                        "{count} plantillas del proyecto disponibles. Elige las que correspondan a este vídeo."
+                    )),
+                    cx,
+                );
+            },
+        );
+    }
+
+    pub(super) fn apply_catalog_pack(
+        &mut self,
+        pack: &'static str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.work(
+            "Aplicando pack de plantillas…",
+            window,
+            cx,
+            move || services::choose_pack(pack),
+            move |this, (count, selected), _, cx| {
+                this.catalog_selected = selected.into_iter().collect();
+                this.notify(
+                    Ok(format!(
+                        "Pack '{pack}' aplicado ({count} plantillas elegidas)."
+                    )),
+                    cx,
+                );
+            },
+        );
+    }
+
+    pub(super) fn save_catalog_preset(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let name = self.catalog_preset_name.read(cx).value().trim().to_owned();
+        let ids: Vec<String> = self.catalog_selected.iter().cloned().collect();
+        self.work(
+            "Guardando preset de plantillas…",
+            window,
+            cx,
+            move || services::save_preset(&name, &ids),
+            |this, (count, presets), _, cx| {
+                this.catalog_presets = presets;
+                this.notify(
+                    Ok(format!(
+                        "Preset guardado con {count} plantillas. Disponible para próximas ediciones."
+                    )),
+                    cx,
+                );
+            },
+        );
+    }
+
+    pub(super) fn use_catalog_preset(
+        &mut self,
+        name: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.work(
+            "Activando preset de plantillas…",
+            window,
+            cx,
+            move || services::use_preset(&name),
+            |this, (count, selected), _, cx| {
+                this.catalog_selected = selected.into_iter().collect();
+                this.notify(
+                    Ok(format!(
+                        "{count} plantillas del preset preparadas para la próxima propuesta."
+                    )),
+                    cx,
+                );
+            },
+        );
+    }
+
+    pub(super) fn assign_catalog_node(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let ids: Vec<String> = self.catalog_selected.iter().cloned().collect();
+        let tool = self.catalog_node_name.read(cx).value().trim().to_owned();
+        let input = self.catalog_node_input.read(cx).value().trim().to_owned();
+        self.work(
+            "Asignando nodo Text+ a la selección…",
+            window,
+            cx,
+            move || services::assign_node(&ids, &tool, &input),
+            |this, count, _, cx| {
+                this.notify(
+                    Ok(format!(
+                        "Nodo Text+ asignado y guardado para {count} plantillas."
+                    )),
+                    cx,
+                );
+            },
+        );
+    }
+
+    pub(super) fn preview_catalog_template(
+        &mut self,
+        template: services::TemplateInfo,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let title = template.name.clone();
+        self.work(
+            "Leyendo vista previa de la plantilla…",
+            window,
+            cx,
+            move || services::template_preview(&template),
+            move |this, preview, _, cx| {
+                this.catalog_preview = Some((title, preview));
+                cx.notify();
             },
         );
     }

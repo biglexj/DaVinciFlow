@@ -1,10 +1,13 @@
 """Lectura explícita de fuentes: ninguna conexión al importar o abrir el editor."""
 
 import os
+import hashlib
+import re
+from davinci_flow.user_data import user_data_dir
 from pathlib import Path
 from typing import Any
 
-from davinci_flow.editorial.model import EditorialError, Snapshot, Template
+from davinci_flow.editorial.model import EditorialError, Snapshot, Template, digest
 from davinci_flow.editorial.template_files import descriptor, scan_archive
 from davinci_flow.resolve.subtitle_reader import ResolveSubtitleReader
 from davinci_flow.resolve.template_scanner import scan_davinciflow_presets
@@ -13,10 +16,13 @@ from davinci_flow.subtitles.srt_parser import load_srt_file
 
 def default_title_roots() -> tuple[Path, ...]:
     return (
+        user_data_dir() / 'library/templates',
         Path(os.environ.get("PROGRAMDATA", "C:/ProgramData")) /
         "Blackmagic Design/DaVinci Resolve/Fusion/Templates",
         Path(os.environ.get("APPDATA", str(Path.home() / "AppData/Roaming"))) /
         "Blackmagic Design/DaVinci Resolve/Support/Fusion/Templates",
+        Path(os.environ.get("PROGRAMDATA", "C:/ProgramData")) /
+        "Blackmagic Design/DaVinci Resolve/Support/Workflow Integration Plugins/Snap Captions/Templates",
     )
 
 
@@ -35,7 +41,14 @@ def scan_installed(roots: tuple[Path, ...] | None = None, diagnostics: list[str]
         if not root.is_dir():
             continue
         for path in sorted(root.rglob("*")):
-            if path.name.startswith("."):
+            if any(part.startswith((".", "__MACOSX")) for part in path.relative_to(root).parts):
+                continue
+            if path.suffix.lower() == ".drb" and path.is_file():
+                locator = str(path.resolve())
+                display_name = re.sub(r'^SC-\d+-', '', path.stem)
+                result.append(Template("bin_" + digest(locator)[:20], display_name,
+                                       "installed_bin", locator, fingerprint=hashlib.sha256(path.read_bytes()).hexdigest(),
+                                       category="animated"))
                 continue
             if path.suffix.lower() == ".drfx" and path.is_file():
                 try:
@@ -50,7 +63,7 @@ def scan_installed(roots: tuple[Path, ...] | None = None, diagnostics: list[str]
             if locator in seen:
                 continue
             seen.add(locator)
-            if roots is None and "/titles/" not in path.as_posix().lower():
+            if roots is None and root != user_data_dir() / 'library/templates' and "/titles/" not in path.as_posix().lower():
                 continue
             result.append(descriptor(path.stem, "installed_file", locator, path.read_bytes()))
     return tuple(result)
@@ -62,7 +75,7 @@ def media_pool_catalog(media_pool: Any) -> tuple[tuple[Template, ...], dict[str,
         identifier = str(preset.media_item.GetUniqueId() or "")
         if not identifier:
             raise EditorialError(f"La plantilla {preset.name} no tiene ID estable.")
-        template = Template("pool_" + identifier, preset.name, "media_pool", identifier)
+        template = Template("pool_" + identifier, re.sub(r'^SC-\d+-', '', preset.name), "media_pool", identifier)
         templates.append(template)
         handles[template.id] = preset.media_item
     if len(handles) != len(templates):

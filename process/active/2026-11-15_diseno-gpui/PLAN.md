@@ -12,11 +12,11 @@ La integración parcial anterior es un antecedente, no la aprobación de la migr
 
 ## CONTEXTO
 
-- Rama: `codex/gpui-demo`. Revisar el checkout y preservar cambios ajenos antes de editar.
+- Rama: `GPUI`. Revisar el checkout y preservar cambios ajenos antes de editar.
 - Referencia visual y funcional: `src-flet/app/app.py`, `src-flet/app/views.py`, `src-flet/shared/` y todas las vistas de `src-flet/features/`.
-- Base nativa: `src-gpui/`; actualmente hay tres pestañas funcionales, sin paridad completa.
+- Base nativa: `src-gpui/` con las 11 pestañas conectadas.
 - Conservar paleta, tipografías por rol, navegación lateral, nombres, prioridades de acciones, densidad y distribución. Primero trasladar; los retoques se revisarán después con Biglex.
-- El motor y su avance pertenecen al [proceso de migración](../2026-11-15_demo-rust-gpui/PLAN.md). Consultar [BACKEND_CONTRACT.md](../2026-11-15_demo-rust-gpui/BACKEND_CONTRACT.md) y coordinar los contratos faltantes.
+- El motor y su avance pertenecen al [proceso de migración](../2026-11-15_migracion-rust-gpui/PLAN.md). Consultar [BACKEND_CONTRACT.md](../2026-11-15_migracion-rust-gpui/BACKEND_CONTRACT.md) y coordinar los contratos faltantes.
 
 ## ALCANCE
 

@@ -7,9 +7,10 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from davinci_flow.editorial.model import Decision, EditorialConflictError, EditorialError, Proposal
+from davinci_flow.editorial.model import Decision, EditorialConflictError, EditorialError, EditorialOptions, Proposal
 from davinci_flow.editorial.sources import capture, media_pool_catalog
 from davinci_flow.editorial.service import apply_reviewed, undo_reviewed
+from davinci_flow.editorial.writer import EditorialWriter, resolve_user_resource_paths
 
 
 class Tool:
@@ -236,6 +237,146 @@ class EditorialApplicationTests(unittest.TestCase):
             result = apply_reviewed(proposal, session, record_path)
             self.assertIsNotNone(result)
             self.assertEqual(pool.count, 3)
+
+    def test_resolve_user_resource_paths_and_writer_user_sfx_and_broll_track(self):
+        session, pool, base_proposal = setup()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sfx_dir = root / "sfx"
+            broll_dir = root / "brolls"
+            (sfx_dir / "pops").mkdir(parents=True)
+            broll_dir.mkdir(parents=True)
+            sfx_file = sfx_dir / "pops" / "custom_pop.wav"
+            broll_file = broll_dir / "clip_broll.mp4"
+            sfx_file.write_bytes(b"RIFF-test-wav")
+            broll_file.write_bytes(b"mp4-test")
+
+            options = EditorialOptions(
+                mode="highlights",
+                resources=(
+                    {"id": "sfx-user-1", "name": "pops/custom_pop.wav", "category": "sfx"},
+                    {"id": "broll-user-1", "name": "clip_broll.mp4", "category": "visuals"},
+                ),
+            )
+            decision_sfx = replace(base_proposal.decisions[0], resource_id="sfx-user-1", reviewed=True)
+            proposal_sfx = replace(base_proposal, version="1.1.0", options=options, decisions=(decision_sfx,))
+
+            sfx_map, broll_map = resolve_user_resource_paths(
+                proposal_sfx, paths={"sfx": str(sfx_dir), "visuals": str(broll_dir)}
+            )
+            self.assertEqual(sfx_map, {"sfx-user-1": sfx_file.resolve()})
+            self.assertEqual(broll_map, {"broll-user-1": broll_file.resolve()})
+
+            # Comprobar que EditorialWriter usa la ruta real de usuario en _insert_sfx
+            imported_sfx = Clip("sfx-item-1", "custom_pop.wav", track=1)
+            imported_sfx.GetClipProperty = lambda key: "12" if key == "Frames" else ""
+            pool.ImportMedia = lambda paths: [imported_sfx]
+            pool.AppendToTimeline = lambda infos: [
+                SimpleNamespace(
+                    GetTrackTypeAndIndex=lambda: ["audio" if infos[0]["mediaType"] == 2 else "video", infos[0]["trackIndex"]],
+                    GetStart=lambda: infos[0]["recordFrame"],
+                    GetDuration=lambda: infos[0]["endFrame"] - infos[0]["startFrame"],
+                    SetName=lambda n: True,
+                    GetName=lambda: "DF__exec__sfx",
+                )
+            ]
+            with patch("davinci_flow.editorial.writer.resolve_user_resource_paths", return_value=(sfx_map, broll_map)):
+                writer = EditorialWriter(session.timeline, pool, proposal_sfx, {base_proposal.templates[0].id: pool.template})
+            audio_item = writer._insert_sfx("sfx-user-1", 1, 86400, 12, "DF__exec__sfx")
+            self.assertEqual(audio_item.GetTrackTypeAndIndex(), ["audio", 1])
+
+            # Comprobar que ensure_tracks asegura DF_BROLL si una decisión referencia un B-roll de usuario
+            decision_broll = replace(base_proposal.decisions[0], resource_id="broll-user-1", reviewed=True)
+            proposal_broll = replace(base_proposal, version="1.1.0", options=options, decisions=(decision_broll,))
+            with patch("davinci_flow.editorial.writer.resolve_user_resource_paths", return_value=(sfx_map, broll_map)):
+                writer_broll = EditorialWriter(session.timeline, pool, proposal_broll, {base_proposal.templates[0].id: pool.template})
+            tracks = writer_broll.ensure_tracks()
+            self.assertIn("DF_BROLL", tracks)
+            self.assertLess(tracks["DF_BROLL"], tracks["DF_CONTEXT"])
+
+            # Comprobar que apply_reviewed invoca _insert_broll_clip, escribe en DF_BROLL y tolera reaplicación
+            broll_pool_clip = Clip("broll-pool-1", "clip_broll.mp4", track=1)
+            broll_pool_clip.GetClipProperty = lambda key: "Video" if key == "Type" else ("120" if key == "Frames" else "")
+
+            class ApplyPool(Pool):
+                def ImportMedia(self, paths):
+                    return [broll_pool_clip]
+
+                def AppendToTimeline(self, infos):
+                    self.count += 1
+                    info = infos[0]
+                    duration = info["endFrame"] - info["startFrame"]
+                    item = Clip(f"created-{self.count}", "Copia", info["trackIndex"], info["recordFrame"], duration)
+                    self.timeline.items.setdefault(item.track, []).append(item)
+                    return [item]
+
+            apply_timeline = Timeline()
+            apply_pool = ApplyPool(apply_timeline)
+            apply_project = SimpleNamespace(GetName=lambda: "Proyecto", GetUniqueId=lambda: "project-1", GetMediaPool=lambda: apply_pool)
+            apply_session = SimpleNamespace(timeline=apply_timeline, project=apply_project)
+            snap_broll = capture(apply_session)
+            t_broll, _ = media_pool_catalog(apply_pool)
+            p_broll = replace(
+                proposal_broll,
+                snapshot=snap_broll,
+                templates=t_broll,
+                decisions=(replace(decision_broll, templates={r: t_broll[0].id for r in ("context", "main", "accent")}),),
+            )
+            record_path = root / "broll_record.json"
+            with (
+                patch("davinci_flow.editorial.writer.resolve_user_resource_paths", return_value=(sfx_map, broll_map)),
+                patch("davinci_flow.editorial.service.capture", return_value=snap_broll),
+            ):
+                rec = apply_reviewed(p_broll, apply_session, record_path)
+                self.assertEqual([item.role for item in rec.items if item.role == "broll"], ["broll"])
+                self.assertEqual(next(item.track_name for item in rec.items if item.role == "broll"), "DF_BROLL")
+                # Re-aplicar no debe lanzar KeyError en _find_timeline_item
+                rec2 = apply_reviewed(Proposal.load(record_path.with_suffix(".proposal.json")), apply_session, record_path)
+                self.assertEqual(rec2.item_count, 4)
+
+    def test_scales_25fps_template_source_frames_and_accepts_spanish_captura_still_duration(self):
+        session, pool, proposal = setup()
+        # Plantilla de 25 fps (32 frames) aplicada en secuencia de 24 fps -> 24f timeline = 25f fuente
+        cue_24f = replace(proposal.snapshot.cues[0], start_frame=86400, end_frame=86424)
+        snap_24f = replace(proposal.snapshot, fps=24.0, cues=(cue_24f,))
+        proposal_24f = replace(proposal, snapshot=snap_24f)
+
+        pool.template.GetClipProperty = lambda key: {
+            "Type": "Título – Fusion",
+            "FPS": "25.0",
+            "Frames": "32",
+        }.get(key, "")
+
+        appended_infos = []
+
+        def fake_append(infos):
+            appended_infos.append(infos[0])
+            tl_dur = round(infos[0]["endFrame"] * 24.0 / 25.0)
+            clip = Clip(f"scaled-{len(appended_infos)}", "Copia", infos[0]["trackIndex"], infos[0]["recordFrame"], tl_dur)
+            session.timeline.items.setdefault(clip.track, []).append(clip)
+            return [clip]
+
+        pool.AppendToTimeline = fake_append
+        writer = EditorialWriter(session.timeline, pool, proposal_24f, {proposal.templates[0].id: pool.template})
+        item = writer._append_media_item(pool.template, 1, "video", 2, 86400, 24)
+        self.assertEqual(appended_infos[0]["endFrame"], 25)
+        self.assertEqual(item.GetDuration(), 24)
+
+        # Imagen PNG en español (Type='Captura', Frames='1') cuando Resolve asigna duración fija de 120f
+        with tempfile.TemporaryDirectory() as tmp:
+            still_path = Path(tmp) / "captura.png"
+            still_path.write_bytes(b"PNG")
+            still_item = Clip("still-1", "captura.png", track=1)
+            still_item.GetClipProperty = lambda key: {"Type": "Captura", "Frames": "1"}.get(key, "")
+            pool.ImportMedia = lambda paths: [still_item]
+
+            def append_still(infos):
+                clip = Clip("broll-still-1", "Copia", infos[0]["trackIndex"], infos[0]["recordFrame"], 120)
+                return [clip]
+
+            pool.AppendToTimeline = append_still
+            inserted = writer._insert_broll_clip(str(still_path), 2, 86400, 86424, "DF__exec__broll")
+            self.assertEqual(inserted.GetDuration(), 120)
 
 
 if __name__ == "__main__":

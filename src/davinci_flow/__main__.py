@@ -29,8 +29,9 @@ def _parser() -> argparse.ArgumentParser:
         prog="davinci-flow",
         description="DaVinci Flow — Automatización de subtítulos dinámicos multicapa, guion y SFX.",
     )
-    parser.add_argument("--editorial-ui", action="store_true", help="Abre el editor LLM sin conectar con Resolve.")
-    parser.add_argument("--flet-ui", action="store_true", help="Abre el espacio de trabajo Flet.")
+    parser.add_argument("--editorial-ui", action="store_true", help="Abre el editor de escritorio (GPUI).")
+    parser.add_argument("--gpui", action="store_true", help="Abre el espacio de trabajo nativo Rust + GPUI.")
+    parser.add_argument("--flet-ui", action="store_true", help="Abre el espacio de trabajo en Python / Flet.")
     parser.add_argument("--track", type=int, default=1, help="Índice de pista, comenzando en 1.")
     parser.add_argument(
         "--limit",
@@ -178,11 +179,96 @@ def _parser() -> argparse.ArgumentParser:
         help="Fotogramas de anticipación auditiva para los SFX (por defecto: 3 fotogramas).",
     )
     parser.add_argument(
+        "--experiment",
+        type=str,
+        default=None,
+        choices=["decision1"],
+        help="Ejecuta un experimento editorial: 'decision1' compara el motor de decisiones de Gemini con el actual.",
+    )
+    parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="En el experimento, ejecuta además el motor editorial actual para comparar ambos.",
+    )
+    parser.add_argument(
+        "--experiment-out",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Ruta del informe JSON del experimento (guarda también la propuesta para revisarla).",
+    )
+    parser.add_argument(
         "--about",
         action="store_true",
         help="Muestra información de versión, autoría y enlaces de apoyo oficial.",
     )
     return parser
+
+
+def _run_experiment(args) -> int:
+    """Ejecuta el experimento editorial y muestra su informe."""
+    import json
+
+    from davinci_flow.ai.providers.base import GEMINI_PROVIDER
+    from davinci_flow.ai.providers.factory import build_text_provider
+    from davinci_flow.editorial.experiment import run_decision_experiment
+    from davinci_flow.editorial.model import EditorialOptions
+    from davinci_flow.editorial.sources import basic_titles, from_srt
+
+    if not args.srt:
+        print("Error: el experimento necesita un archivo .srt (--srt).", file=sys.stderr)
+        return 2
+    srt_path = Path(args.srt.strip())
+    if not srt_path.is_file():
+        print(f"Error: no existe el archivo '{srt_path}'.", file=sys.stderr)
+        return 2
+
+    snapshot = from_srt(srt_path, fps=24.0)
+    templates = basic_titles()
+    options = EditorialOptions(mode="highlights", format="auto", density="balanced",
+                               direction="", resources=())
+    baseline = None
+    if args.compare:
+        baseline = build_text_provider(GEMINI_PROVIDER, args.gemini_model, api_key=args.gemini_key)
+
+    report = run_decision_experiment(snapshot, templates, options, baseline_client=baseline)
+
+    print(f"🧪 Experimento: {report.decision_run.model} sobre «{srt_path.name}»")
+    print(f"   Bloques analizados: {len(report.decision_run.proposal.decisions)}")
+    print(f"   Motor de decisiones: {report.decision_run.seconds:.2f} s | "
+          f"tokens de entrada: {report.decision_run.usage.total_input_tokens if report.decision_run.usage else 0}")
+    if report.baseline_run is not None:
+        print(f"   Motor actual:        {report.baseline_run.seconds:.2f} s | "
+              f"modelo: {report.baseline_run.model}")
+    if report.metrics is not None:
+        metrics = report.metrics
+        print("")
+        print("   Comparativa (bloques):")
+        print(f"     · acuerdo en rótulo      {metrics.enabled_agreement:.0%}")
+        print(f"     · acuerdo en capas       {metrics.layer_agreement:.0%}")
+        print(f"     · acuerdo en plantillas  {metrics.template_agreement:.0%}")
+        print(f"     · acuerdo en recursos    {metrics.resource_agreement:.0%}")
+        print(f"     · coincidencias exactas  {metrics.exact_agreement:.0%}")
+        print(f"     · aceptadas (actual)     {metrics.baseline_accepted:.0%}")
+        print(f"     · aceptadas (decisión)   {metrics.candidate_accepted:.0%}")
+    pending = [audit for audit in report.decision_audits if not audit.accepted]
+    if pending:
+        print("")
+        print(f"   Bloques que necesitan revisión del contrato: {len(pending)}")
+        for audit in pending[:10]:
+            print(f"     · bloque {audit.index + 1}: {'; '.join(audit.issues)}")
+
+    if args.experiment_out:
+        target = Path(args.experiment_out.strip())
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(report.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        proposal_path = target.with_name(target.stem + ".proposal.json")
+        report.decision_run.proposal.save(proposal_path)
+        print("")
+        print(f"✅ Informe: {target}")
+        print(f"✅ Propuesta sin revisar: {proposal_path}")
+        print("   Ábrela en DaVinci Flow (Editor → Abrir propuesta) para revisarla antes de aplicarla.")
+    return 0
 
 
 def _load_script_text(script_arg: str) -> str:
@@ -213,13 +299,23 @@ def print_about() -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.flet_ui or args.editorial_ui or args.ui:
-        open_davinci_flow_ui()
+    if args.flet_ui:
+        open_davinci_flow_ui(prefer_flet=True)
+        return 0
+    if args.gpui or args.editorial_ui or args.ui:
+        open_davinci_flow_ui(prefer_flet=False)
         return 0
 
     if args.about:
         print_about()
         return 0
+
+    if args.experiment:
+        try:
+            return _run_experiment(args)
+        except DaVinciFlowError as error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 1
 
     if args.install:
         launcher_path = install_resolve_launcher()

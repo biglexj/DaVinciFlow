@@ -1,21 +1,60 @@
-//! Preferencias propias de la ventana nativa; no toca el archivo de Flet.
+//! Preferencias de la ventana nativa sincronizadas con el directorio de datos del checkout.
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
-/// Carpeta de datos de la ventana nativa, separada de la instalación estable.
+/// Raíz del repositorio cuando el ejecutable se compila o corre en desarrollo.
+fn repo_root() -> Option<PathBuf> {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = dir.parent()?;
+    if root.join("pyproject.toml").is_file() {
+        Some(root.to_path_buf())
+    } else {
+        None
+    }
+}
+
+/// Indica si estamos en modo desarrollo (checkout con `pyproject.toml`).
+pub fn is_development() -> bool {
+    repo_root().is_some()
+}
+
+/// Directorio de datos del usuario; en desarrollo usa una subcarpeta aislada por checkout.
 pub fn user_data_dir() -> PathBuf {
     let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
         .or_else(|| std::env::var_os(if cfg!(windows) { "HOME" } else { "USERPROFILE" }))
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
-    home.join(".davinci_flow").join("gpui")
+    let base = home.join(".davinci_flow");
+    if let Some(root) = repo_root() {
+        use std::{
+            collections::hash_map::DefaultHasher,
+            hash::{Hash, Hasher},
+        };
+        let mut hasher = DefaultHasher::new();
+        root.to_string_lossy().to_lowercase().hash(&mut hasher);
+        return base
+            .join("development")
+            .join(format!("gpui-{:016x}", hasher.finish()));
+    }
+    base.join("gpui")
 }
 
 fn preferences_path() -> PathBuf {
     user_data_dir().join("library.json")
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+fn default_appearance_theme() -> String {
+    "aurora".into()
+}
+
+fn default_appearance_mode() -> String {
+    "dark".into()
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Preferences {
     /// Carpetas indexadas por categoría.
     #[serde(default)]
@@ -23,6 +62,23 @@ pub struct Preferences {
     /// Recursos compartidos con la IA (máximo 80, como en la interfaz vigente).
     #[serde(default)]
     pub selected: Vec<String>,
+    /// Tema de apariencia: "aurora" (predeterminado) o "classic".
+    #[serde(default = "default_appearance_theme")]
+    pub appearance_theme: String,
+    /// Modo de apariencia: "dark" u "light".
+    #[serde(default = "default_appearance_mode")]
+    pub appearance_mode: String,
+}
+
+impl Default for Preferences {
+    fn default() -> Self {
+        Self {
+            folders: BTreeMap::new(),
+            selected: Vec::new(),
+            appearance_theme: default_appearance_theme(),
+            appearance_mode: default_appearance_mode(),
+        }
+    }
 }
 
 impl Preferences {
@@ -35,7 +91,7 @@ impl Preferences {
         Self::load_from(&preferences_path())
     }
 
-    fn load_from(path: &std::path::Path) -> Result<Self, String> {
+    fn load_from(path: &Path) -> Result<Self, String> {
         let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -93,6 +149,15 @@ impl Preferences {
         self.folders.insert(category.to_owned(), values);
     }
 
+    pub fn clear_category(&mut self, category: &str) {
+        self.folders.remove(category);
+    }
+
+    pub fn clear_all(&mut self) {
+        self.folders.clear();
+        self.selected.clear();
+    }
+
     /// Marca o desmarca un recurso; el límite de 80 es el vigente en Flet.
     pub fn toggle_selected(&mut self, id: &str) -> Result<bool, String> {
         if let Some(position) = self.selected.iter().position(|value| value == id) {
@@ -148,5 +213,25 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "{invalid");
         std::fs::remove_file(path).unwrap();
         std::fs::remove_dir(folder).unwrap();
+    }
+
+    #[test]
+    fn new_preferences_start_empty_and_can_be_cleared() {
+        let folder = std::env::temp_dir().join(format!("flow-empty-prefs-{}", std::process::id()));
+        let missing = folder.join("missing-library.json");
+        let loaded = Preferences::load_from(&missing).unwrap();
+        assert!(loaded.folders.is_empty());
+        assert!(loaded.selected.is_empty());
+
+        let mut prefs = loaded;
+        prefs.set_folders("visuals", vec![PathBuf::from("C:/brolls")]);
+        prefs.set_folders("sfx", vec![PathBuf::from("C:/sfx")]);
+        prefs.toggle_selected("res-1").unwrap();
+        prefs.clear_category("visuals");
+        assert!(prefs.folders_for("visuals").is_empty());
+        assert_eq!(prefs.folders_for("sfx"), vec![PathBuf::from("C:/sfx")]);
+        prefs.clear_all();
+        assert!(prefs.folders.is_empty());
+        assert!(prefs.selected.is_empty());
     }
 }

@@ -9,7 +9,7 @@ file = "scripts/mise-task.ts"
 
 [tasks.dev]
 raw_args = true
-description = "Ejecutar DaVinci Flow en desarrollo (Python / Flet Desktop)"
+description = "Abrir Rust + GPUI con mise dev, o Python/Flet con mise dev py"
 file = "scripts/mise-task.ts"
 
 [tasks.build]
@@ -37,22 +37,17 @@ raw_args = true
 description = "Publicar la release en GitHub Releases (--plan y --check sin escritura; --yes autoriza la publicación)"
 file = "scripts/mise-task.ts"
 
-[tasks.dev-gpui]
-raw_args = true
-description = "Abrir la demo Rust + GPUI; admite una ruta SRT opcional y --plan"
-file = "scripts/mise-task.ts"
-
 [tasks.build-gpui]
 raw_args = true
-description = "Compilar la demo nativa en src-gpui/target/debug sin instalador"
+description = "Compilar el ejecutable nativo GPUI en src-gpui/target/debug sin instalador"
 file = "scripts/mise-task.ts"
 
 [tasks.check-gpui]
 raw_args = true
-description = "Verificar formato y Clippy de la demo Rust + GPUI"
+description = "Verificar formato y Clippy de DaVinci Flow (Rust + GPUI)"
 file = "scripts/mise-task.ts"
 
 [tasks.test-gpui]
 raw_args = true
-description = "Ejecutar las pruebas del motor migrado a Rust"
+description = "Ejecutar las pruebas del motor y contratos en Rust (GPUI)"
 file = "scripts/mise-task.ts"

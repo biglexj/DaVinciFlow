@@ -116,7 +116,8 @@ const IMPORT_SMOKE = [
 
 const help = `DaVinci Flow: mise <setup|dev|build|check|test|release|publish> [opciones]
   setup    Preparar .venv con uv e instalar el lanzador en DaVinci Resolve.
-  dev      Ejecutar en modo desarrollo (Flet Desktop).
+  dev      Ejecutar Rust + GPUI en desarrollo.
+  dev py   Ejecutar Python/Flet en su carpeta de trabajo.
   build    Verificar sintaxis y generar los paquetes Python en dist/.
   check    Verificar sintaxis, importacion y contratos, sin generar artefactos.
   test     Ejecutar las pruebas unitarias.
@@ -129,6 +130,7 @@ const help = `DaVinci Flow: mise <setup|dev|build|check|test|release|publish> [o
 Ejemplos:
   mise setup
   mise dev --plan
+  mise dev py --plan
   mise build --plan
   mise check --plan
   mise test --plan
@@ -291,6 +293,14 @@ export async function main(args = Bun.argv.slice(2)): Promise<number> {
         const { runGpuiTask } = await import("./gpui-task.ts");
         return runGpuiTask(action, rest, root);
     }
+    if (action === "dev") {
+        if (rest[0] === "py") {
+            const { runPythonDev } = await import("./python-dev.ts");
+            return runPythonDev(root, rest.slice(1));
+        }
+        const { runGpuiTask } = await import("./gpui-task.ts");
+        return runGpuiTask("dev", rest, root);
+    }
     if (!action || action === "--help" || rest.includes("--help")) {
         console.log(help);
         return 0;
@@ -309,15 +319,6 @@ export async function main(args = Bun.argv.slice(2)): Promise<number> {
         console.log(`setup ${appName}\nDirectorio: ${root}\nComando: ${cmd.join(" ")}`);
         if (isPlan) return 0;
         const child = Bun.spawn(cmd, { cwd: root, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
-        return (await child.exited) ?? 0;
-    }
-
-    if (action === "dev") {
-        const cmd = [...pythonCmd, join(root, "src-flet", "main.py")];
-        const env = { PYTHONPATH: `${join(root, "src")};${join(root, "src-flet")}` };
-        console.log(`dev ${appName}\nDirectorio: ${root}\nComando: ${cmd.join(" ")}\nEntorno   : PYTHONPATH=${env.PYTHONPATH}`);
-        if (isPlan) return 0;
-        const child = Bun.spawn(cmd, { cwd: root, env: { ...process.env, ...env }, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
         return (await child.exited) ?? 0;
     }
 
@@ -372,16 +373,12 @@ export async function main(args = Bun.argv.slice(2)): Promise<number> {
     }
 
     if (action === "release") {
-        const pasos = [
-            { titulo: "Compilando el instalador de Windows (Inno Setup) en release/", cmd: powershellCmd("scripts/packaging/Build-Installer.ps1") },
-            { titulo: "Generando los paquetes Python y los checksums en dist/ y release/", cmd: powershellCmd("scripts/release/build-release.ps1", ["-LocalOnly"]) },
-        ];
-        console.log(`release ${appName}\nDirectorio: ${root}`);
-        if (isPlan) {
-            for (const paso of pasos) console.log(`  ${paso.titulo}: ${paso.cmd.join(" ")}`);
-            return 0;
-        }
-        return runPasos(pasos, false);
+        const psArgs = ["powershell","-NoProfile","-ExecutionPolicy","Bypass","-File","./scripts/packaging/Build-Installer.ps1"];
+        console.log(`release ${appName}\nDirectorio: ${root}\nComando: ${psArgs.join(" ")}`);
+        if (isPlan) return 0;
+
+        const child = Bun.spawn(psArgs, { cwd: root, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+        return (await child.exited) ?? 0;
     }
 
     throw new Error(`Acción desconocida: ${action}. Usa mise setup, mise dev, mise build, mise check, mise test, mise release o mise publish.`);

@@ -549,9 +549,18 @@ class ResolveTimelineWriter:
     ) -> Any:
         """Importa e inserta un WAV real en la pista DF_SFX con tiempo verificado."""
         media_item = self._imported_sfx.get(asset_id)
+        user_sfx = getattr(self, "user_sfx_paths", {})
+        is_user_sfx = asset_id in user_sfx
         if media_item is None:
-            paths = ensure_builtin_sfx_assets(self.asset_root)
-            path = paths.get(asset_id)
+            path = user_sfx.get(asset_id)
+            if path is None:
+                candidate = Path(asset_id)
+                if candidate.is_file():
+                    path = candidate
+                    is_user_sfx = True
+            if path is None:
+                paths = ensure_builtin_sfx_assets(self.asset_root)
+                path = paths.get(asset_id)
             root_folder = self._safe_call(self._require_media_pool(), "GetRootFolder")
             if path is None:
                 try:
@@ -573,13 +582,29 @@ class ResolveTimelineWriter:
                 raise TimelineWriteError(f"No se pudo resolver el archivo de audio para '{asset_id}'.")
             self._imported_sfx[asset_id] = media_item
 
+        actual_duration = duration_frames
+        if is_user_sfx:
+            raw_frames = None
+            get_prop = getattr(media_item, "GetClipProperty", None)
+            if callable(get_prop):
+                try:
+                    raw_frames = get_prop("Frames")
+                except Exception:
+                    raw_frames = None
+            try:
+                available_frames = float(raw_frames) if raw_frames is not None else 0.0
+            except (TypeError, ValueError):
+                available_frames = 0.0
+            if available_frames > 0:
+                actual_duration = max(1.0, float(min(round(duration_frames), int(available_frames))))
+
         sfx_item = self._append_media_item(
             media_item=media_item,
             media_type=2,
             track_type="audio",
             track_index=track_index,
             record_frame=self._resolve_record_frame(start_frame),
-            duration_frames=duration_frames,
+            duration_frames=actual_duration,
         )
         self._set_native_name(sfx_item, native_name)
         return sfx_item

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from davinci_flow.user_data import user_data_dir
 from collections import Counter
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
@@ -24,7 +25,7 @@ from davinci_flow.editorial.planner import propose_batch
 from davinci_flow.editorial.resolve_bridge import read_resolve
 from davinci_flow.subtitles.model import SubtitleCue
 
-SESSION_DIR = Path.home() / ".davinci_flow" / "editorial_runs"
+SESSION_DIR = user_data_dir() / "editorial_runs"
 FULL_CAPTURE_LAST = 1_000_000
 SESSION_VERSION = 1
 BATCH_CHOICES = ("20", "50", "100", "500", "all")

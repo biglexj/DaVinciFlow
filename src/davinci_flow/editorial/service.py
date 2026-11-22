@@ -1,5 +1,6 @@
 """Aplicación de la revisión exacta con detección de cambios de secuencia."""
 
+from davinci_flow.user_data import user_data_dir
 from collections import Counter
 from dataclasses import replace
 import math
@@ -15,7 +16,7 @@ from davinci_flow.generation.record import GenerationExecutionRecord
 
 def record_path_for(project_id: str, timeline_id: str) -> Path:
     """Cada secuencia conserva su propia ejecución reversible."""
-    return Path.home() / ".davinci_flow/records/editorial" / digest([project_id, timeline_id])[:32] / "last.json"
+    return user_data_dir() / "records/editorial" / digest([project_id, timeline_id])[:32] / "last.json"
 
 
 def _same_revision_on_timeline(captured: Snapshot, current: Snapshot) -> bool:
@@ -143,7 +144,24 @@ def apply_reviewed(proposal: Proposal, session: Any, record_path: Path) -> Gener
     # Comprobar almacenamiento antes de tocar la secuencia.
     record_path.parent.mkdir(parents=True, exist_ok=True)
     proposal.save(record_path.with_suffix(".proposal.json"))
-    record = writer.apply_plan(proposal.generation_plan())
+    broll_proposals = [
+        SimpleNamespace(
+            block_index=idx,
+            start_frame=cue.start_frame,
+            end_frame=cue.end_frame,
+            target_track="DF_BROLL",
+            asset=SimpleNamespace(
+                file_path=str(writer.user_broll_paths[decision.resource_id]),
+                name=writer.user_broll_paths[decision.resource_id].name,
+            ),
+        )
+        for idx, (cue, decision) in enumerate(zip(proposal.snapshot.cues, proposal.decisions), start=1)
+        if decision.enabled and decision.resource_id in writer.user_broll_paths
+    ]
+    record = writer.apply_plan(
+        proposal.generation_plan(),
+        broll_proposals=broll_proposals or None,
+    )
     try:
         record.save_to_file(record_path)
     except OSError:

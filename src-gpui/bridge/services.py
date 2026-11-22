@@ -11,8 +11,8 @@ from protocol import read_request
 
 PREFIX = 'DAVINCI_FLOW_GPUI='
 
-READ_OPERATIONS = {'settings', 'scan_models', 'assistant', 'release', 'sfx_catalog', 'templates', 'align'}
-WRITE_OPERATIONS = {'save_key', 'save_settings', 'insert_markers'}
+READ_OPERATIONS = {'settings', 'scan_models', 'assistant', 'release', 'sfx_catalog', 'templates', 'project_templates', 'template_preview', 'align'}
+WRITE_OPERATIONS = {'save_key', 'save_settings', 'save_library', 'save_preset', 'use_preset', 'choose_pack', 'assign_node', 'insert_markers', 'write_subtitles'}
 
 
 def parse_arguments(argv):
@@ -112,18 +112,145 @@ def sfx_catalog():
     }
 
 
-def templates():
-    from davinci_flow.editorial.sources import scan_installed
+def templates(extra_roots=None):
+    from pathlib import Path
+    from davinci_flow.editorial.preferences import Preferences
+    from davinci_flow.editorial.sources import basic_titles, scan_installed
+    from davinci_flow.editorial.title_preview import title_preview_kind
 
     diagnostics = []
     from dataclasses import asdict
-    catalog = {template.id: template for template in scan_installed(diagnostics=diagnostics)}
+    preferences = Preferences.load()
+    roots = list(extra_roots or ())
+    configured_titles = preferences.paths.get('titles', '').strip()
+    if configured_titles:
+        for part in configured_titles.split(';'):
+            if part.strip():
+                roots.append(Path(part.strip()))
+    catalog = {template.id: template for template in basic_titles()}
+    for template in scan_installed(tuple(roots) if roots else None, diagnostics=diagnostics):
+        catalog[template.id] = template
+    for preset in preferences.title_presets.values():
+        for raw in preset:
+            if isinstance(raw, dict) and raw.get('id') in catalog:
+                pass
+    items = []
+    for template in catalog.values():
+        item = asdict(template)
+        try:
+            item['preview_kind'] = title_preview_kind(template) or ''
+        except Exception:
+            item['preview_kind'] = ''
+        items.append(item)
     return {
-        'templates': [
-            asdict(template) for template in catalog.values()
-        ],
+        'templates': items,
         'diagnostics': diagnostics,
+        'presets': sorted(preferences.title_presets.keys()),
+        'selected_ids': [t.get('id', '') for t in preferences.templates if isinstance(t, dict) and t.get('id')],
     }
+
+
+def project_templates():
+    from dataclasses import asdict
+    from davinci_flow.editorial import resolve_bridge
+
+    found = resolve_bridge.read_titles()
+    return {
+        'templates': [asdict(t) for t in found],
+        'count': len(found),
+    }
+
+
+def template_preview(arguments):
+    from davinci_flow.editorial.model import Template
+    from davinci_flow.editorial.preview_capture import ensure_title_thumbnail
+    from davinci_flow.editorial.title_preview import read_title_preview
+
+    raw = arguments.get('template')
+    if not isinstance(raw, dict):
+        raise ValueError('Plantilla inválida para previsualización.')
+    allowed = {'id', 'name', 'source', 'locator', 'fingerprint', 'text_tool', 'text_input', 'category'}
+    template = Template(**{k: v for k, v in raw.items() if k in allowed})
+    preview = read_title_preview(template)
+    if not preview.image and not preview.video:
+        try:
+            ensure_title_thumbnail(template)
+            preview = read_title_preview(template)
+        except Exception:
+            pass
+    return {
+        'image': str(preview.image) if preview.image else '',
+        'video': str(preview.video) if preview.video else '',
+    }
+
+
+def save_preset(arguments):
+    from davinci_flow.editorial.controller import EditorialController
+
+    name = str(arguments.get('name', '')).strip()
+    ids = set(arguments.get('ids') or ())
+    controller = EditorialController()
+    controller.scan_titles()
+    count = controller.save_title_preset(name, ids)
+    return {
+        'saved': name,
+        'count': count,
+        'presets': sorted(controller.preferences.title_presets.keys()),
+    }
+
+
+def use_preset(arguments):
+    from davinci_flow.editorial.controller import EditorialController
+
+    name = str(arguments.get('name', '')).strip()
+    controller = EditorialController()
+    controller.scan_titles()
+    count = controller.use_title_preset(name)
+    return {
+        'name': name,
+        'count': count,
+        'selected_ids': [t.id for t in controller.templates],
+    }
+
+
+def choose_pack(arguments):
+    from davinci_flow.editorial.controller import EditorialController
+
+    pack_name = str(arguments.get('pack', '')).strip()
+    controller = EditorialController()
+    controller.scan_titles()
+    count = controller.choose_pack(pack_name)
+    return {
+        'pack': pack_name,
+        'count': count,
+        'selected_ids': [t.id for t in controller.templates],
+    }
+
+
+def assign_node(arguments):
+    from dataclasses import asdict
+    from davinci_flow.editorial.preferences import Preferences
+
+    ids = set(arguments.get('ids') or ())
+    text_tool = str(arguments.get('text_tool', '')).strip()
+    text_input = str(arguments.get('text_input', '')).strip() or 'StyledText'
+    if not ids:
+        raise ValueError('Selecciona al menos una plantilla para asignar el nodo.')
+    current = templates()['templates']
+    chosen = []
+    for item in current:
+        if item['id'] in ids:
+            updated = dict(item)
+            updated.pop('preview_kind', None)
+            updated['text_tool'] = text_tool
+            updated['text_input'] = text_input
+            chosen.append(updated)
+    if not chosen:
+        raise ValueError('No se encontraron las plantillas seleccionadas.')
+    preferences = Preferences.load()
+    preferences.templates = chosen[:60]
+    preferences.save()
+    return {'assigned': len(chosen)}
 
 
 def align(arguments):
@@ -251,6 +378,66 @@ def save_settings(arguments):
     return read_settings()
 
 
+def write_subtitles(arguments):
+    from davinci_flow.editorial import resolve_bridge
+
+    raw_cues = arguments.get('cues')
+    if not isinstance(raw_cues, list) or not raw_cues:
+        raise ValueError('No hay subtítulos para escribir en Resolve.')
+    track_index = arguments.get('track_index')
+    cues = []
+    for item in raw_cues:
+        if not isinstance(item, dict):
+            raise ValueError('Subtítulo inválido para enviar a Resolve.')
+        text = str(item.get('text', '')).strip()
+        if not text:
+            raise ValueError('No se puede escribir un subtítulo vacío en Resolve.')
+        start_frame = float(item.get('start_frame', 0.0))
+        end_frame = float(item.get('end_frame', 0.0))
+        if end_frame <= start_frame or start_frame < 0:
+            raise ValueError('Tiempos inválidos en subtítulo para Resolve.')
+        cues.append({
+            'text': text,
+            'start_frame': start_frame,
+            'end_frame': end_frame,
+            'track_index': int(track_index or item.get('track_index') or 1),
+        })
+    return resolve_bridge.request(
+        'subtitles',
+        cues=cues,
+        track_index=track_index,
+        file_name=str(arguments.get('file_name') or 'davinci-flow'),
+    )
+
+
+def save_library(arguments):
+    from davinci_flow.assets.library import CATEGORIES
+    from davinci_flow.editorial.preferences import Preferences
+
+    folders = arguments.get('folders') or {}
+    selected = arguments.get('selected') or []
+    if not isinstance(folders, dict):
+        raise ValueError('Las carpetas de biblioteca deben enviarse como diccionario.')
+    if not isinstance(selected, list):
+        raise ValueError('La selección de recursos debe enviarse como lista.')
+
+    preferences = Preferences.load()
+    clean_paths = {}
+    for category, entries in folders.items():
+        if category in CATEGORIES and isinstance(entries, list):
+            cleaned = [str(p).strip() for p in entries if str(p).strip()]
+            if cleaned:
+                clean_paths[category] = '; '.join(cleaned)
+    preferences.paths = clean_paths
+    preferences.resource_ids = [str(item) for item in selected if str(item).strip()][:80]
+    preferences.save()
+    return {
+        'saved': True,
+        'categories': len(clean_paths),
+        'selected': len(preferences.resource_ids),
+    }
+
+
 def execute(operation, arguments):
     if operation in READ_OPERATIONS:
         if operation == 'settings':
@@ -268,13 +455,29 @@ def execute(operation, arguments):
             return sfx_catalog()
         if operation == 'align':
             return align(arguments)
-        return templates()
+        if operation == 'project_templates':
+            return project_templates()
+        if operation == 'template_preview':
+            return template_preview(arguments)
+        return templates(arguments.get('roots'))
     if operation == 'save_key':
         return save_key(arguments.get('provider', ''), arguments.get('key', ''))
     if operation == 'save_settings':
         return save_settings(arguments)
+    if operation == 'save_library':
+        return save_library(arguments)
+    if operation == 'save_preset':
+        return save_preset(arguments)
+    if operation == 'use_preset':
+        return use_preset(arguments)
+    if operation == 'choose_pack':
+        return choose_pack(arguments)
+    if operation == 'assign_node':
+        return assign_node(arguments)
     if operation == 'insert_markers':
         return insert_markers(arguments)
+    if operation == 'write_subtitles':
+        return write_subtitles(arguments)
     raise ValueError('Operación de servicios no admitida.')
 
 

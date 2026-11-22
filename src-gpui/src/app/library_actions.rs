@@ -4,6 +4,76 @@ use super::*;
 impl FlowApp {
     // --- Biblioteca ---
 
+    pub(super) fn sync_preferences_to_backend(&self, cx: &mut Context<Self>) {
+        let folders = self.preferences.folders.clone();
+        let selected = self.preferences.selected.clone();
+        cx.background_executor()
+            .spawn(async move {
+                let _ = services::sync_library(&folders, &selected);
+            })
+            .detach();
+    }
+
+    fn apply_library_change(
+        &mut self,
+        category_changed: Option<&str>,
+        done_message: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let affects_titles = category_changed.is_none() || category_changed == Some("titles");
+        let refresh_templates =
+            affects_titles && (!self.templates.is_empty() || self.tab == Tab::Catalog);
+        if !refresh_templates {
+            self.sync_preferences_to_backend(cx);
+            self.scan_library(window, cx);
+            if let Some(msg) = done_message {
+                self.notify(Ok(msg), cx);
+            }
+            return;
+        }
+        let folders = self.preferences.folders.clone();
+        let selected = self.preferences.selected.clone();
+        let active_category = self.library_category.clone();
+        let active_folders = self.preferences.folders_for(&active_category);
+        self.work(
+            "Actualizando biblioteca y catálogo de plantillas…",
+            window,
+            cx,
+            move || {
+                services::sync_library(&folders, &selected)?;
+                let catalog = services::template_catalog()?;
+                let inventory = library::scan_category(&active_category, &active_folders, 2000);
+                Ok((catalog, inventory))
+            },
+            move |this, (catalog, inventory), _, cx| {
+                this.templates = catalog.templates;
+                this.catalog_diagnostics = catalog.diagnostics;
+                this.catalog_presets = catalog.presets;
+                if this.catalog_selected.is_empty() {
+                    this.catalog_selected = catalog.selected_ids.into_iter().collect();
+                }
+                if inventory.category == this.library_category {
+                    let count = inventory.resources.len();
+                    let warnings = inventory.warnings.join(" ");
+                    this.library_inventory = inventory;
+                    this.filter_library(cx);
+                    let msg = done_message.unwrap_or_else(|| {
+                        format!(
+                            "Plantillas y biblioteca actualizadas ({count} recursos). {warnings}"
+                        )
+                    });
+                    this.notify(Ok(msg), cx);
+                } else {
+                    let msg = done_message.unwrap_or_else(|| {
+                        "Catálogo de plantillas actualizado con las carpetas configuradas.".into()
+                    });
+                    this.notify(Ok(msg), cx);
+                }
+            },
+        );
+    }
+
     pub(super) fn choose_library_folder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let category = self.library_category.clone();
         let receiver = cx.prompt_for_paths(PathPromptOptions {
@@ -28,7 +98,7 @@ impl FlowApp {
                             return;
                         }
                         this.preferences = preferences;
-                        this.scan_library(window, cx);
+                        this.apply_library_change(Some(&category), None, window, cx);
                     }
                 }
                 Ok(Ok(None)) => {}
@@ -53,18 +123,59 @@ impl FlowApp {
             return;
         }
         folders.remove(index);
-        preferences.set_folders(&self.library_category, folders.clone());
+        let category = self.library_category.clone();
+        preferences.set_folders(&category, folders);
         if let Err(error) = preferences.save() {
             self.notify(Err(error), cx);
             return;
         }
         self.preferences = preferences;
-        self.scan_library(window, cx);
-        self.notify(
-            Ok(format!(
-                "Carpeta quitada de {}.",
-                library::label(&self.library_category)
+        self.apply_library_change(
+            Some(&category),
+            Some(format!("Carpeta quitada de {}.", library::label(&category))),
+            window,
+            cx,
+        );
+    }
+
+    pub(super) fn clear_library_category(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.busy {
+            return;
+        }
+        let category = self.library_category.clone();
+        let mut preferences = self.preferences.clone();
+        preferences.clear_category(&category);
+        if let Err(error) = preferences.save() {
+            self.notify(Err(error), cx);
+            return;
+        }
+        self.preferences = preferences;
+        self.apply_library_change(
+            Some(&category),
+            Some(format!(
+                "Carpetas vaciadas en {}.",
+                library::label(&category)
             )),
+            window,
+            cx,
+        );
+    }
+
+    pub(super) fn reset_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.busy {
+            return;
+        }
+        let mut preferences = self.preferences.clone();
+        preferences.clear_all();
+        if let Err(error) = preferences.save() {
+            self.notify(Err(error), cx);
+            return;
+        }
+        self.preferences = preferences;
+        self.apply_library_change(
+            None,
+            Some("Biblioteca restablecida: sin carpetas ni recursos precargados.".into()),
+            window,
             cx,
         );
     }
@@ -130,9 +241,48 @@ impl FlowApp {
                     return;
                 }
                 self.preferences = preferences;
+                self.sync_preferences_to_backend(cx);
                 cx.notify();
             }
             Err(error) => self.notify(Err(error), cx),
         }
+    }
+
+    pub(super) fn remove_missing_resources(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let prefs = self.preferences.clone();
+        self.work(
+            "Comprobando recursos seleccionados en disco…",
+            window,
+            cx,
+            move || {
+                let mut available = std::collections::HashSet::new();
+                for (category, _) in library::CATEGORIES {
+                    let inv =
+                        library::scan_category(category, &prefs.folders_for(category), 20_000);
+                    for res in inv.resources {
+                        available.insert(res.id);
+                    }
+                }
+                Ok(available)
+            },
+            |this, available, _, cx| {
+                let mut preferences = this.preferences.clone();
+                let before = preferences.selected.len();
+                preferences.selected.retain(|id| available.contains(id));
+                let removed = before.saturating_sub(preferences.selected.len());
+                if let Err(error) = preferences.save() {
+                    this.notify(Err(error), cx);
+                    return;
+                }
+                this.preferences = preferences;
+                this.sync_preferences_to_backend(cx);
+                this.notify(
+                    Ok(format!(
+                        "{removed} selección(es) no disponible(s) eliminada(s)."
+                    )),
+                    cx,
+                );
+            },
+        );
     }
 }

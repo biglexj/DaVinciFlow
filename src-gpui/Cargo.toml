@@ -1,10 +1,10 @@
 [package]
 name = "davinci-flow-gpui"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 publish = false
 license = "MIT"
-description = "Demo nativa incremental de DaVinci Flow"
+description = "Aplicación nativa de escritorio de DaVinci Flow (Rust + GPUI)"
 
 [dependencies]
 gpui-kit = "=0.9.1"

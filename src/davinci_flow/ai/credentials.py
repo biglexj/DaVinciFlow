@@ -1,5 +1,6 @@
 """Gestión segura de credenciales para las APIs de IA (Gemini y Minimax)."""
 
+from davinci_flow.user_data import user_data_dir
 import json
 import os
 from dataclasses import dataclass
@@ -7,7 +8,7 @@ from pathlib import Path
 
 from davinci_flow.errors import DaVinciFlowError, GeminiCredentialsError, MinimaxCredentialsError
 
-CONFIG_DIR = Path.home() / ".davinci_flow"
+CONFIG_DIR = user_data_dir()
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 

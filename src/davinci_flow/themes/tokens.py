@@ -29,6 +29,9 @@ class ThemeTokens:
     safe_margin_x: float = 0.05
     safe_margin_y: float = 0.08
     vertical_align: str = "bottom"  # "bottom", "center", "top"
+    font_style_main: str = "Bold"
+    font_style_context: str = "Bold"
+    font_style_accent: str = "Bold"
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -54,12 +57,14 @@ ELY_THEME = ThemeTokens(
     accent_color="#FFE6CA",
     text_color="#FFFFFF",
     context_color="#6E7179",
-    font_family_main="Montserrat",
-    font_family_context="Inter",
-    font_family_accent="Montserrat",
+    # Branding Core de Ely; Kefa queda reservada al flujo de karaoke.
+    font_family_main="Thunder",
+    font_family_context="Open Sans",
+    font_family_accent="Tilt Warp",
     font_size_main=0.075,
     font_size_context=0.045,
     font_size_accent=0.055,
+    font_style_accent="Regular",
     safe_margin_x=0.05,
     safe_margin_y=0.08,
     vertical_align="bottom",

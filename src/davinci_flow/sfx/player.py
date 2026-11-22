@@ -15,7 +15,7 @@ class SoundPlayer:
     def __init__(self, alias: str = "dvf_sfx_preview") -> None:
         self.alias = alias
         self._current_path: str | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     @property
     def current_path(self) -> str | None:

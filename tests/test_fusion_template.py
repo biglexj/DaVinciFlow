@@ -13,6 +13,13 @@ from davinci_flow.themes.tokens import ELY_THEME
 class FusionTemplateTests(unittest.TestCase):
     """Verifica la generación sintáctica de .setting, conversión de color y presets de animación."""
 
+    def test_ely_accent_uses_documented_family_and_regular_style_for_every_animation(self):
+        for animation in SUPPORTED_ANIMATION_PRESETS:
+            with self.subTest(animation=animation):
+                setting = generate_textplus_fusion_setting('DaVinci Flow', ELY_THEME, role='accent', animation_preset=animation)
+                self.assertIn('Font = Input { Value = "Tilt Warp", }', setting)
+                self.assertIn('Style = Input { Value = "Regular", }', setting)
+
     def test_hex_to_rgb_float(self) -> None:
         # #FFFFFF -> (1.0, 1.0, 1.0)
         self.assertEqual(hex_to_rgb_float("#FFFFFF"), (1.0, 1.0, 1.0))

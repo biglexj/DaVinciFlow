@@ -14,9 +14,9 @@
 - [ ] Verificar aplicación/deshacer reales en una secuencia de prueba y voz remota de Aurora.
 - [x] Panel semántico/guion/marcadores de Corrección: alineación con el guion, glosario
       y marcadores en la línea de tiempo, con aplicación transaccional en el motor.
-- [ ] Presets y previsualización de títulos, tandas reanudables.
+- [x] Presets, packs rápidos, lectura de proyecto y vista previa de títulos; tandas reanudables y modo Decisiones en el Editor.
+- [x] Separación motor/voz en Voz, cuenta Aurora con Google/Discord y autodetección de retorno, e historial y metadatos en Luna Fetch.
 - [ ] Validar alineación/guion y posición/inserción de marcadores reales en Resolve.
-- [ ] Reproducción multimedia integrada, progreso/cancelación de Fetch y adaptación visual completa a 900 × 640.
 - [ ] Aceptación visual de Biglex, empaquetado y actualización del ejecutable nativo.
 
 La matriz en src-gpui/README.md distingue interfaz nativa, servicios que aún pasan por Python y capacidades pendientes. No se confunden presencia de una vista, pruebas del contrato y funcionamiento real dentro de Resolve.

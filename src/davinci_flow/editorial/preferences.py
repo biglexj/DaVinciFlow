@@ -1,6 +1,7 @@
 """Preferencias no secretas de la ventana compartida."""
 
-from dataclasses import asdict, dataclass, field
+from davinci_flow.user_data import user_data_dir
+from dataclasses import asdict, dataclass, field, fields
 import json
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from davinci_flow.ai.providers.base import (
 from davinci_flow.assets.library import CATEGORIES
 from davinci_flow.editorial.model import EditorialError, EditorialOptions, Template
 
-PREFERENCES_PATH = Path.home() / ".davinci_flow/editorial_preferences.json"
+PREFERENCES_PATH = user_data_dir() / "editorial_preferences.json"
 
 
 @dataclass
@@ -27,6 +28,7 @@ class Preferences:
     direction: str = ""
     paths: dict[str, str] = field(default_factory=dict)
     templates: list[dict] = field(default_factory=list)
+    title_presets: dict[str, list[dict]] = field(default_factory=dict)
     resource_ids: list[str] = field(default_factory=list)
     track_mode: str = "triple"
     batch_size: str = "20"
@@ -51,6 +53,15 @@ class Preferences:
             raise EditorialError("Selección de recursos inválida.")
         for template in self.templates:
             Template(**template)
+        if not isinstance(self.title_presets, dict) or len(self.title_presets) > 60:
+            raise EditorialError("Biblioteca de presets inválida.")
+        for name, templates in self.title_presets.items():
+            if not isinstance(name, str) or not name.strip() or len(name) > 80:
+                raise EditorialError("El nombre del preset debe tener entre 1 y 80 caracteres.")
+            if not isinstance(templates, list) or not 1 <= len(templates) <= 60:
+                raise EditorialError("Un preset debe incluir entre 1 y 60 plantillas.")
+            for template in templates:
+                Template(**template)
 
     def save(self, path: Path = PREFERENCES_PATH):
         self.validate()
@@ -75,6 +86,8 @@ class Preferences:
                 if provider == MINIMAX_PROVIDER and model not in MINIMAX_MODELS:
                     # El modelo guardado pertenece a otro proveedor: se restituye el de Minimax.
                     data["model"] = MINIMAX_MODELS[0]
+                known_fields = {f.name for f in fields(cls)}
+                data = {k: v for k, v in data.items() if k in known_fields}
             result = cls(**data)
             result.validate()
             return result

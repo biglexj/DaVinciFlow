@@ -92,8 +92,7 @@ impl FlowApp {
             )
         };
         column()
-            .w_full()
-            .max_w(px(880.))
+            .size_full()
             .min_h_0()
             .gap(px(12.))
             .child(
@@ -110,7 +109,7 @@ impl FlowApp {
             )
             .child(
                 row()
-                    .gap(px(6.))
+                    .gap(px(8.))
                     .children(SUGGESTIONS.iter().map(|(name, prompt)| {
                         let prompt = prompt.to_string();
                         button(format!("suggestion-{name}"), *name, false).on_click(cx.listener(
@@ -122,8 +121,8 @@ impl FlowApp {
             )
             .child(
                 column()
-                    .max_h(px(380.))
-                    .min_h(px(120.))
+                    .flex_1()
+                    .min_h(px(140.))
                     .gap(px(10.))
                     .p(px(12.))
                     .bg(rgb(CARD))

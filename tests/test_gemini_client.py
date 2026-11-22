@@ -132,10 +132,15 @@ class ListAvailableModelsTests(unittest.TestCase):
                 {"name": "models/text-embedding-004", "supportedGenerationMethods": ["embedContent"]},
                 {"name": "models/gemini-3.5-flash", "supportedGenerationMethods": ["generateContent"]},
                 {"name": "models/gemini-3.7-flash", "supportedGenerationMethods": ["generateContent"]},
-            ]
+                {"name": "models/gemini-4-argon", "supportedGenerationMethods": ["generateContent"]},
+            ],
+            "nextPageToken": "page-2",
         }
         mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps(mock_payload).encode("utf-8")
+        mock_resp.read.side_effect = [
+            json.dumps(mock_payload).encode("utf-8"),
+            b'{"models":[{"name":"models/gemini-4-carbon","supportedGenerationMethods":["generateContent"]}]}',
+        ]
         mock_resp.__enter__.return_value = mock_resp
         mock_urlopen.return_value = mock_resp
 
@@ -143,15 +148,19 @@ class ListAvailableModelsTests(unittest.TestCase):
         self.assertIn("gemini-3.5-flash-lite", models)
         self.assertIn("gemini-3.5-flash", models)
         self.assertIn("gemini-3.7-flash", models)
+        self.assertIn("gemini-4-argon", models)
+        self.assertIn("gemini-4-carbon", models)
+        self.assertTrue(mock_urlopen.call_args.args[0].full_url.endswith("?pageToken=page-2"))
         self.assertNotIn("gemini-2.5-pro", models)
         self.assertNotIn("text-embedding-004", models)
 
     def test_list_available_models_fallback_on_empty_or_error(self) -> None:
-        from davinci_flow.ai.client import FALLBACK_MODELS, list_available_gemini_models
+        from davinci_flow.ai.client import FALLBACK_MODELS, list_available_gemini_model_info, list_available_gemini_models
 
         with patch("davinci_flow.ai.client.get_gemini_api_key", side_effect=Exception("No key")):
             models = list_available_gemini_models(api_key=None)
             self.assertEqual(models, FALLBACK_MODELS)
+            self.assertEqual(list_available_gemini_model_info(use_fallback=False), ())
 
 
 class GeminiRecoveryTests(unittest.TestCase):

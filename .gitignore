@@ -17,7 +17,7 @@ dist/
 .venv-pypy/
 .venv-resolve/
 venv/
-
+/release/
 # Configuración local y secretos
 .env
 *.local.json

@@ -16,11 +16,12 @@ impl Render for FlowApp {
             Tab::Library => self.library_view(cx),
             Tab::Settings => self.settings_view(cx),
         };
+        let p = palette();
         let shell = row()
             .size_full()
             .gap_0()
-            .bg(rgb(BG))
-            .text_color(rgb(TEXT))
+            .bg(rgb(p.bg))
+            .text_color(rgb(p.text))
             .font_family("Segoe UI")
             .text_size(px(13.))
             .child(self.sidebar(cx))
@@ -40,22 +41,53 @@ impl Render for FlowApp {
                             .pb(px(10.))
                             .gap(px(10.))
                             .child(self.header())
+                            .child(div().flex_1().min_h_0().w_full().child(content)),
+                    )
+                    .child(self.footer(cx)),
+            );
+        let mut root = div().relative().size_full().child(shell);
+        if let Some(toast) = &self.toast_message {
+            root = root.child(
+                div()
+                    .absolute()
+                    .top(px(18.))
+                    .left_0()
+                    .right_0()
+                    .flex()
+                    .justify_center()
+                    .child(
+                        row()
+                            .px(px(20.))
+                            .py(px(10.))
+                            .rounded(px(20.))
+                            .bg(rgb(0x182622))
+                            .border_1()
+                            .border_color(rgb(ACCENT))
+                            .gap(px(8.))
+                            .child(
+                                gpui_kit::component::Icon::new(IconName::CircleCheck)
+                                    .size(px(18.))
+                                    .text_color(rgb(ACCENT)),
+                            )
                             .child(
                                 div()
-                                    .flex_1()
-                                    .min_h_0()
-                                    .w_full()
-                                    .max_w(px(1120.))
-                                    .child(content),
+                                    .text_size(px(13.))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(rgb(TEXT))
+                                    .child(toast.clone()),
                             ),
-                    )
-                    .child(self.footer()),
+                    ),
             );
-        let root = div().relative().size_full().child(shell);
-        if self.about_open {
-            root.child(self.about_overlay(cx))
-        } else {
-            root
         }
+        if self.about_open {
+            root = root.child(self.about_overlay(cx));
+        }
+        if let Some((title, preview)) = &self.catalog_preview {
+            root = root.child(self.catalog_preview_overlay(title, preview, cx));
+        }
+        if self.video_modal_open {
+            root = root.child(self.video_overlay(cx));
+        }
+        root
     }
 }

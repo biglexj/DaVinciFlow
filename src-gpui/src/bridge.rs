@@ -88,11 +88,13 @@ pub(crate) fn invoke_json(
         operation,
         "apply"
             | "undo"
+            | "clean_tracks"
             | "import_media"
             | "fetch_download"
             | "voice_generate"
             | "voice_recover"
             | "insert_markers"
+            | "write_subtitles"
     );
     let root = root();
     let python = std::env::var_os("DAVINCIFLOW_GPUI_PYTHON")

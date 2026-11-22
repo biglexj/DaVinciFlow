@@ -56,6 +56,18 @@ pub struct Marker {
     pub note: String,
 }
 
+/// Confirmación de escritura de subtítulos nativos en Resolve.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct SubtitleWriteReceipt {
+    pub track_index: usize,
+    pub cue_count: usize,
+    pub srt_path: String,
+    #[serde(default)]
+    pub confirmed: bool,
+    #[serde(default)]
+    pub method: String,
+}
+
 /// Resultado de la alineación semántica de los subtítulos.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Alignment {
@@ -84,6 +96,27 @@ pub struct TemplateInfo {
     pub text_tool: String,
     #[serde(default = "default_text_input")]
     pub text_input: String,
+    #[serde(default, skip_serializing)]
+    pub preview_kind: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct TemplateCatalog {
+    pub templates: Vec<TemplateInfo>,
+    #[serde(default)]
+    pub diagnostics: Vec<String>,
+    #[serde(default)]
+    pub presets: Vec<String>,
+    #[serde(default)]
+    pub selected_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct TemplatePreview {
+    #[serde(default)]
+    pub image: String,
+    #[serde(default)]
+    pub video: String,
 }
 
 fn default_text_input() -> String {
@@ -116,7 +149,6 @@ struct SfxEnvelope {
 #[derive(Deserialize)]
 struct TemplatesEnvelope {
     templates: Vec<TemplateInfo>,
-    diagnostics: Vec<String>,
 }
 
 fn text(value: &Value, key: &str) -> String {
@@ -214,10 +246,110 @@ pub fn sfx_catalog() -> Result<Vec<SfxAsset>, String> {
 
 /// Plantillas instaladas y básicas disponibles para las propuestas.
 pub fn templates() -> Result<(Vec<TemplateInfo>, Vec<String>), String> {
-    let value = bridge::invoke("services.py", "templates", &[])?;
-    let parsed = serde_json::from_value::<TemplatesEnvelope>(value)
-        .map_err(|_| "El catálogo de plantillas no se pudo leer.".to_string())?;
+    let parsed = template_catalog()?;
     Ok((parsed.templates, parsed.diagnostics))
+}
+
+/// Catálogo completo de plantillas junto con presets y selección activa.
+pub fn template_catalog() -> Result<TemplateCatalog, String> {
+    let value = bridge::invoke("services.py", "templates", &[])?;
+    serde_json::from_value::<TemplateCatalog>(value)
+        .map_err(|_| "El catálogo de plantillas no se pudo leer.".to_string())
+}
+
+/// Lee los títulos disponibles en el Media Pool del proyecto activo de Resolve.
+pub fn project_templates() -> Result<Vec<TemplateInfo>, String> {
+    let value = bridge::invoke("services.py", "project_templates", &[])?;
+    let parsed = serde_json::from_value::<TemplatesEnvelope>(serde_json::json!({
+        "templates": value.get("templates").cloned().unwrap_or(Value::Array(vec![]))
+    }))
+    .map_err(|_| "Los títulos del proyecto no se pudieron leer.".to_string())?;
+    Ok(parsed.templates)
+}
+
+/// Obtiene la imagen o animación de vista previa de una plantilla.
+pub fn template_preview(template: &TemplateInfo) -> Result<TemplatePreview, String> {
+    let value = bridge::invoke_json(
+        "services.py",
+        "template_preview",
+        serde_json::json!({"template": template}),
+    )?;
+    serde_json::from_value::<TemplatePreview>(value)
+        .map_err(|_| "No se pudo leer la vista previa de la plantilla.".to_string())
+}
+
+/// Guarda un preset de selección de plantillas.
+pub fn save_preset(name: &str, ids: &[String]) -> Result<(usize, Vec<String>), String> {
+    let value = bridge::invoke_json(
+        "services.py",
+        "save_preset",
+        serde_json::json!({"name": name, "ids": ids}),
+    )?;
+    let count = value["count"].as_u64().unwrap_or(0) as usize;
+    let presets = value["presets"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok((count, presets))
+}
+
+/// Activa un preset de plantillas guardado.
+pub fn use_preset(name: &str) -> Result<(usize, Vec<String>), String> {
+    let value = bridge::invoke_json(
+        "services.py",
+        "use_preset",
+        serde_json::json!({"name": name}),
+    )?;
+    let count = value["count"].as_u64().unwrap_or(0) as usize;
+    let selected = value["selected_ids"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok((count, selected))
+}
+
+/// Aplica un pack rápido de plantillas por categoría.
+pub fn choose_pack(pack: &str) -> Result<(usize, Vec<String>), String> {
+    let value = bridge::invoke_json(
+        "services.py",
+        "choose_pack",
+        serde_json::json!({"pack": pack}),
+    )?;
+    let count = value["count"].as_u64().unwrap_or(0) as usize;
+    let selected = value["selected_ids"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok((count, selected))
+}
+
+/// Asigna el nodo Text+ y su entrada de texto a las plantillas elegidas.
+pub fn assign_node(ids: &[String], text_tool: &str, text_input: &str) -> Result<usize, String> {
+    let value = bridge::invoke_json(
+        "services.py",
+        "assign_node",
+        serde_json::json!({
+            "ids": ids,
+            "text_tool": text_tool,
+            "text_input": text_input,
+        }),
+    )?;
+    Ok(value["assigned"].as_u64().unwrap_or(0) as usize)
 }
 
 /// Guarda la clave API del proveedor indicado en la credencial estándar del usuario.
@@ -314,4 +446,50 @@ pub fn save_settings(
         ],
     )?;
     Ok(())
+}
+
+/// Sincroniza las carpetas y selecciones de la biblioteca con el motor Python.
+pub fn sync_library(
+    folders: &std::collections::BTreeMap<String, Vec<String>>,
+    selected: &[String],
+) -> Result<(), String> {
+    bridge::invoke_json(
+        "services.py",
+        "save_library",
+        serde_json::json!({
+            "folders": folders,
+            "selected": selected,
+        }),
+    )?;
+    Ok(())
+}
+
+/// Escribe los subtítulos en la pista nativa de subtítulos de DaVinci Resolve.
+pub fn write_subtitles(
+    cues: &[(f64, f64, String)],
+    track_index: Option<u32>,
+    file_name: &str,
+) -> Result<SubtitleWriteReceipt, String> {
+    let payload: Vec<Value> = cues
+        .iter()
+        .map(|(start, end, text)| {
+            serde_json::json!({
+                "text": text,
+                "start_frame": start,
+                "end_frame": end,
+                "track_index": track_index.unwrap_or(1),
+            })
+        })
+        .collect();
+    let value = bridge::invoke_json(
+        "services.py",
+        "write_subtitles",
+        serde_json::json!({
+            "cues": payload,
+            "track_index": track_index,
+            "file_name": file_name,
+        }),
+    )?;
+    serde_json::from_value::<SubtitleWriteReceipt>(value)
+        .map_err(|_| "Resolve no devolvió una confirmación válida de subtítulos.".into())
 }

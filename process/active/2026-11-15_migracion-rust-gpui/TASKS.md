@@ -32,7 +32,11 @@
 - [x] JSON por stdin, clave enmascarada, validación de tarifa/saldo y preferencias dañadas protegidas.
 - [x] Integrar guion/IA de Corrección con deltas atómicos y proveedor explícito; rechazar marcadores sin captura identificada o con montaje diferente.
 - [x] Verificar apertura real de 20 subtítulos y propuesta directa en la mesa nativa.
+- [x] Renombrar rama a `GPUI`, actualizar versión a `0.3.1`, retirar referencias de demo y dividir `app.rs` (`subtitles_actions.rs`) para cumplir el límite de líneas (< 900).
+- [x] Unificar aislamiento por checkout e importación de rutas desde `editorial_preferences.json`, persistiendo opciones del Editor y mostrando identidad activa en el sidebar.
+- [x] Completar paridad de controles en Editor/Revisión (tabla de 7 columnas, tandas reanudables, modo Decisiones, SFX por bloque, capas según `track_mode`, limpiar pistas DF y colisiones `EditorialConflictError`).
+- [x] Completar paridad de Plantillas (packs rápidos, presets, lectura de proyecto Media Pool, asignación de nodo Text+ y vista previa modal), SFX (fusión con carpetas de usuario, filtros y preescucha), Voz (separación motor/voz, Discord y autodetección de callback) y Luna Fetch (metadatos enriquecidos e historial de sesión).
 - [ ] Verificar guardado/reapertura del JSON completo desde el diálogo nativo; el contrato Rust/Python sí dispone de prueba de integración.
 - [ ] Validar aplicación/deshacer reales sobre una secuencia de prueba de Resolve.
 - [ ] Validar acceso/retorno y generación remota de Aurora con el usuario.
-- [ ] Paridad avanzada, multimedia integrada, adaptadores restantes e instalador: ver matriz `src-gpui/README.md`.
+- [ ] Aceptación visual y funcional de Biglex e integración final en el instalador.

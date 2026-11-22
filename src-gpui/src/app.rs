@@ -1,7 +1,4 @@
-//! Estado y acciones de la ventana nativa; la presentación vive en los módulos `app::*`.
-//!
-//! La estructura reproduce la interfaz Flet vigente: barra lateral con las mismas
-//! pestañas, encabezado con el nombre del módulo, área de trabajo y pie de estado.
+//! Estado y ciclo de vida de la ventana nativa; la presentación vive en `app::*`.
 pub mod about;
 pub mod ai_actions;
 pub mod assistant_view;
@@ -13,12 +10,15 @@ pub mod library_actions;
 pub mod library_view;
 pub mod media_actions;
 pub mod media_view;
+pub mod player_bar;
 pub mod review_view;
 pub mod service_actions;
 pub mod settings_view;
 pub mod shell;
+pub mod subtitles_actions;
 pub mod subtitles_view;
 pub mod updates;
+pub mod video_modal;
 pub mod views;
 pub mod voice_view;
 
@@ -28,16 +28,19 @@ use crate::{
     subtitles::{self, Document},
     ui::*,
 };
+use davinci_flow_gpui::audio_player::{AudioPlayer, PlayerSnapshot};
 use davinci_flow_gpui::editorial;
 use davinci_flow_gpui::media;
 use davinci_flow_gpui::services;
 use davinci_flow_gpui::session::SubtitleSession;
+use davinci_flow_gpui::video_player::VideoStreamer;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use gpui_kit::{prelude::*, *};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Pestañas de la ventana; nombres y orden siguen la interfaz vigente.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -105,20 +108,7 @@ impl Tab {
 
     /// El módulo dispone de vista nativa con acciones reales.
     pub fn migrated(self) -> bool {
-        matches!(
-            self,
-            Tab::Assistant
-                | Tab::Editor
-                | Tab::Subtitles
-                | Tab::Brolls
-                | Tab::Music
-                | Tab::Sfx
-                | Tab::Catalog
-                | Tab::Library
-                | Tab::Settings
-                | Tab::Voice
-                | Tab::Fetch
-        )
+        true
     }
 }
 
@@ -138,23 +128,31 @@ pub struct FlowApp {
     pub library_filter: Entity<InputState>,
     pub library_filtered: Vec<usize>,
     pub library_scan_pending: bool,
+    pub media_offset: usize,
     pub editor_track: Entity<InputState>,
     pub editor_fps: Entity<InputState>,
     pub editor_first: Entity<InputState>,
     pub editor_last: Entity<InputState>,
     pub editor_stage: u8,
     pub editor_options: editorial::Options,
+    pub editor_batch_size: String,
     pub editor_direction: Entity<InputState>,
     pub capture_snapshot: Option<Value>,
     pub proposal: Option<editorial::Proposal>,
     pub proposal_input: Vec<(u64, u64, String)>,
     pub proposal_dirty: bool,
+    pub batch_processed: usize,
+    pub batch_total: usize,
+    pub batch_next: Option<usize>,
+    pub conflicts: Vec<editorial::Conflict>,
     pub review_selected: usize,
     pub review_context: Entity<TextareaState>,
     pub review_main: Entity<TextareaState>,
     pub review_accent: Entity<TextareaState>,
     pub review_note: Entity<InputState>,
     pub review_enabled: bool,
+    pub review_sfx: String,
+    pub review_sfx_open: bool,
     pub review_templates: BTreeMap<String, String>,
     pub review_template_layer: Option<String>,
     pub template_filter: Entity<InputState>,
@@ -165,13 +163,25 @@ pub struct FlowApp {
     pub fetch_import: bool,
     pub fetch_info: Option<media::MediaInfo>,
     pub fetch_result: Option<media::Download>,
+    pub fetch_history: Vec<media::Download>,
     pub voice_text: Entity<TextareaState>,
     pub voice_catalog: media::VoiceCatalog,
+    pub voice_engine: String,
     pub voice_selected: Option<usize>,
     pub voice_quote: Option<(String, String, u64)>,
     pub voice_output: Option<PathBuf>,
+    pub voice_waiting_login: bool,
     pub media_preview: Option<PathBuf>,
     pub media_source: Option<PathBuf>,
+    pub playing_sound: Option<PathBuf>,
+    pub audio_player: AudioPlayer,
+    pub player_state: PlayerSnapshot,
+    pub player_pump_active: bool,
+    pub player_origin: Option<Tab>,
+    pub video_streamer: VideoStreamer,
+    pub video_frame: Option<Arc<RenderImage>>,
+    pub video_synced_epoch: u64,
+    pub video_modal_open: bool,
     // Panel de IA y guion de la pestaña «Corrección».
     pub ai_panel_open: bool,
     pub ai_script: Entity<TextareaState>,
@@ -179,6 +189,7 @@ pub struct FlowApp {
     pub ai_markers: Vec<services::Marker>,
     pub ai_snapshot: Option<Value>,
     pub about_open: bool,
+    pub about_licenses_open: bool,
     pub busy: bool,
     pub message: String,
     pub error: bool,
@@ -197,10 +208,27 @@ pub struct FlowApp {
     // Actualizaciones
     pub release: Option<services::Release>,
     pub release_checked: bool,
-    // Catálogos
+    pub toast_message: Option<String>,
+    // Catálogos (SFX y Plantillas)
     pub sfx_assets: Vec<services::SfxAsset>,
+    pub user_sfx_resources: Vec<library::Resource>,
+    pub user_broll_resources: Vec<library::Resource>,
+    pub sfx_query: Entity<InputState>,
+    pub sfx_category: String,
+    pub sfx_track_name: Entity<InputState>,
+    pub sfx_anticipation: Entity<InputState>,
+    pub sfx_offset: usize,
     pub templates: Vec<services::TemplateInfo>,
     pub catalog_diagnostics: Vec<String>,
+    pub catalog_query: Entity<InputState>,
+    pub catalog_source: String,
+    pub catalog_offset: usize,
+    pub catalog_selected: BTreeSet<String>,
+    pub catalog_presets: Vec<String>,
+    pub catalog_preset_name: Entity<InputState>,
+    pub catalog_node_name: Entity<InputState>,
+    pub catalog_node_input: Entity<InputState>,
+    pub catalog_preview: Option<(String, services::TemplatePreview)>,
     pub _subscriptions: Vec<Subscription>,
     pub close_prompt: bool,
 }
@@ -230,8 +258,9 @@ impl FlowApp {
         let editor_first = cx.new(|cx| InputState::new(window, cx).placeholder("Desde"));
         let editor_last = cx.new(|cx| InputState::new(window, cx).placeholder("Hasta"));
         let editor_direction = cx.new(|cx| {
-            InputState::new(window, cx)
-                .placeholder("Dirección creativa para esta propuesta (opcional)")
+            InputState::new(window, cx).placeholder(
+                "Dirección creativa (ej.: pocas palabras grandes; alternar con planos sin texto)",
+            )
         });
         let assistant_prompt = cx.new(|cx| {
             InputState::new(window, cx)
@@ -248,22 +277,37 @@ impl FlowApp {
             cx.new(|cx| TextareaState::new(window, cx).placeholder("Texto principal"));
         let review_accent = cx.new(|cx| TextareaState::new(window, cx).placeholder("Énfasis"));
         let review_note =
-            cx.new(|cx| InputState::new(window, cx).placeholder("Motivo de la edición manual"));
+            cx.new(|cx| InputState::new(window, cx).placeholder("Nota si reescribes el original"));
         let template_filter =
             cx.new(|cx| InputState::new(window, cx).placeholder("Buscar plantilla"));
-        let fetch_url = cx.new(|cx| InputState::new(window, cx).placeholder("Enlace HTTP o HTTPS"));
+        let fetch_url = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("https://www.youtube.com/watch?v=… o Suno, TikTok, SoundCloud")
+        });
         let fetch_directory = cx.new(|cx| {
             InputState::new(window, cx).placeholder("Carpeta predeterminada de Luna Fetch")
         });
         let voice_text = cx.new(|cx| {
             TextareaState::new(window, cx)
-                .placeholder("Escribe el texto que quieres convertir en voz")
+                .placeholder("Escribe el texto tal como quieres escucharlo.")
         });
         let ai_script = cx.new(|cx| {
             TextareaState::new(window, cx).placeholder(
                 "Pega aquí el guion para alinear omisiones, ortografía y nombres propios…",
             )
         });
+        let sfx_query = cx.new(|cx| {
+            InputState::new(window, cx).placeholder("Buscar sonido por nombre o palabra clave…")
+        });
+        let sfx_track_name = cx.new(|cx| InputState::new(window, cx).placeholder("DF_SFX"));
+        let sfx_anticipation = cx.new(|cx| InputState::new(window, cx).placeholder("-3"));
+        let catalog_query = cx
+            .new(|cx| InputState::new(window, cx).placeholder("Buscar títulos por nombre o ruta"));
+        let catalog_preset_name =
+            cx.new(|cx| InputState::new(window, cx).placeholder("Ej.: Narrativa horizontal"));
+        let catalog_node_name =
+            cx.new(|cx| InputState::new(window, cx).placeholder("Vacío: detectar un único Text+"));
+        let catalog_node_input = cx.new(|cx| InputState::new(window, cx).placeholder("StyledText"));
 
         let mut subscriptions = vec![
             cx.subscribe(&find, |this, _, event, cx| {
@@ -273,6 +317,7 @@ impl FlowApp {
             }),
             cx.subscribe(&library_filter, |this, _, event, cx| {
                 if matches!(event, InputEvent::Change) {
+                    this.media_offset = 0;
                     this.filter_library(cx);
                 }
             }),
@@ -281,6 +326,18 @@ impl FlowApp {
                     this.session.set_draft(state.read(cx).value().to_string());
                 }
                 cx.notify();
+            }),
+            cx.subscribe(&sfx_query, |this, _, event, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.sfx_offset = 0;
+                    cx.notify();
+                }
+            }),
+            cx.subscribe(&catalog_query, |this, _, event, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.catalog_offset = 0;
+                    cx.notify();
+                }
             }),
         ];
         for input in [&review_context, &review_main, &review_accent] {
@@ -307,7 +364,7 @@ impl FlowApp {
         let preference_error = loaded_preferences.as_ref().err().cloned();
         let mut app = Self {
             tab: Tab::Editor,
-            pending_tab:None,
+            pending_tab: None,
             session: SubtitleSession::default(),
             filtered_cues: vec![],
             find,
@@ -320,23 +377,68 @@ impl FlowApp {
             library_inventory: library::Inventory::default(),
             library_filter,
             library_filtered: vec![],
-            library_scan_pending:false,
+            library_scan_pending: false,
+            media_offset: 0,
             editor_track,
             editor_fps,
             editor_first,
             editor_last,
             editor_stage: 1,
-            editor_options:editorial::Options::default(),editor_direction,
-            capture_snapshot:None,proposal:None,proposal_dirty:false,review_selected:0,
-            proposal_input:vec![],
-            review_context,review_main,review_accent,review_note,review_enabled:true,
-            review_templates:BTreeMap::new(),last_application:None,
-            review_template_layer:None,template_filter,
-            fetch_url,fetch_directory,fetch_audio:false,fetch_import:false,fetch_info:None,fetch_result:None,
-            voice_text,voice_catalog:media::VoiceCatalog::default(),voice_selected:None,voice_quote:None,voice_output:None,
-            media_preview:None,media_source:None,
-            ai_panel_open:false,ai_script,ai_detect_markers:true,ai_markers:Vec::new(),ai_snapshot:None,
+            editor_options: editorial::Options::default(),
+            editor_batch_size: "20".into(),
+            editor_direction,
+            capture_snapshot: None,
+            proposal: None,
+            proposal_dirty: false,
+            batch_processed: 0,
+            batch_total: 0,
+            batch_next: None,
+            conflicts: vec![],
+            review_selected: 0,
+            proposal_input: vec![],
+            review_context,
+            review_main,
+            review_accent,
+            review_note,
+            review_enabled: true,
+            review_sfx: String::new(),
+            review_sfx_open: false,
+            review_templates: BTreeMap::new(),
+            last_application: None,
+            review_template_layer: None,
+            template_filter,
+            fetch_url,
+            fetch_directory,
+            fetch_audio: false,
+            fetch_import: true,
+            fetch_info: None,
+            fetch_result: None,
+            fetch_history: vec![],
+            voice_text,
+            voice_catalog: media::VoiceCatalog::default(),
+            voice_engine: "system".into(),
+            voice_selected: None,
+            voice_quote: None,
+            voice_output: None,
+            voice_waiting_login: false,
+            media_preview: None,
+            media_source: None,
+            playing_sound: None,
+            audio_player: AudioPlayer::new(),
+            player_state: PlayerSnapshot::default(),
+            player_pump_active: false,
+            player_origin: None,
+            video_streamer: VideoStreamer::new(),
+            video_frame: None,
+            video_synced_epoch: 0,
+            video_modal_open: false,
+            ai_panel_open: false,
+            ai_script,
+            ai_detect_markers: true,
+            ai_markers: Vec::new(),
+            ai_snapshot: None,
             about_open: false,
+            about_licenses_open: false,
             busy: false,
             message: "Listo para abrir tu montaje.".into(),
             error: false,
@@ -356,12 +458,35 @@ impl FlowApp {
             settings_status: String::new(),
             release: None,
             release_checked: false,
+            toast_message: None,
             sfx_assets: vec![],
+            user_sfx_resources: vec![],
+            user_broll_resources: vec![],
+            sfx_query,
+            sfx_category: "all".into(),
+            sfx_track_name,
+            sfx_anticipation,
+            sfx_offset: 0,
             templates: vec![],
             catalog_diagnostics: vec![],
+            catalog_query,
+            catalog_source: "all".into(),
+            catalog_offset: 0,
+            catalog_selected: BTreeSet::new(),
+            catalog_presets: vec![],
+            catalog_preset_name,
+            catalog_node_name,
+            catalog_node_input,
+            catalog_preview: None,
             _subscriptions: subscriptions,
             close_prompt: false,
         };
+        let escape_sub = cx.observe_keystrokes(|this, event, window, cx| {
+            if event.keystroke.key == "escape" {
+                this.handle_escape(window, cx);
+            }
+        });
+        app._subscriptions.push(escape_sub);
         app.set_default_values(window, cx);
         if let Some(error) = preference_error {
             app.notify(Err(error), cx);
@@ -375,6 +500,8 @@ impl FlowApp {
                 move || subtitles::load(&path),
                 |this, doc, window, cx| this.install_document(doc, window, cx),
             );
+        } else {
+            app.startup_preload(window, cx);
         }
         app
     }
@@ -385,17 +512,85 @@ impl FlowApp {
             (self.editor_fps.clone(), "24"),
             (self.editor_first.clone(), "1"),
             (self.editor_last.clone(), "120"),
+            (self.sfx_track_name.clone(), "DF_SFX"),
+            (self.sfx_anticipation.clone(), "-3"),
+            (self.catalog_node_input.clone(), "StyledText"),
         ];
         for (state, value) in values {
             state.update(cx, |state, cx| state.set_value(value, window, cx));
         }
     }
 
-    fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let text = self.session.draft().to_owned();
-        self.edit
-            .update(cx, |state, cx| state.set_value(text, window, cx));
+    /// Cierra diálogos, visores o paneles temporales al pulsar la tecla Escape.
+    pub fn handle_escape(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.video_modal_open {
+            self.video_modal_open = false;
+            if self.player_origin != Some(Tab::Brolls) {
+                self.stop_audio_with_window(Some(window), cx);
+            }
+            cx.notify();
+            return;
+        }
+        if self.catalog_preview.is_some() {
+            self.catalog_preview = None;
+            cx.notify();
+            return;
+        }
+        if self.about_open {
+            self.about_open = false;
+            self.about_licenses_open = false;
+            cx.notify();
+            return;
+        }
+        if self.review_sfx_open || self.review_template_layer.is_some() {
+            self.review_sfx_open = false;
+            self.review_template_layer = None;
+            cx.notify();
+        }
+    }
+
+    /// Actualiza y persiste la preferencia de apariencia (Aurora/Clásico y Oscuro/Claro).
+    pub fn set_appearance_preference(
+        &mut self,
+        theme: &str,
+        mode: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.preferences.appearance_theme = theme.to_string();
+        self.preferences.appearance_mode = mode.to_string();
+        crate::ui::apply_gpui_theme(theme, mode, Some(window), cx);
+        let prefs = self.preferences.clone();
+        cx.background_executor()
+            .spawn(async move {
+                let _ = prefs.save();
+            })
+            .detach();
         cx.notify();
+    }
+
+    /// Carga inicial silenciosa de ajustes, sesión de Aurora y estado de Resolve sin bloquear la apertura.
+    fn startup_preload(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let task = cx
+            .background_executor()
+            .spawn(async move { (services::settings(), bridge::status(), media::voices()) });
+        cx.spawn_in(window, async move |this, cx| {
+            let (settings_res, resolve_res, voices_res) = task.await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                if let Ok(settings) = settings_res {
+                    this.apply_loaded_settings(settings, window, cx);
+                }
+                if let Ok(status) = resolve_res {
+                    this.resolve = Some(status);
+                }
+                if let Ok(catalog) = voices_res {
+                    this.voice_catalog = catalog;
+                    this.sync_voice_selection();
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     fn request_close(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
@@ -419,13 +614,13 @@ impl FlowApp {
         self.close_prompt = true;
         let receiver = window.prompt(
             PromptLevel::Warning,
-            "Hay cambios sin exportar",
+            "Hay cambios sin guardar",
             Some(
-                "Puedes volver para exportar el SRT o cerrar y descartar los cambios de esta demo.",
+                "Tienes subtítulos o revisiones editoriales pendientes de exportar o guardar en archivo. ¿Deseas cerrar de todos modos?",
             ),
             &[
                 PromptButton::Cancel("Volver".into()),
-                PromptButton::Ok("Cerrar sin exportar".into()),
+                PromptButton::Ok("Cerrar sin guardar".into()),
             ],
             cx,
         );
@@ -452,62 +647,8 @@ impl FlowApp {
         cx.notify();
     }
 
-    fn refilter(&mut self, cx: &mut Context<Self>) {
-        let query = self.find.read(cx).value().to_lowercase();
-        self.filtered_cues = self.session.filtered_indices(&query);
-        cx.notify();
-    }
-
-    fn filter_library(&mut self, cx: &mut Context<Self>) {
-        let query = self.library_filter.read(cx).value().to_lowercase();
-        self.library_filtered = self
-            .library_inventory
-            .resources
-            .iter()
-            .enumerate()
-            .filter(|(_, resource)| {
-                query.is_empty() || resource.name.to_lowercase().contains(&query)
-            })
-            .map(|(index, _)| index)
-            .collect();
-        cx.notify();
-    }
-
-    fn select_cue(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
-        match self.session.select(index) {
-            Ok(()) => self.sync_editor(window, cx),
-            Err(error) => self.notify(Err(error), cx),
-        }
-    }
-
-    fn install_document(&mut self, doc: Document, window: &mut Window, cx: &mut Context<Self>) {
-        if let Err(error) = self.session.load(doc) {
-            self.notify(Err(error), cx);
-            return;
-        }
-        self.proposal = None;
-        self.proposal_input.clear();
-        self.proposal_dirty = false;
-        self.capture_snapshot = None;
-        self.ai_snapshot = None;
-        self.ai_markers.clear();
-        self.editor_stage = 1;
-        self.find.update(cx, |s, cx| s.set_value("", window, cx));
-        self.refilter(cx);
-        self.sync_editor(window, cx);
-        let document = self.session.document();
-        let warnings = document.warnings.join(" ");
-        self.notify(
-            Ok(format!(
-                "{} subtítulos cargados. {warnings}",
-                document.cues.len()
-            )),
-            cx,
-        );
-    }
-
     // Un solo trabajo por ventana; el executor mantiene I/O y Python fuera del render.
-    fn work<T: Send + 'static>(
+    pub(super) fn work<T: Send + 'static>(
         &mut self,
         message: &str,
         window: &mut Window,
@@ -542,279 +683,6 @@ impl FlowApp {
         .detach();
     }
 
-    fn choose_srt(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.busy {
-            return;
-        }
-        if self.session.is_dirty()
-            || self.session.has_draft()
-            || self.proposal_dirty
-            || self.review_has_draft(cx)
-        {
-            self.notify(
-                Err("Guarda o descarta la edición pendiente y exporta o deshaz los cambios antes de abrir otra fuente.".into()),
-                cx,
-            );
-            return;
-        }
-        let receiver = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: Some("Abrir subtítulos SRT".into()),
-        });
-        cx.spawn_in(window, async move |this, cx| {
-            let selection = receiver.await;
-            let _ = this.update_in(cx, |this, window, cx| match selection {
-                Ok(Ok(Some(paths))) => {
-                    if let Some(path) = paths.into_iter().next() {
-                        this.work(
-                            "Leyendo SRT…",
-                            window,
-                            cx,
-                            move || subtitles::load(&path),
-                            |this, doc, window, cx| this.install_document(doc, window, cx),
-                        );
-                    }
-                }
-                Ok(Ok(None)) => {}
-                _ => this.notify(Err("No se pudo abrir el selector de archivos.".into()), cx),
-            });
-        })
-        .detach();
-    }
-
-    fn export(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.busy || self.session.document().cues.is_empty() {
-            return;
-        }
-        let snapshot = match self.session.export_snapshot() {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                self.notify(Err(error), cx);
-                return;
-            }
-        };
-        let directory = std::env::var_os("USERPROFILE")
-            .map(PathBuf::from)
-            .unwrap_or_else(bridge::root);
-        let receiver = cx.prompt_for_new_path(&directory, Some("subtitulos-corregidos.srt"));
-        cx.spawn_in(window, async move |this, cx| {
-            let selection = receiver.await;
-            let _ = this.update_in(cx, |this, window, cx| match selection {
-                Ok(Ok(Some(mut path))) => {
-                    if path.extension().is_none() {
-                        path.set_extension("srt");
-                    }
-                    if !path
-                        .extension()
-                        .is_some_and(|s| s.eq_ignore_ascii_case("srt"))
-                    {
-                        this.notify(Err("La exportación debe tener extensión .srt.".into()), cx);
-                        return;
-                    }
-                    this.work(
-                        "Exportando subtítulos…",
-                        window,
-                        cx,
-                        move || {
-                            let receipt = snapshot.save_new(&path)?;
-                            Ok((path, receipt))
-                        },
-                        |this, (path, receipt), _, cx| {
-                            let result = this
-                                .session
-                                .accept_export(receipt)
-                                .map(|()| format!("SRT exportado: {}", path.display()));
-                            this.notify(result, cx);
-                        },
-                    );
-                }
-                Ok(Ok(None)) => {}
-                _ => this.notify(
-                    Err("No se pudo abrir el diálogo de exportación.".into()),
-                    cx,
-                ),
-            });
-        })
-        .detach();
-    }
-
-    /// Lee los subtítulos de Resolve con los valores de pista y rango del Editor.
-    fn capture(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.session.is_dirty()
-            || self.session.has_draft()
-            || self.proposal_dirty
-            || self.review_has_draft(cx)
-        {
-            self.notify(
-                Err("Guarda o descarta la edición pendiente y exporta o deshaz los cambios antes de capturar otra fuente.".into()),
-                cx,
-            );
-            return;
-        }
-        let track = self.number(&self.editor_track, cx, 1);
-        let first = self.number(&self.editor_first, cx, 1);
-        let last = self.number(&self.editor_last, cx, 120);
-        let (track, first, last) = match (track, first, last) {
-            (Some(track), Some(first), Some(last)) => (track, first, last),
-            _ => {
-                self.notify(Err("Pista, Desde y Hasta deben ser números.".into()), cx);
-                return;
-            }
-        };
-        self.work(
-            "Leyendo subtítulos de Resolve…",
-            window,
-            cx,
-            move || bridge::capture(track, first, last),
-            |this, (doc, snapshot), window, cx| {
-                this.install_document(doc, window, cx);
-                this.capture_snapshot = Some(snapshot);
-            },
-        );
-    }
-
-    /// Lee un valor entero de un campo; `None` cuando no es un número válido.
-    fn number(&self, field: &Entity<InputState>, cx: &Context<Self>, fallback: u32) -> Option<u32> {
-        let raw = field.read(cx).value().trim().to_owned();
-        if raw.is_empty() {
-            return Some(fallback);
-        }
-        let value = raw.parse::<u32>().ok()?;
-        if value == 0 { None } else { Some(value) }
-    }
-
-    fn check_resolve(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.resolve = None;
-        self.work(
-            "Consultando Resolve…",
-            window,
-            cx,
-            bridge::status,
-            |this, status, _, cx| {
-                let message = status.description.clone();
-                let running = status.running;
-                this.resolve = Some(status);
-                this.notify(if running { Ok(message) } else { Err(message) }, cx);
-            },
-        );
-    }
-
-    // --- Corrección de subtítulos ---
-
-    fn normalize(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let result = self.session.normalize();
-        self.after_batch(result, window, cx);
-    }
-
-    fn replace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let find = self.find.read(cx).value().to_string();
-        let replacement = self.replacement.read(cx).value().to_string();
-        let result = self
-            .session
-            .replace(&find, &replacement, self.case_sensitive);
-        self.after_batch(result, window, cx);
-    }
-
-    fn apply_glossary(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let glossary = self.glossary.read(cx).value().to_string();
-        let result = self.session.apply_glossary(&glossary);
-        self.after_batch(result, window, cx);
-    }
-
-    fn after_batch(
-        &mut self,
-        result: Result<usize, String>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if result.is_ok() {
-            self.sync_editor(window, cx);
-            self.refilter(cx);
-        }
-        self.notify(
-            result.map(|n| format!("{n} subtítulos modificados. Los tiempos se conservan.")),
-            cx,
-        );
-    }
-
-    fn save_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let result = self.session.save_draft();
-        if result.is_ok() {
-            self.sync_editor(window, cx);
-            self.refilter(cx);
-        }
-        self.notify(
-            result.map(|_| "Cambio guardado. Exporta el SRT para conservarlo en disco.".into()),
-            cx,
-        );
-    }
-
-    fn discard_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.session.discard_draft();
-        self.sync_editor(window, cx);
-    }
-
-    fn restore_cue(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let result = self.session.restore_cue(index);
-        if result.is_ok() {
-            self.sync_editor(window, cx);
-            self.refilter(cx);
-        }
-        self.notify(
-            result.map(|_| "Subtítulo restaurado a su texto original.".into()),
-            cx,
-        );
-    }
-
-    fn next_cue(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(current) = self.session.selected() else {
-            return;
-        };
-        let next = current + 1;
-        if next >= self.session.document().cues.len() {
-            self.notify(Ok("No hay más subtítulos en esta fuente.".into()), cx);
-            return;
-        }
-        self.select_cue(next, window, cx);
-    }
-
-    fn history(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
-        let result = if redo {
-            self.session.redo()
-        } else {
-            self.session.undo()
-        };
-        if result.is_ok() {
-            self.sync_editor(window, cx);
-            self.refilter(cx);
-        }
-        self.notify(
-            result.map(|()| {
-                if redo {
-                    "Cambio rehecho.".into()
-                } else {
-                    "Cambio deshecho.".into()
-                }
-            }),
-            cx,
-        );
-    }
-
-    /// Propaga los subtítulos corregidos al Editor; ambas vistas comparten la sesión.
-    fn sync_to_editor(&mut self, cx: &mut Context<Self>) {
-        if self.session.document().cues.is_empty() {
-            self.notify(Err("No hay subtítulos para sincronizar.".into()), cx);
-            return;
-        }
-        self.tab = Tab::Editor;
-        self.notify(
-            Ok("Subtítulos corregidos cargados en el Editor.".into()),
-            cx,
-        );
-    }
-
     /// Carga lo que cada módulo necesita la primera vez que se abre.
     pub fn load_for_tab(&mut self, tab: Tab, window: &mut Window, cx: &mut Context<Self>) {
         self.tab = tab;
@@ -828,9 +696,13 @@ impl FlowApp {
                 if self.settings.is_none() {
                     self.load_settings(window, cx);
                 }
+                if self.voice_catalog.voices.is_empty() {
+                    self.refresh_voices(window, cx);
+                }
             }
             Tab::Sfx => {
-                if self.sfx_assets.is_empty() {
+                self.prepare_category("sfx", window, cx);
+                if self.sfx_assets.is_empty() && !self.busy {
                     self.load_sfx_catalog(window, cx);
                 }
             }
@@ -847,9 +719,15 @@ impl FlowApp {
         cx.notify();
     }
 
-    fn prepare_category(&mut self, category: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn prepare_category(
+        &mut self,
+        category: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.library_category != category || self.library_inventory.category != category {
             self.library_category = category.to_owned();
+            self.media_offset = 0;
             if self.library_inventory.category != category {
                 self.library_inventory = library::scan_category(category, &[], 2000);
                 self.library_filtered.clear();
@@ -859,6 +737,4 @@ impl FlowApp {
             self.scan_library(window, cx);
         }
     }
-
-    // --- Ajustes ---
 }

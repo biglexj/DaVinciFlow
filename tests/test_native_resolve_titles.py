@@ -1,11 +1,12 @@
 """Pruebas unitarias para la integración de títulos nativos de DaVinci Resolve."""
 
 from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
 from davinci_flow.editorial.controller import EditorialController
-from davinci_flow.editorial.model import Decision, EditorialOptions, Proposal, Snapshot, Template
+from davinci_flow.editorial.model import Decision, EditorialError, EditorialOptions, Proposal, Snapshot, Template
 from davinci_flow.editorial.writer import EditorialWriter
 from davinci_flow.resolve.kinetic_titles import (
     KineticTitleCatalog,
@@ -20,6 +21,8 @@ class NativeResolveTitlesTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.catalog = KineticTitleCatalog()
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
 
     def test_native_titles_descriptors_available(self) -> None:
         """Comprueba que los títulos nativos clave están presentes en el catálogo."""
@@ -41,7 +44,7 @@ class NativeResolveTitlesTests(unittest.TestCase):
 
     def test_native_pack_selection_in_controller(self) -> None:
         """Verifica que el pack 'native' selecciona plantillas nativas de DaVinci."""
-        controller = EditorialController()
+        controller = EditorialController(Path(self.temp.name) / 'preferences.json')
         # Registrar manualmente plantillas nativas en el catálogo si aún no se han indexado
         for desc in self.catalog.list_by_category("Native")[:10]:
             t = Template(
@@ -58,8 +61,8 @@ class NativeResolveTitlesTests(unittest.TestCase):
         chosen_ids = {t.id for t in controller.templates}
         self.assertTrue(any("ribbon_text" in tid or "text_box" in tid or "fade_on" in tid for tid in chosen_ids))
 
-    def test_editorial_writer_inserts_native_title_directly(self) -> None:
-        """Comprueba que EditorialWriter inserta títulos nativos vía InsertFusionTitleIntoTimeline sin carriers."""
+    def test_unprepared_native_title_never_falls_back_to_a_carrier(self) -> None:
+        """Un nombre del catálogo no garantiza la inserción exacta en la pista elegida."""
         mock_timeline = MagicMock()
         mock_media_pool = MagicMock()
 
@@ -122,21 +125,13 @@ class NativeResolveTitlesTests(unittest.TestCase):
         mock_item.GetName.return_value = native_name
 
         # Aplicar inserción de la plantilla nativa
-        res_item = writer._insert_fusion_title(
-            track_index=2,
-            start_frame=86400,
-            end_frame=86448,
-            text="Texto Nativo Ribbon",
-            role="main",
-            theme=MagicMock(),
-            fps=24.0,
-            native_name=native_name,
-        )
-
-        self.assertIs(res_item, mock_item)
-        mock_timeline.InsertFusionTitleIntoTimeline.assert_called_with("Ribbon Text")
-        mock_tool.SetInput.assert_any_call("StyledText", "Texto Nativo Ribbon")
-        # Asegurar que no se invocó AppendToTimeline (evita carriers)
+        with self.assertRaisesRegex(EditorialError, 'base nativa'):
+            writer._insert_fusion_title(
+                track_index=2, start_frame=86400, end_frame=86448,
+                text="Texto Nativo Ribbon", role="main", theme=MagicMock(),
+                fps=24.0, native_name=native_name,
+            )
+        mock_timeline.InsertFusionTitleIntoTimeline.assert_not_called()
         mock_media_pool.AppendToTimeline.assert_not_called()
 
 

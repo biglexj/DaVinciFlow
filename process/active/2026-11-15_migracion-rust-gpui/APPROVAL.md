@@ -7,4 +7,4 @@
 - **Validación real de esta continuación:** SRT local de 20 bloques abierto y convertido en propuesta directa dentro de GPUI; WAV de voz local generado y validado. La prueba histórica de captura con Resolve abierto figura en VALIDATION.md.
 - **Pendiente:** paridad avanzada, pruebas reales de escritura en Resolve y acceso/voz remota de Aurora, guardado completo del diálogo nativo y aceptación visual. Matriz vigente: src-gpui/README.md.
 - **Aceptación humana:** pendiente; la revisión del agente no equivale a aprobación de Biglex.
-- **Publicación/instalación:** no realizadas. Proceso activo y rama codex/gpui-demo.
+- **Publicación/instalación:** no realizadas. Proceso activo y rama `GPUI`.
