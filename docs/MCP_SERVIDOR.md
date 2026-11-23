@@ -8,8 +8,8 @@ efectos, voz, autocorrección y consulta de la API de Resolve.
 ## Arrancar el servidor
 
 ```bash
-# Desde la raíz del repositorio, con el entorno del proyecto
-python -m davinci_flow.mcp_server
+# Desde la raíz del repositorio, después de mise setup
+.venv/Scripts/python.exe -m davinci_flow.mcp_server
 ```
 
 El servidor habla JSON-RPC 2.0 sobre entrada y salida estándar, una línea por
@@ -22,10 +22,10 @@ cliente MCP puede registrarlo como un servidor más.
 {
   "mcpServers": {
     "davinci-flow": {
-      "command": "python",
+      "command": "D:/Proyectos/biglexj/DaVinciFlow/.venv/Scripts/python.exe",
       "args": ["-m", "davinci_flow.mcp_server"],
       "cwd": "D:/Proyectos/biglexj/DaVinciFlow",
-      "env": { "PYTHONPATH": "D:/Proyectos/biglexj/DaVinciFlow/src" }
+      "env": { "PYTHONPATH": "D:/Proyectos/biglexj/DaVinciFlow/compat/python/src" }
     }
   }
 }

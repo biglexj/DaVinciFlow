@@ -4,18 +4,9 @@ Guía práctica para creadores y editores de contenido sobre el uso de **DaVinci
 
 ---
 
-## 1. Instalación y Apertura
+## 1. Abrir DaVinci Flow
 
-1. En la terminal de tu proyecto, instala el lanzador de DaVinci Resolve:
-   ```bash
-   uv run davinci-flow --install
-   ```
-2. Abre tu proyecto en **DaVinci Resolve 21**.
-3. En la barra de menú superior, selecciona:
-   **Espacio de trabajo** ➔ **Scripts** ➔ **DaVinci Flow**.
-4. La ventana flotante de DaVinci Flow se abrirá en el lateral derecho de la pantalla con la paleta de color neutral de Resolve.
-
----
+Ejecuta `mise dev` desde la raíz del checkout. Abre tu proyecto en DaVinci Resolve Studio para leer la línea de tiempo. `mise setup` prepara los adaptadores que necesitan las operaciones pendientes de migración.
 
 ## 2. Flujo de Trabajo con Subtítulos y Guion
 

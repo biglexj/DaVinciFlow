@@ -144,3 +144,10 @@ No se ejecutaron aplicación/deshacer ni marcadores reales en Resolve, acceso/re
 - El MCP oficial respondió con Resolve Studio abierto. Confirmó el inventario vacío del Media Pool y devolvió el aviso de que el proyecto carecía de una secuencia seleccionada. Quedan por verificar la captura positiva sobre una pista y la importación real.
 - Las pruebas de planificación usan respuestas simuladas para comprobar que el modelo no puede aprobar bloques, alterar la captura original ni perder las negaciones. La generación por tandas identifica los avances por la transcripción, opciones y cortes del montaje. La generación remota y la recuperación de una sesión Aurora siguen pendientes de verificación.
 - El puente Python conservó sus 15 pruebas de contrato. El instalador Rust y la retirada completa del puente requieren completar las operaciones de Resolve y Aurora pendientes.
+
+## Separación de las ramas de escritorio
+
+- `mise dev` se ejecuta desde el checkout actual. En `main` inicia Cargo con el manifiesto de la raíz y en `v-python` inicia Flet con el entorno de esa rama. Las dos ramas resuelven sus rutas localmente.
+- La edición Flet 1.0.0 está descontinuada en `v-python`. El código del último estado publicado antes del ajuste de arranque tiene la etiqueta `archive/python-1.0.0`.
+- GPUI se organiza en `src/` y sus adaptadores pendientes en `compat/python/`. El directorio de datos conserva la identidad del checkout, por lo que mover el código no cambia las preferencias existentes.
+- La aplicación nativa abrió su ventana después de la reorganización. Pasaron formato, Clippy y 66 pruebas de Rust. También pasaron 425 pruebas del motor de compatibilidad.

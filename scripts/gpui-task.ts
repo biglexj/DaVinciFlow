@@ -3,9 +3,9 @@ import { delimiter, join } from "node:path";
 
 /** Comandos de la interfaz nativa Rust + GPUI. */
 export async function runGpuiTask(action: string, args: string[], root: string): Promise<number> {
-    if (args.includes("--help")) {
-        console.log("DaVinci Flow: mise <dev|build-gpui|check-gpui|test-gpui> [--plan]\n" +
-            "mise dev admite una ruta .srt. Usa mise dev py para abrir Python/Flet.");
+    if (action === "--help" || args.includes("--help")) {
+        console.log("DaVinci Flow: mise <dev|build|check|test|setup> [--plan]\n" +
+            "mise dev admite una ruta .srt.");
         return 0;
     }
     const command = action.replace(/-gpui$/, "");
@@ -16,16 +16,17 @@ export async function runGpuiTask(action: string, args: string[], root: string):
     const extras = args.filter(arg => arg !== "--plan");
     if (command !== "dev" && extras.length) throw new Error(`${action} solo admite --plan.`);
     if (extras.length > 1 || extras.some(arg => arg.startsWith("-") || !arg.toLowerCase().endsWith(".srt"))) {
-        throw new Error("Uso: mise dev [archivo.srt] [--plan] o mise dev py [--plan].");
+        throw new Error("Uso: mise dev [archivo.srt] [--plan].");
     }
-    const manifest = ["--manifest-path", join(root, "src-gpui", "Cargo.toml"), "--locked"];
+    const manifestPath = join(root, "Cargo.toml");
+    const manifest = ["--manifest-path", manifestPath, "--locked"];
     const commands: string[][] = command === "dev"
         ? [["cargo", "run", ...manifest, ...(extras.length ? ["--", ...extras] : [])]]
         : command === "build"
             ? [["cargo", "build", ...manifest]]
             : command === "test"
                 ? [["cargo", "test", ...manifest, "--lib"]]
-                : [["cargo", "fmt", "--manifest-path", join(root, "src-gpui", "Cargo.toml"), "--", "--check"],
+                : [["cargo", "fmt", "--manifest-path", manifestPath, "--", "--check"],
                    ["cargo", "clippy", ...manifest, "--all-targets", "--", "-D", "warnings"]];
     const home = process.env.USERPROFILE || process.env.HOME || "";
     const extraPath: string[] = [];

@@ -1,21 +1,20 @@
 # Arquitectura y contratos de DaVinci Flow
 
 - Estado: operativo
-- Última actualización: 2026-11-03
+- Última actualización: 2026-11-22
 - Alcance: mapa real del código, contratos exclusivos del producto y flujo de comandos.
 
 Este documento es el mapa local del proyecto. Los estándares compartidos de estructura, calidad, procesos y comandos viven en la [Documentación Core](../../Docs/README.md) y se aplican desde allí; aquí solo se registra lo que es exclusivo de DaVinci Flow.
 
-## 1. Dos raíces
+## 1. Organización
 
-| Raíz | Contenido | Regla |
-|---|---|---|
-| `src/davinci_flow/` | Motor headless: dominio, adaptadores de Resolve, IA, subtítulos, SFX, voz, temas y actualización. | No importa Flet ni ninguna interfaz. Es importable y comprobable sin ventana abierta. |
-| `src-flet/` | Interfaz de escritorio: `app/` (shell y ciclo de vida), `features/` (vistas por dominio) y `shared/` (componentes transversales). | No habla con la API de Resolve: consume el motor. |
+La aplicación activa es Rust + GPUI en `main` y se ejecuta con `mise dev`. El código de la ventana se organiza por función en `src/app/` y consume los módulos del motor en `src/`.
 
-Entrada de escritorio: `src-flet/main.py`. Entrada de CLI: `python -m davinci_flow` (`src/davinci_flow/__main__.py`), que además expone `--install` (registra el lanzador en el menú de Resolve) y `--about`.
+`src/resolve_scripts/` contiene las llamadas que ejecuta el MCP oficial dentro de Resolve. `compat/python/bridge/` conserva los adaptadores de las operaciones pendientes de migrar y `compat/python/src/davinci_flow/` el motor que esos adaptadores invocan. `mise setup` prepara el entorno local de compatibilidad.
 
-## 2. Mapa de módulos del motor
+Flet 1.0.0 está descontinuado en la rama `v-python`. Su `mise dev` utiliza el propio checkout de esa rama.
+
+## 2. Mapa del motor de compatibilidad
 
 | Módulo | Responsabilidad | Contrato de salida |
 |---|---|---|
@@ -47,7 +46,7 @@ Las claves nunca se escriben en el repositorio, los registros ni la interfaz vis
 ### 3.2 Contrato MCP propio
 
 - Transporte: JSON-RPC 2.0 sobre stdio. Sin servidor de red, sin puertos abiertos.
-- Ejecución: `python -m davinci_flow.mcp_server` con `PYTHONPATH=src`.
+- Ejecución: `python -m davinci_flow.mcp_server` con `.venv/Scripts/python.exe` después de `mise setup`.
 - Protocolo declarado: `2025-06-18`; se admiten `2025-03-26` y `2024-11-05`.
 - La propuesta editorial se publica siempre como propuesta: aplicarla exige `reviewed: true`.
 - Una escritura que Resolve no confirma no se reintenta a ciegas.
@@ -59,36 +58,4 @@ Las plantillas visuales y las composiciones Fusion usan exclusivamente los temas
 
 ## 4. Flujo de comandos
 
-Mise es la entrada principal. Detalle en el [README](../README.md) y en `scripts/mise-task.ts`.
-
-| Tarea | Efecto | Publica |
-|---|---|---|
-| `mise setup` | `uv sync` y registro del lanzador en Resolve. | No |
-| `mise dev` | Ejecuta la interfaz Flet con `PYTHONPATH=src;src-flet`. | No |
-| `mise build` | Verifica sintaxis y genera los paquetes Python en `dist/`. | No |
-| `mise check` | Sintaxis, importación de motor e interfaz y contratos de los scripts. | No |
-| `mise test` | `unittest discover -s tests`. | No |
-| `mise release` | Genera el instalador Inno Setup en `release/` y los paquetes Python en `dist/`. | No |
-| `mise publish github --yes` | Crea el tag y la GitHub Release con el instalador y `SHA256SUMS.txt`. | Sí, de forma explícita |
-
-- `--plan` muestra los comandos o el plan sin ejecutar, sin escribir y sin consultar la red.
-- `--check` verifica requisitos locales y remotos en modo de solo lectura; no publica ni instala.
-- Ninguna tarea acepta opciones que no implemente: una opción desconocida es un error.
-
-### 4.1 Publicación
-
-- GitHub Releases es la fuente de distribución. La sincronización de la ficha del producto en Aurora no está automatizada en este repositorio: se realiza por el canal administrativo descrito en el [estándar de release message web](../../Docs/global/releases/web-release-message-standard.md).
-- La versión tiene una única fuente de verdad: `pyproject.toml`, reflejada en `src/davinci_flow/__init__.py`. Una versión publicada es inmutable.
-- La release de Windows publica el instalador `.exe` y `SHA256SUMS.txt` bajo el mismo tag; los paquetes Python de `dist/` acompañan al tag como artefactos adicionales del repositorio.
-
-### 4.2 Empaquetado
-
-- Instalador: Inno Setup con la plantilla oficial Biglex Modern (`packaging/windows/setup.iss`, `identity.iss`, `version.iss`, `BiglexModernUI.iss`) y lanzador PyInstaller (`packaging/windows/launcher/`).
-- `scripts/packaging/Build-Installer.ps1` genera el ejecutable de escritorio, valida las invariantes de empaquetado y compila el instalador en `release/`.
-- Candado anti-binario obsoleto: si el ejecutable empaquetado es más viejo que `src/`, `assets/`, `packaging/windows/launcher/` o `pyproject.toml`, la compilación falla. Solo `-ForceStale` lo permite, y es únicamente para depurar.
-
-## 5. Proceso y validación
-
-- Los procesos viven en `process/active/YYYY-MM-DD_objetivo/` con `PLAN.md`, `TASKS.md`, `VALIDATION.md` y `APPROVAL.md`.
-- La evidencia se registra en `VALIDATION.md`: una prueba unitaria no sustituye la verificación dentro de DaVinci Resolve.
-- `ROADMAP.md` conserva los pendientes generales e informa de la tarea de refactorización que exige todo archivo que supere el límite de tamaño local.
+Mise abre, compila y verifica la aplicación Rust con `dev`, `build`, `check` y `test`. Consulta las tareas y sus opciones en el [README](../README.md). La versión de GPUI se declara en `Cargo.toml`. El instalador nativo queda pendiente.

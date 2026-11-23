@@ -1,0 +1,13 @@
+{
+  "include": [
+    "src",
+    "bridge",
+    "tests"
+  ],
+  "extraPaths": [
+    "src",
+    "bridge",
+    "tests",
+    "."
+  ]
+}

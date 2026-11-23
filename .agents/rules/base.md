@@ -33,19 +33,19 @@ Reglas locales siempre activas: [perfil Core](core_profile.md) · [mapa de carpe
 
 - Producto: automatización para DaVinci Resolve 21; no es una aplicación independiente.
 - Autor: biglexj. Licencia: MIT.
-- Stack activo: CPython 3.13 de 64 bits, Flet 0.86.5, API de scripting de DaVinci Resolve 21 y servidor MCP propio sobre stdio.
-- Entorno único `.venv` gestionado con `uv`; no se mantienen entornos virtuales paralelos.
+- Stack activo: Rust con GPUI y MCP oficial de Resolve. Los servicios pendientes de migración usan el adaptador CPython 3.13 en `compat/python`.
+- El entorno `.venv` de compatibilidad se prepara con `mise setup`.
 - Las plantillas visuales usan exclusivamente los temas oficiales Ely y Aurora, con validación estricta de paleta y tipografía.
 
 ## 3. Arquitectura local
 
 Mapa vigente y contratos por módulo: [docs/arquitectura.md](../../docs/arquitectura.md). Decisiones propias:
 
-- Dos raíces: `src/davinci_flow/` (motor headless, sin dependencias de interfaz) y `src-flet/` (interfaz Flet: `app/`, `features/`, `shared/`).
-- La API de Resolve solo se alcanza desde adaptadores (`src/davinci_flow/resolve/`, `editorial/resolve_bridge.py`, `editorial/mcp_bridge.py`); la lógica reutilizable no depende de la interfaz.
+- El código activo está en `src/`. Las vistas y acciones de GPUI se organizan por función en `src/app/`.
+- Los accesos a Resolve se concentran en `src/resolve_mcp.rs`, `src/resolve_scripts/` y los adaptadores de `compat/python/`.
 - No se crean módulos para capacidades todavía inactivas.
 - Límite de tamaño: evitar archivos de más de 900 líneas; 1200 es el máximo excepcional (ver [base de Python](../../../Docs/stacks/python/python-baseline.md)). Superar 1200 líneas convierte el archivo en deuda técnica activa y exige una tarea de refactorización en `ROADMAP.md`.
-- Temporales: `temp/` (borradores), `scratch/` (mantenimiento) y `test/` (pruebas temporales), en la raíz. Las pruebas permanentes viven en `tests/`.
+- Temporales: `temp/` (borradores), `scratch/` (mantenimiento) y `test/` (pruebas temporales), en la raíz. Las pruebas de Rust viven junto a sus módulos. Las del puente están en `compat/python/tests/`.
 
 ## 4. Flujo de trabajo local
 
@@ -57,19 +57,9 @@ El ciclo y sus fases se rigen por el [flujo de procesos](../../../Docs/global/do
 
 ## 5. Comandos (Mise)
 
-Mise es la entrada principal de comandos: [estándar de comandos](../../../Docs/global/architecture/mise-command-standard.md). Tareas realmente expuestas por el proyecto:
+`mise dev` ejecuta GPUI desde el checkout actual. `mise build`, `mise check` y `mise test` trabajan con el proyecto Rust. `mise setup` prepara el adaptador de compatibilidad. Las tareas admiten `--plan`.
 
-| Tarea | Efecto |
-|---|---|
-| `mise setup` | Prepara `.venv` con `uv` e instala el lanzador de Resolve. |
-| `mise dev` | Ejecuta la interfaz Flet en desarrollo. |
-| `mise build` | Verifica sintaxis y genera los paquetes Python en `dist/`, sin instalador. |
-| `mise check` | Comprueba sintaxis, importación y contratos de los scripts, sin artefactos. |
-| `mise test` | Ejecuta la suite unitaria. |
-| `mise release` | Prepara artefactos locales (instalador Windows y paquetes Python). No publica. |
-| `mise publish` | Publicación explícita en GitHub Releases; exige autorización explícita. |
-
-`--plan` no ejecuta, no escribe y no consulta la red. `--check` solo verifica. Detalle operativo y ejemplos: [README](../../README.md) y `scripts/mise-task.ts`. Scripts de arranque directo: `scripts/setup-desktop.ps1` y `scripts/start-desktop.ps1`.
+Flet 1.0.0 está descontinuado en la rama `v-python`, con su propio `mise dev`.
 
 ## 6. IA y credenciales (local)
 
@@ -87,10 +77,8 @@ Mise es la entrada principal de comandos: [estándar de comandos](../../../Docs/
 
 ## 8. Empaquetado y publicación (local)
 
-- Instalador: Inno Setup con la plantilla oficial Biglex Modern, generado en `release/`; reglas en [instaladores](../../../Docs/features/installer/README.md) y [Windows](../../../Docs/platforms/windows/installer.md).
-- El empaquetado conserva el candado anti-binario obsoleto: el artefacto se compara con `src/`, `assets/` y `packaging/` antes de empaquetar y la compilación falla si está atrasado ([diagnóstico](../../../Docs/troubleshooting/tools/inno-stale-binary-packaging.md)).
-- `release` prepara y no publica; `publish` publica en GitHub Releases de forma explícita y requiere autorización. La sincronización con la ficha de Aurora no está automatizada en este proyecto: se realiza por el canal administrativo descrito en el [Release Message web](../../../Docs/global/releases/web-release-message-standard.md).
-- La versión tiene una única fuente de verdad: `pyproject.toml`, reflejada en `src/davinci_flow/__init__.py`.
+- La versión de GPUI se declara en `Cargo.toml`. La distribución nativa de Windows sigue pendiente.
+- El código del instalador anterior quedó en el archivo de Flet 1.0.0. El desarrollo continúa en `main`.
 
 ## 9. Soporte oficial (local)
 
