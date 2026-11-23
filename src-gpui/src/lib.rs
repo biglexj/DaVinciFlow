@@ -1,12 +1,22 @@
 //! Motor migrado a Rust; sus módulos no dependen de controles ni estado de GPUI.
+mod alignment;
 mod audio_mci;
 pub mod audio_player;
 pub mod bridge;
 pub mod editorial;
+mod editorial_config;
 pub mod library;
 pub mod media;
+mod native_http;
+mod native_media;
 pub mod preferences;
+mod release_check;
+mod resolve_mcp;
 pub mod services;
 pub mod session;
+mod sfx;
 pub mod subtitles;
+mod system_voice;
+mod templates;
+mod text_provider;
 pub mod video_player;

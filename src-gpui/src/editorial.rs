@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, io::Read, path::Path};
 
+#[path = "editorial_batches.rs"]
+mod batches;
+#[path = "editorial_planner.rs"]
+mod planner;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Decision {
     pub cue_index: usize,
@@ -422,10 +427,7 @@ pub struct BatchProgress {
 }
 
 pub fn generate(proposal: &Proposal) -> Result<Proposal, String> {
-    proposal.validate(false)?;
-    let result =
-        crate::bridge::invoke_json("editorial.py", "generate", json!({"proposal":proposal}))?;
-    Proposal::from_value(result)
+    planner::generate(proposal)
 }
 pub fn generate_decisions(proposal: &Proposal) -> Result<Proposal, String> {
     proposal.validate(false)?;
@@ -436,24 +438,12 @@ pub fn generate_decisions(proposal: &Proposal) -> Result<Proposal, String> {
     )?;
     Proposal::from_value(result)
 }
-pub fn batch_next(proposal: &Proposal, batch_size: &str) -> Result<BatchProgress, String> {
-    proposal.validate(false)?;
-    let value = crate::bridge::invoke_json(
-        "editorial.py",
-        "batch_next",
-        json!({"proposal":proposal,"batch_size":batch_size}),
-    )?;
-    let merged = Proposal::from_value(value["proposal"].clone())?;
-    Ok(BatchProgress {
-        proposal: merged,
-        processed: value["processed"].as_u64().unwrap_or(0) as usize,
-        total: value["total"].as_u64().unwrap_or(0) as usize,
-        complete: value["complete"].as_bool().unwrap_or(false),
-        next_number: value["next_number"].as_u64().map(|v| v as usize),
-        start: value["start"].as_u64().unwrap_or(0) as usize,
-        end: value["end"].as_u64().unwrap_or(0) as usize,
-        message: value["message"].as_str().unwrap_or_default().to_string(),
-    })
+pub fn batch_next(
+    proposal: &Proposal,
+    batch_size: &str,
+    visible: Option<&Proposal>,
+) -> Result<BatchProgress, String> {
+    batches::next(proposal, batch_size, visible)
 }
 pub fn apply(proposal: &Proposal) -> Result<ApplyOutcome, String> {
     proposal.validate(true)?;

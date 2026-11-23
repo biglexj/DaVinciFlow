@@ -135,3 +135,12 @@ No se ejecutaron aplicación/deshacer ni marcadores reales en Resolve, acceso/re
 - [x] Verificación posterior (`2026-11-18`): `mise run check-gpui` sin advertencias, `mise run test-gpui` **48 pruebas en verde** (incluidas 3 nuevas de `audio_player`) y `mise run build-gpui` compilado en verde.
 - [x] Integración de vídeo nativo y refinamiento de UI (`2026-11-18`): reproductor de vídeo en vivo (`src-gpui/src/video_player.rs` sobre FFmpeg MJPEG + `RenderImage` con `window.drop_image` y reloj de audio/silencio en `audio_player.rs`), reproductor acotado exclusivamente a su sección activa (**B-Rolls**, **Música**, **Efectos (SFX)**, **Luna Fetch** y barra compacta dentro de «Audio generado» en **Generación de voz**), botones de acción multimedia de ancho fijo (`fixed_media_button`, `118 px`) sin saltos al alternar `Reproducir`/`Pausar`/`Reanudar`, y rejilla de **Generación de voz** en **4 columnas × máximo 3 filas visibles** con alineación exacta (`flex_basis(px(0.))`).
 - [x] Comprobación final (`2026-11-18`): `mise run check-gpui` (`0` advertencias), `mise run test-gpui` (**51 pruebas en verde**), `mise run build-gpui` en verde y todos los módulos bajo 900 líneas.
+
+## Consolidación nativa del 2026-11-22
+
+- GitHub conserva `main` como rama principal de GPUI y `v-python` en el mismo commit de Flet 1.0.0. `mise dev py --plan` seleccionó la carpeta de trabajo `DaVinciFlow-Flet`.
+- `mise dev` compiló y abrió «DaVinci Flow (Desarrollo)» al configurar `DAVINCIFLOW_GPUI_PYTHON` con una ruta inexistente.
+- Con esa misma condición, FFmpeg produjo un JPEG de un vídeo sintético y `yt-dlp` descargó el vídeo servido en un puerto local. SAPI enumeró cuatro voces y generó un WAV de 162 268 bytes.
+- El MCP oficial respondió con Resolve Studio abierto. Confirmó el inventario vacío del Media Pool y devolvió el aviso de que el proyecto carecía de una secuencia seleccionada. Quedan por verificar la captura positiva sobre una pista y la importación real.
+- Las pruebas de planificación usan respuestas simuladas para comprobar que el modelo no puede aprobar bloques, alterar la captura original ni perder las negaciones. La generación por tandas identifica los avances por la transcripción, opciones y cortes del montaje. La generación remota y la recuperación de una sesión Aurora siguen pendientes de verificación.
+- El puente Python conservó sus 15 pruebas de contrato. El instalador Rust y la retirada completa del puente requieren completar las operaciones de Resolve y Aurora pendientes.

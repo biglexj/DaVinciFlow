@@ -185,7 +185,7 @@ pub(crate) fn invoke_json(
 
 // Seguir drenando incluso al superar el presupuesto evita bloquear o cortar al hijo
 // durante una escritura. Solo se conserva una cantidad acotada de salida.
-fn drain_bounded(mut stream: impl Read, limit: usize) -> std::io::Result<Vec<u8>> {
+pub(crate) fn drain_bounded(mut stream: impl Read, limit: usize) -> std::io::Result<Vec<u8>> {
     let mut retained = Vec::new();
     let mut buffer = [0u8; 8192];
     loop {
@@ -200,7 +200,7 @@ fn drain_bounded(mut stream: impl Read, limit: usize) -> std::io::Result<Vec<u8>
 }
 
 pub fn status() -> Result<ResolveStatus, String> {
-    let value = request("status", &[])?;
+    let value = crate::resolve_mcp::status()?;
     let running = value
         .get("running")
         .and_then(Value::as_bool)
@@ -235,16 +235,23 @@ pub fn subtitles(track: u32, first: u32, last: u32) -> Result<Document, String> 
 }
 
 pub fn capture(track: u32, first: u32, last: u32) -> Result<(Document, Value), String> {
-    let track = track.to_string();
-    let first = first.to_string();
-    let last = last.to_string();
-    let value = request(
-        "subtitles",
-        &[("track", &track), ("first", &first), ("last", &last)],
-    )?;
+    let value = match crate::resolve_mcp::capture(track, first, last)? {
+        Some(snapshot) => snapshot,
+        None => capture_legacy(track, first, last)?,
+    };
     let snapshot: ResolveSnapshot = serde_json::from_value(value.clone())
         .map_err(|_| "Resolve devolvió una captura de subtítulos inválida.")?;
     Ok((snapshot.try_into()?, value))
+}
+
+fn capture_legacy(track: u32, first: u32, last: u32) -> Result<Value, String> {
+    let track = track.to_string();
+    let first = first.to_string();
+    let last = last.to_string();
+    request(
+        "subtitles",
+        &[("track", &track), ("first", &first), ("last", &last)],
+    )
 }
 
 #[cfg(test)]

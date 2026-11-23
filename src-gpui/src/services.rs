@@ -1,6 +1,8 @@
 //! Servicios del proyecto vistos desde la ventana nativa: ajustes, IA, actualizaciones
-//! y catálogos. El trabajo pesado ocurre en Python; aquí solo se tipan las respuestas.
-use crate::bridge;
+//! y catálogos.
+use crate::{
+    bridge, editorial_config, release_check, sfx, templates as native_templates, text_provider,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -127,121 +129,37 @@ fn default_category() -> String {
 }
 
 #[derive(Deserialize)]
-struct ReleaseEnvelope {
-    release: Option<Release>,
-}
-
-#[derive(Deserialize)]
-struct ModelsEnvelope {
-    models: Vec<String>,
-}
-
-#[derive(Deserialize)]
-struct AssistantEnvelope {
-    text: String,
-}
-
-#[derive(Deserialize)]
-struct SfxEnvelope {
-    assets: Vec<SfxAsset>,
-}
-
-#[derive(Deserialize)]
 struct TemplatesEnvelope {
     templates: Vec<TemplateInfo>,
 }
 
-fn text(value: &Value, key: &str) -> String {
-    value
-        .get(key)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn preferences(value: &Value) -> EditorialPreferences {
-    let source = value.get("preferences").cloned().unwrap_or(Value::Null);
-    EditorialPreferences {
-        mode: text(&source, "mode"),
-        format: text(&source, "format"),
-        density: text(&source, "density"),
-        direction: text(&source, "direction"),
-        track_mode: text(&source, "track_mode"),
-        batch_size: text(&source, "batch_size"),
-    }
-}
-
 /// Estado actual del proveedor de IA, sus modelos y las preferencias editoriales.
 pub fn settings() -> Result<Settings, String> {
-    let value = bridge::invoke("services.py", "settings", &[])?;
-    let providers = value
-        .get("providers")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
-    let models = value
-        .get("models")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok(Settings {
-        provider: text(&value, "provider"),
-        model: text(&value, "model"),
-        has_key: value
-            .get("has_key")
-            .and_then(Value::as_bool)
-            .unwrap_or(false),
-        providers,
-        models,
-        preferences: preferences(&value),
-    })
+    editorial_config::settings(None)
 }
+
 pub fn settings_for(provider: &str) -> Result<Settings, String> {
-    let value = bridge::invoke("services.py", "settings", &[("provider", provider)])?;
-    serde_json::from_value(value)
-        .map_err(|_| "No se pudieron leer los ajustes de este proveedor.".into())
+    editorial_config::settings(Some(provider))
 }
 
 /// Catálogo de modelos de Gemini disponible con la credencial configurada.
 pub fn scan_models() -> Result<Vec<String>, String> {
-    let value = bridge::invoke("services.py", "scan_models", &[])?;
-    Ok(serde_json::from_value::<ModelsEnvelope>(value)
-        .map_err(|_| "El catálogo de modelos no se pudo leer.".to_string())?
-        .models)
+    text_provider::scan_models()
 }
 
 /// Consulta al asistente con el proveedor de IA configurado.
 pub fn assistant(prompt: &str) -> Result<String, String> {
-    let value = bridge::invoke("services.py", "assistant", &[("prompt", prompt)])?;
-    Ok(serde_json::from_value::<AssistantEnvelope>(value)
-        .map_err(|_| "La respuesta del asistente no se pudo leer.".to_string())?
-        .text)
+    text_provider::assistant(prompt)
 }
 
-/// Última release publicada; `None` si no hay red o no hay versión nueva.
+/// Última versión publicada en el canal oficial.
 pub fn release() -> Result<Option<Release>, String> {
-    let value = bridge::invoke("services.py", "release", &[])?;
-    Ok(serde_json::from_value::<ReleaseEnvelope>(value)
-        .map_err(|_| "La información de la release no se pudo leer.".to_string())?
-        .release)
+    release_check::latest()
 }
 
 /// Catálogo oficial de efectos de sonido.
 pub fn sfx_catalog() -> Result<Vec<SfxAsset>, String> {
-    let value = bridge::invoke("services.py", "sfx_catalog", &[])?;
-    Ok(serde_json::from_value::<SfxEnvelope>(value)
-        .map_err(|_| "El catálogo de efectos no se pudo leer.".to_string())?
-        .assets)
+    Ok(sfx::catalog())
 }
 
 /// Plantillas instaladas y básicas disponibles para las propuestas.
@@ -252,13 +170,14 @@ pub fn templates() -> Result<(Vec<TemplateInfo>, Vec<String>), String> {
 
 /// Catálogo completo de plantillas junto con presets y selección activa.
 pub fn template_catalog() -> Result<TemplateCatalog, String> {
-    let value = bridge::invoke("services.py", "templates", &[])?;
-    serde_json::from_value::<TemplateCatalog>(value)
-        .map_err(|_| "El catálogo de plantillas no se pudo leer.".to_string())
+    native_templates::catalog()
 }
 
 /// Lee los títulos disponibles en el Media Pool del proyecto activo de Resolve.
 pub fn project_templates() -> Result<Vec<TemplateInfo>, String> {
+    if let Some(templates) = crate::resolve_mcp::project_templates()? {
+        return Ok(templates);
+    }
     let value = bridge::invoke("services.py", "project_templates", &[])?;
     let parsed = serde_json::from_value::<TemplatesEnvelope>(serde_json::json!({
         "templates": value.get("templates").cloned().unwrap_or(Value::Array(vec![]))
@@ -269,6 +188,10 @@ pub fn project_templates() -> Result<Vec<TemplateInfo>, String> {
 
 /// Obtiene la imagen o animación de vista previa de una plantilla.
 pub fn template_preview(template: &TemplateInfo) -> Result<TemplatePreview, String> {
+    let preview = native_templates::preview(template)?;
+    if !preview.image.is_empty() || !preview.video.is_empty() {
+        return Ok(preview);
+    }
     let value = bridge::invoke_json(
         "services.py",
         "template_preview",
@@ -280,86 +203,27 @@ pub fn template_preview(template: &TemplateInfo) -> Result<TemplatePreview, Stri
 
 /// Guarda un preset de selección de plantillas.
 pub fn save_preset(name: &str, ids: &[String]) -> Result<(usize, Vec<String>), String> {
-    let value = bridge::invoke_json(
-        "services.py",
-        "save_preset",
-        serde_json::json!({"name": name, "ids": ids}),
-    )?;
-    let count = value["count"].as_u64().unwrap_or(0) as usize;
-    let presets = value["presets"]
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|v| v.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok((count, presets))
+    native_templates::save_preset(name, ids)
 }
 
 /// Activa un preset de plantillas guardado.
 pub fn use_preset(name: &str) -> Result<(usize, Vec<String>), String> {
-    let value = bridge::invoke_json(
-        "services.py",
-        "use_preset",
-        serde_json::json!({"name": name}),
-    )?;
-    let count = value["count"].as_u64().unwrap_or(0) as usize;
-    let selected = value["selected_ids"]
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|v| v.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok((count, selected))
+    native_templates::use_preset(name)
 }
 
 /// Aplica un pack rápido de plantillas por categoría.
 pub fn choose_pack(pack: &str) -> Result<(usize, Vec<String>), String> {
-    let value = bridge::invoke_json(
-        "services.py",
-        "choose_pack",
-        serde_json::json!({"pack": pack}),
-    )?;
-    let count = value["count"].as_u64().unwrap_or(0) as usize;
-    let selected = value["selected_ids"]
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|v| v.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok((count, selected))
+    native_templates::choose_pack(pack)
 }
 
 /// Asigna el nodo Text+ y su entrada de texto a las plantillas elegidas.
 pub fn assign_node(ids: &[String], text_tool: &str, text_input: &str) -> Result<usize, String> {
-    let value = bridge::invoke_json(
-        "services.py",
-        "assign_node",
-        serde_json::json!({
-            "ids": ids,
-            "text_tool": text_tool,
-            "text_input": text_input,
-        }),
-    )?;
-    Ok(value["assigned"].as_u64().unwrap_or(0) as usize)
+    native_templates::assign_node(ids, text_tool, text_input)
 }
 
 /// Guarda la clave API del proveedor indicado en la credencial estándar del usuario.
 pub fn save_key(provider: &str, key: &str) -> Result<(), String> {
-    bridge::invoke(
-        "services.py",
-        "save_key",
-        &[("provider", provider), ("key", key)],
-    )?;
-    Ok(())
+    editorial_config::save_key(provider, key)
 }
 
 /// Alinea y corrige los subtítulos con el guion y el glosario indicados.
@@ -371,31 +235,7 @@ pub fn align(
     glossary: &str,
     detect_markers: bool,
 ) -> Result<Alignment, String> {
-    let payload: Vec<Value> = cues
-        .iter()
-        .map(|(start, end, text)| {
-            serde_json::json!({
-                "text": text,
-                "start_frame": start,
-                "end_frame": end,
-                "track_index": 1,
-            })
-        })
-        .collect();
-    let cues = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
-    let detect = if detect_markers { "true" } else { "false" };
-    let value = bridge::invoke(
-        "services.py",
-        "align",
-        &[
-            ("cues", cues.as_str()),
-            ("script", script),
-            ("glossary", glossary),
-            ("detect_markers", detect),
-        ],
-    )?;
-    serde_json::from_value::<Alignment>(value)
-        .map_err(|_| "La corrección recibida no se pudo leer.".to_string())
+    crate::alignment::align(cues, script, glossary, detect_markers)
 }
 
 /// Inserta marcadores en la línea de tiempo activa de Resolve.
@@ -431,37 +271,15 @@ pub fn save_settings(
     model: &str,
     preferences: &EditorialPreferences,
 ) -> Result<(), String> {
-    bridge::invoke(
-        "services.py",
-        "save_settings",
-        &[
-            ("provider", provider),
-            ("model", model),
-            ("mode", preferences.mode.as_str()),
-            ("format", preferences.format.as_str()),
-            ("density", preferences.density.as_str()),
-            ("direction", preferences.direction.as_str()),
-            ("track_mode", preferences.track_mode.as_str()),
-            ("batch_size", preferences.batch_size.as_str()),
-        ],
-    )?;
-    Ok(())
+    editorial_config::save_settings(provider, model, preferences)
 }
 
-/// Sincroniza las carpetas y selecciones de la biblioteca con el motor Python.
+/// Sincroniza las carpetas y selecciones de la biblioteca con el motor editorial.
 pub fn sync_library(
     folders: &std::collections::BTreeMap<String, Vec<String>>,
     selected: &[String],
 ) -> Result<(), String> {
-    bridge::invoke_json(
-        "services.py",
-        "save_library",
-        serde_json::json!({
-            "folders": folders,
-            "selected": selected,
-        }),
-    )?;
-    Ok(())
+    editorial_config::sync_library(folders, selected)
 }
 
 /// Escribe los subtítulos en la pista nativa de subtítulos de DaVinci Resolve.

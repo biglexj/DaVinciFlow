@@ -9,11 +9,20 @@ description = "Aplicación nativa de escritorio de DaVinci Flow (Rust + GPUI)"
 [dependencies]
 gpui-kit = "=0.9.1"
 regex = "1"
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "query", "native-tls"] }
+semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
 unicode-normalization = "0.1"
 unicode-general-category = "1"
 walkdir = "2"
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Media_Audio", "Win32_Media_Speech", "Win32_System_Com"] }
+winreg = "0.56"
 
 [profile.dev]
 debug = 0

@@ -1,5 +1,5 @@
 //! Contratos tipados de descarga, vistas previas y voz.
-use crate::bridge;
+use crate::{bridge, editorial_config, native_media, system_voice};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -64,16 +64,24 @@ fn request<T: serde::de::DeserializeOwned>(operation: &str, args: Value) -> Resu
         .map_err(|_| "El servicio de medios devolvió una respuesta inválida.".into())
 }
 pub fn analyze(url: &str) -> Result<MediaInfo, String> {
-    request("fetch_analyze", json!({"url":url}))
+    native_media::analyze(url)
 }
 pub fn download(url: &str, kind: &str, directory: &str, import: bool) -> Result<Download, String> {
     if !matches!(kind, "video" | "audio") {
         return Err("Tipo de medio desconocido.".into());
     }
-    request(
-        "fetch_download",
-        json!({"url":url,"kind":kind,"directory":directory,"import":import}),
-    )
+    let mut result = native_media::download(url, kind, directory)?;
+    if import {
+        match self::import(&result.path) {
+            Ok(receipt) if receipt["success"] == true => {
+                result.imported = true;
+                result.resolve_bin = receipt["detail"].as_str().unwrap_or_default().into();
+            }
+            Ok(_) => result.message = "Resolve no confirmó la importación.".into(),
+            Err(error) => result.message = format!("Falló la importación en Resolve. {error}"),
+        }
+    }
+    Ok(result)
 }
 fn path(operation: &str, args: Value) -> Result<PathBuf, String> {
     let value: Value = request(operation, args)?;
@@ -88,30 +96,69 @@ fn path(operation: &str, args: Value) -> Result<PathBuf, String> {
     Ok(path)
 }
 pub fn preview(source: &Path) -> Result<PathBuf, String> {
-    path("preview", json!({"path":source}))
+    native_media::preview(source)
 }
 pub fn import(source: &Path) -> Result<Value, String> {
+    let extension = source
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let category = if matches!(
+        extension.as_str(),
+        "wav" | "mp3" | "flac" | "m4a" | "aac" | "ogg"
+    ) {
+        "Música"
+    } else {
+        "Videos"
+    };
+    if let Some(bin) = crate::resolve_mcp::import_media(source, &["Luna Fetch", category])? {
+        return Ok(json!({"success":true,"detail":bin}));
+    }
     request("import_media", json!({"path":source}))
 }
 pub fn import_voice(source: &Path) -> Result<Value, String> {
+    let source = validate_voice(source)?;
+    if let Some(bin) = crate::resolve_mcp::import_media(&source, &["DaVinci Flow · Voces"])? {
+        return Ok(json!({"success":true,"detail":format!("Audio importado en {bin}")}));
+    }
     request("import_media", json!({"path":source,"voice_bin":true}))
 }
 pub fn validate_voice(source: &Path) -> Result<PathBuf, String> {
-    path("voice_validate", json!({"path":source}))
-}
-pub fn play_sound(source: &Path) -> Result<bool, String> {
-    let value: Value = request("play_sound", json!({"path":source}))?;
-    Ok(value["playing"].as_bool().unwrap_or(false))
-}
-pub fn stop_sound() -> Result<(), String> {
-    let _: Value = request("stop_sound", json!({}))?;
-    Ok(())
+    native_media::validate_voice(source)
 }
 pub fn sfx(id: &str) -> Result<PathBuf, String> {
-    path("sfx_file", json!({"id":id}))
+    crate::sfx::file(id)
 }
 pub fn voices() -> Result<VoiceCatalog, String> {
-    request("voice_catalog", json!({}))
+    let mut catalog = if editorial_config::data_dir()
+        .join("account/session.bin")
+        .is_file()
+    {
+        request("voice_catalog", json!({"include_system":false})).unwrap_or_else(|error| {
+            VoiceCatalog {
+                warnings: vec![format!("No se confirmó el acceso a Aurora. {error}")],
+                ..Default::default()
+            }
+        })
+    } else {
+        VoiceCatalog::default()
+    };
+    let system = system_voice::voices().unwrap_or_else(|error| {
+        catalog.warnings.push(error);
+        Vec::new()
+    });
+    let available = !system.is_empty();
+    catalog.voices.splice(0..0, system);
+    catalog.engines.insert(
+        0,
+        VoiceEngine {
+            id: "system".into(),
+            name: "Voces del sistema · Gratis".into(),
+            available,
+        },
+    );
+    Ok(catalog)
 }
 pub fn login_with(provider: &str) -> Result<String, String> {
     let value: Value = request("voice_login", json!({"provider":provider}))?;
@@ -128,8 +175,9 @@ pub fn cancel_login() -> Result<(), String> {
     Ok(())
 }
 pub fn callback_ready() -> Result<bool, String> {
-    let value: Value = request("voice_callback_ready", json!({}))?;
-    Ok(value["ready"].as_bool().unwrap_or(false))
+    Ok(editorial_config::data_dir()
+        .join("account/callback.bin")
+        .is_file())
 }
 pub fn complete_login() -> Result<(), String> {
     let _: Value = request("voice_complete", json!({}))?;
@@ -140,6 +188,10 @@ pub fn logout() -> Result<(), String> {
     Ok(())
 }
 pub fn quote(text: &str, voice: &Voice) -> Result<u64, String> {
+    if voice.provider == "system" {
+        system_voice::available(&voice.id)?;
+        return Ok(0);
+    }
     let value: Value = request(
         "voice_quote",
         json!({"text":text,"voice":voice.id,"provider":voice.provider}),
@@ -149,6 +201,13 @@ pub fn quote(text: &str, voice: &Voice) -> Result<u64, String> {
         .ok_or("No se pudo confirmar el consumo de voz.".into())
 }
 pub fn generate(text: &str, voice: &Voice, max_cost: u64) -> Result<PathBuf, String> {
+    if voice.provider == "system" {
+        return system_voice::generate(
+            text,
+            &voice.id,
+            &editorial_config::data_dir().join("gpui/voice"),
+        );
+    }
     path(
         "voice_generate",
         json!({"text":text,"voice":voice.id,"provider":voice.provider,"max_cost":max_cost}),

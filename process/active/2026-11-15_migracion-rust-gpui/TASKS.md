@@ -40,3 +40,16 @@
 - [ ] Validar aplicación/deshacer reales sobre una secuencia de prueba de Resolve.
 - [ ] Validar acceso/retorno y generación remota de Aurora con el usuario.
 - [ ] Aceptación visual y funcional de Biglex e integración final en el instalador.
+
+## Consolidación de Rust del 2026-11-22
+
+- [x] Conservar Flet 1.0.0 en la rama remota `v-python` y mantener `mise dev py` como su entrada.
+- [x] Migrar ajustes, credenciales por proveedor, asistente, corrección por lotes y consulta de actualizaciones.
+- [x] Migrar propuesta editorial estándar y avance por tandas. Recuperar avances compatibles y conservar la transcripción corregida como entrada.
+- [x] Migrar catálogo local y presets de plantillas, muestras de paquetes DRFX y síntesis WAV de SFX.
+- [x] Ejecutar Luna Fetch y la extracción de fotogramas desde Rust. Sintetizar voces locales con SAPI.
+- [x] Conectar Rust directamente al MCP oficial para estado, lectura de subtítulos, inventario del Media Pool e importación.
+- [ ] Verificar captura con subtítulos e importación sobre un proyecto de prueba de Resolve.
+- [ ] Migrar el modo experimental `Decisiones`, la generación de miniaturas en Resolve y la escritura editorial, incluidos marcadores, subtítulos, aplicación y reversión.
+- [ ] Migrar autenticación, generación y recuperación de voz de Aurora.
+- [ ] Consolidar el instalador Rust y retirar los adaptadores y herramientas Python de la edición activa cuando pasen las pruebas de paridad.

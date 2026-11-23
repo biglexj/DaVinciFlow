@@ -126,8 +126,9 @@ def execute(operation, args):
         from davinci_flow.voice.system_tts import system_voices
         from davinci_flow.voice.catalog import normalize_catalog
         voice = client()
-        voices = system_voices()
-        engines = [{'id': 'system', 'name': 'Voces del sistema · Gratis', 'available': bool(voices)}]
+        include_system = args.get('include_system', True)
+        voices = system_voices() if include_system else []
+        engines = [{'id': 'system', 'name': 'Voces del sistema · Gratis', 'available': bool(voices)}] if include_system else []
         result = {
             'authenticated': False,
             'user': '',

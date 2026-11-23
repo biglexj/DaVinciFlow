@@ -102,7 +102,9 @@ impl FlowApp {
         let batch_size = self.editor_batch_size.clone();
         let library_preferences = self.preferences.clone();
         let selected_templates = self.catalog_selected.clone();
-        let existing_proposal = self.proposal.clone();
+        let existing_proposal = (self.proposal_input == editorial::document_revision(&document))
+            .then(|| self.proposal.clone())
+            .flatten();
         let resolve_running = self.resolve.as_ref().is_some_and(|r| r.running);
         let cached_project_templates: Vec<services::TemplateInfo> = self
             .templates
@@ -191,20 +193,13 @@ impl FlowApp {
                 } else {
                     templates = filtered;
                 }
-                let base = if let Some(existing) = existing_proposal
-                    && matches!(mode, ProposalMode::BatchNext)
-                    && existing.decisions.len() == document.cues.len()
-                {
-                    existing
-                } else {
-                    editorial::Proposal::direct(
-                        &document,
-                        capture.as_ref(),
-                        templates,
-                        fps,
-                        options,
-                    )?
-                };
+                let base = editorial::Proposal::direct(
+                    &document,
+                    capture.as_ref(),
+                    templates,
+                    fps,
+                    options,
+                )?;
                 match mode {
                     ProposalMode::Direct => {
                         Ok((base, editorial::document_revision(&document), None))
@@ -218,7 +213,8 @@ impl FlowApp {
                         Ok((generated, editorial::document_revision(&document), None))
                     }
                     ProposalMode::BatchNext => {
-                        let progress = editorial::batch_next(&base, &batch_size)?;
+                        let progress =
+                            editorial::batch_next(&base, &batch_size, existing_proposal.as_ref())?;
                         let p = progress.proposal.clone();
                         Ok((p, editorial::document_revision(&document), Some(progress)))
                     }
