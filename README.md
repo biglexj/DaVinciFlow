@@ -1,6 +1,6 @@
 # DaVinci Flow
 
-Esta es la edición Python/Flet de DaVinci Flow 1.0.0, en la rama `Python`. Se abre con `mise dev py`. En la rama `main`, `mise dev` inicia la edición Rust + GPUI.
+Esta es la edición Python/Flet de DaVinci Flow 1.0.0, en la rama `v-python`. Se abre con `mise dev`. En la rama `main`, `mise dev` inicia la edición Rust + GPUI.
 
 DaVinci Flow es una automatización modular en Python para DaVinci Resolve 21. Su flujo editorial parte de una biblioteca de títulos nativos y presets elegidos: transcripción → propuesta → revisión → aplicación de títulos Text+ editables. Luna Fetch complementa ese flujo incorporando medios al Media Pool.
 
@@ -97,7 +97,7 @@ DaVinci Flow implementa la interfaz universal de tareas mediante Mise:
 | Tarea | Propósito |
 |---|---|
 | `mise setup` | Preparar `.venv` con `uv` e instalar el lanzador en DaVinci Resolve. |
-| `mise dev py` | Iniciar el entorno de desarrollo Python/Flet. |
+| `mise dev` | Iniciar el entorno de desarrollo Python/Flet. |
 | `mise build` | Verificar sintaxis y generar los paquetes Python en `dist/`, sin instalador. |
 | `mise check` | Verificar sintaxis, importación y contratos de los scripts, sin artefactos. |
 | `mise test` | Ejecutar las pruebas unitarias. |
@@ -105,7 +105,7 @@ DaVinci Flow implementa la interfaz universal de tareas mediante Mise:
 | `mise publish` | Publicar la release en GitHub Releases; exige autorización explícita (`--yes`). |
 
 Opciones de inspección y comprobación:
-- `--plan`: Muestra el comando y las operaciones planificadas (`mise dev py --plan`, `mise release --plan`, `mise publish --plan`).
+- `--plan`: Muestra el comando y las operaciones planificadas (`mise dev --plan`, `mise release --plan`, `mise publish --plan`).
 - `--check`: (para `publish`) Verifica el estado del repositorio, tags, notas y la presencia e integridad del instalador en `release/` sin publicar nada (`mise publish --check`).
 - `--yes`: (para `publish`) Autoriza de forma explícita la publicación en GitHub Releases (`mise publish --yes`). Sin esta opción la tarea no publica y muestra el plan.
 
@@ -115,7 +115,7 @@ La publicación usa GitHub Releases como fuente de distribución. La sincronizac
 
 ```powershell
 mise setup     # equivalente a ./scripts/setup-desktop.ps1
-mise dev py    # interfaz Python/Flet
+mise dev    # interfaz Python/Flet
 ```
 
 La preparación utiliza `.venv` y actualiza el acceso **Área de trabajo → Secuencias de comandos → DaVinci Flow**. El menú de Resolve, `--ui` y `--editorial-ui` abren la misma ventana Flet; una segunda apertura trae la primera al frente.

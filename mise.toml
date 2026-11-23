@@ -9,7 +9,7 @@ file = "scripts/mise-task.ts"
 
 [tasks.dev]
 raw_args = true
-description = "Abrir DaVinci Flow Python/Flet con mise dev py"
+description = "Abrir DaVinci Flow Python/Flet con mise dev"
 file = "scripts/mise-task.ts"
 
 [tasks.build]

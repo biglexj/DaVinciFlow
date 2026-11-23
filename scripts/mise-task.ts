@@ -116,7 +116,7 @@ const IMPORT_SMOKE = [
 
 const help = `DaVinci Flow: mise <setup|dev|build|check|test|release|publish> [opciones]
   setup    Preparar .venv con uv e instalar el lanzador en DaVinci Resolve.
-  dev py   Abrir la interfaz Python/Flet de esta rama.
+  dev      Abrir la interfaz Python/Flet de esta rama.
   build    Verificar sintaxis y generar los paquetes Python en dist/.
   check    Verificar sintaxis, importacion y contratos, sin generar artefactos.
   test     Ejecutar las pruebas unitarias.
@@ -128,7 +128,7 @@ const help = `DaVinci Flow: mise <setup|dev|build|check|test|release|publish> [o
 
 Ejemplos:
   mise setup
-  mise dev py --plan
+  mise dev --plan
   mise build --plan
   mise check --plan
   mise test --plan
@@ -297,11 +297,7 @@ export async function main(args = Bun.argv.slice(2)): Promise<number> {
         return handlePublish(rest);
     }
 
-    if (action === "dev" && rest[0] !== "py") {
-        console.error("Usa 'mise dev py' para Python. 'mise dev' abre GPUI desde la rama main.");
-        return 1;
-    }
-    assertOpciones(action, action === "dev" ? rest.slice(1) : rest, ["--plan"]);
+    assertOpciones(action, rest, ["--plan"]);
     const isPlan = rest.includes("--plan");
 
     if (action === "setup") {
